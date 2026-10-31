@@ -29,6 +29,13 @@ import { LIMITS, consumeAddressLimit } from "@/lib/rate-limit";
  */
 
 export const GUEST_COOKIE = "outage_guest_id";
+/**
+ * What this server mints. The prefix matters: it keeps a cookie value from ever
+ * looking like a user id, so a hand-written cookie holding someone's UUID cannot
+ * read their "confirmed by me" state or, if a session could not be created,
+ * write as them.
+ */
+const GUEST_ID = /^guest_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const GUEST_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
 export interface Identity {
@@ -93,7 +100,7 @@ function userIdentity(user: SessionUser): Identity {
 async function readOrCreateGuestCookie(): Promise<string> {
   const store = await cookies();
   const existing = store.get(GUEST_COOKIE)?.value;
-  if (existing) return existing;
+  if (existing && GUEST_ID.test(existing)) return existing;
 
   const fresh = `guest_${randomUUID()}`;
   try {

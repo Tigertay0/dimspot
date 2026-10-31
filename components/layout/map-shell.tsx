@@ -137,7 +137,7 @@ export function MapShell() {
     } else if (result === "confirmed") {
       toast({
         title: "Email confirmed",
-        description: "Your account is ready. You are signed in on this device.",
+        description: "Your account is ready. Sign in with your email and password on any device.",
       });
       queryClient.invalidateQueries();
     }

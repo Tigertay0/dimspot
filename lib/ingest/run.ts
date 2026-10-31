@@ -38,6 +38,8 @@ export interface IngestReport {
   ran: string;
   sources: SourceReport[];
   advisoriesPruned: number;
+  /** Expired sessions, tokens and rate-limit rows cleared this run. */
+  staleRowsPruned: number;
   outagesResolved: number;
 }
 
@@ -297,10 +299,22 @@ export async function runIngest(): Promise<IngestReport> {
     );
   }
 
+  let staleRowsPruned = 0;
+  try {
+    const [row] = await query<{ removed: number }>("SELECT prune_stale_rows() AS removed");
+    staleRowsPruned = row?.removed ?? 0;
+  } catch (error) {
+    console.error(
+      "[ingest] prune_stale_rows failed:",
+      error instanceof Error ? error.message : error,
+    );
+  }
+
   return {
     ran: new Date().toISOString(),
     sources: reports,
     advisoriesPruned,
+    staleRowsPruned,
     outagesResolved,
   };
 }

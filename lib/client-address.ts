@@ -38,6 +38,33 @@ export function clientAddress(source: Request | Headers): string | null {
 }
 
 /**
+ * The part of an address that identifies one client.
+ *
+ * An IPv4 address is one client (or one NAT). A single IPv6 host is routinely
+ * handed a whole /64, so bucketing by the full address would give it a fresh
+ * bucket for every request; it is keyed by its /64 instead, as Better Auth's
+ * own limiter does.
+ */
+export function networkKey(address: string): string {
+  const bare = address.replace(/%.*$/, "").toLowerCase();
+  if (!bare.includes(":")) return bare;
+
+  const mapped = bare.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/);
+  if (mapped) return mapped[1]!;
+
+  const halves = bare.split("::");
+  if (halves.length > 2) return bare;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const missing = 8 - head.length - tail.length;
+  if (missing < 0 || (halves.length === 1 && missing !== 0)) return bare;
+
+  const groups = [...head, ...Array<string>(missing).fill("0"), ...tail];
+  if (!groups.every((g) => /^[0-9a-f]{1,4}$/.test(g))) return bare;
+  return `${groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "")).join(":")}::/64`;
+}
+
+/**
  * Stable, non-reversible bucket key for an address.
  *
  * Salted so the hashes are not a rainbow-table lookup away from the addresses
@@ -46,8 +73,9 @@ export function clientAddress(source: Request | Headers): string | null {
  * retained beyond the rate-limit window.
  */
 export function addressBucket(prefix: string, source: Request | Headers): string | null {
-  const address = clientAddress(source);
-  if (!address) return null;
+  const raw = clientAddress(source);
+  if (!raw) return null;
+  const address = networkKey(raw);
 
   const salt = process.env.RATE_LIMIT_SALT ?? "outage-tracker";
   const digest = createHash("sha256")

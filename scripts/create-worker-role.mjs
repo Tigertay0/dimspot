@@ -39,6 +39,11 @@ try {
     await client.query(`create role ${ROLE} with login inherit nosuperuser nocreaterole nocreatedb nobypassrls password ${pw}`);
   }
   await client.query(`grant outage_app to ${ROLE}`);
+  // The client-side query timeout only stops waiting; these stop the server
+  // holding row locks for a Worker request that has already gone away.
+  await client.query(`alter role ${ROLE} set statement_timeout = '20s'`);
+  await client.query(`alter role ${ROLE} set lock_timeout = '5s'`);
+  await client.query(`alter role ${ROLE} set idle_in_transaction_session_timeout = '15s'`);
   await client.query(`grant connect on database ${client.escapeIdentifier(client.database)} to ${ROLE}`);
   renameSync(tmp, out);
   console.log(`${exists ? "rotated" : "created"} ${ROLE}; connection string written to ${out}`);

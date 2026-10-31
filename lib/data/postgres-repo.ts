@@ -385,11 +385,14 @@ export class PostgresRepository implements Repository {
     // people agree to actually change the status.
     try {
       await transaction(async (client) => {
-        await client.query(
+        const vote = await client.query(
           `INSERT INTO outage_resolutions (outage_id, user_id) VALUES ($1, $2)
-           ON CONFLICT (outage_id, user_id) DO NOTHING`,
+           ON CONFLICT (outage_id, user_id) DO NOTHING
+           RETURNING id`,
           [id, identity],
         );
+        // Only a new vote goes on the timeline; repeats would just spam it.
+        if (vote.rowCount === 0) return;
         await client.query(
           `INSERT INTO outage_comments (outage_id, user_id, comment, comment_type)
            VALUES ($1, $2, 'Service is back for me.', 'resolution')`,

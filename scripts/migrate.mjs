@@ -29,6 +29,10 @@ function databaseUrl() {
 const client = new pg.Client({ connectionString: databaseUrl() });
 await client.connect();
 try {
+  // One runner at a time; a second waits here instead of failing midway.
+  await client.query("select pg_advisory_lock(hashtext('outage-app migrations'))");
+  // A schema change waits at most this long behind live traffic, then fails.
+  await client.query("set lock_timeout = '10s'");
   await client.query(
     "create table if not exists public._migrations (name text primary key, applied_at timestamptz not null default now())",
   );
@@ -47,7 +51,7 @@ try {
       console.log(`applied ${file}`);
       ran++;
     } catch (err) {
-      await client.query("rollback");
+      await client.query("rollback").catch(() => undefined);
       throw new Error(`${file} failed: ${err.message}`);
     }
   }

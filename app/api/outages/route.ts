@@ -75,15 +75,16 @@ export async function GET(request: NextRequest) {
       : undefined;
 
     const limitRaw = Number(params.get("limit"));
+    // Whole numbers only: both go to INTEGER parameters.
     const limit =
-      Number.isFinite(limitRaw) && limitRaw > 0
-        ? Math.min(limitRaw, 2000)
+      Number.isFinite(limitRaw) && limitRaw >= 1
+        ? Math.min(Math.trunc(limitRaw), 2000)
         : 1000;
 
     const resolvedRaw = Number(params.get("resolvedHours"));
     const includeResolvedHours =
       Number.isFinite(resolvedRaw) && resolvedRaw > 0
-        ? Math.min(resolvedRaw, 24 * 90)
+        ? Math.min(Math.ceil(resolvedRaw), 24 * 90)
         : 0;
 
     const outages = await getRepository().listOutages({

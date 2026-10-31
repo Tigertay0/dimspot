@@ -1,7 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { PostgresRepository } from "@/lib/data/postgres-repo";
-import { InvalidInputError } from "@/lib/data/repository";
-import { DEFAULT_PREFERENCES } from "@/lib/data/repository";
+import { DEFAULT_PREFERENCES, InvalidInputError } from "@/lib/data/repository";
 import { query } from "@/lib/db";
 import { removeSubscription, saveSubscription } from "@/lib/push";
 import type { CreateOutageInput } from "@/lib/types";
@@ -79,6 +78,29 @@ describe("PostgresRepository ownership", () => {
     });
   });
 
+  it("counts simultaneous confirmations exactly, without deadlocking", async () => {
+    const reporter = await newGuest();
+    const outage = await reportAs(reporter.id);
+    const others = await Promise.all(Array.from({ length: 4 }, () => newGuest()));
+
+    // Four at once: the pool allows five connections per request.
+    const counts = await Promise.all(others.map((g) => repo.confirmOutage(outage.id, g.id)));
+
+    expect(counts.every((n) => typeof n === "number")).toBe(true);
+    expect((await repo.getOutage(outage.id, reporter.id))?.verificationCount).toBe(5);
+  });
+
+  it("puts one 'service is back' comment on the timeline per person", async () => {
+    const [a, b] = await Promise.all([newGuest(), newGuest()]);
+    const outage = await reportAs(a.id);
+
+    await repo.resolveOutage(outage.id, b.id);
+    await repo.resolveOutage(outage.id, b.id);
+
+    const detail = await repo.getOutage(outage.id, b.id);
+    expect(detail?.comments.filter((c) => c.commentType === "resolution")).toHaveLength(1);
+  });
+
   it("treats a vote as a vote: two people, or the reporter, resolve an outage", async () => {
     const [a, b, c] = await Promise.all([newGuest(), newGuest(), newGuest()]);
 
@@ -101,7 +123,7 @@ describe("PostgresRepository ownership", () => {
     }
   });
 
-  it("refuses a write from an identity with no users row", async () => {
+  it("refuses a write from a cookie-only guest id", async () => {
     const owner = await newGuest();
     const outage = await reportAs(owner.id);
 

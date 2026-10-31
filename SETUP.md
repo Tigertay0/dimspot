@@ -86,6 +86,8 @@ What the migrations contain:
   `consume_rate_limit`, `push_targets`, `prune_expired_advisories`).
 - `0003_app_role.sql`: the `outage_app` group role the Worker's login belongs to.
 - `0004_seed_providers.sql`: the providers the filters and report form offer.
+- `0005_review_fixes.sql`: deadlock-free confirmation triggers, function
+  privileges, index cleanup, `prune_stale_rows`.
 
 There is no row level security. Only the app's server code reaches the database,
 and [`lib/data/postgres-repo.ts`](lib/data/postgres-repo.ts) scopes every write
@@ -158,7 +160,10 @@ Better Auth, configured in [`lib/auth.ts`](lib/auth.ts):
   existing user rather than making a new one, so the id, and with it every
   report, confirmation, comment, preference and push subscription, stays put.
   The account becomes permanent when the address is confirmed; until then the
-  visitor carries on as a guest. The link works on any device.
+  visitor carries on as a guest. The browser that created the account is
+  signed in to it from then on; opening the link elsewhere does not sign that
+  browser in (the link proves the inbox, not the password), so other devices
+  sign in with the password.
 - **Signing in to a different account** replaces the guest session; the guest's
   history stays with the guest, as the account sheet says.
 - **Password reset** emails a one-hour, single-use link that lands on the map
@@ -166,7 +171,12 @@ Better Auth, configured in [`lib/auth.ts`](lib/auth.ts):
 
 Only these auth endpoints are reachable from a browser: session, sign-in,
 sign-out, email verification and password reset. Sign-up and anonymous sign-in
-are server-only. Sessions last a year and renew while in use.
+are server-only. Sessions last a year and renew while in use, and store no IP
+address or user agent.
+
+Limits: 30 new guests an hour per client address (IPv6 counted per /64), five
+account emails an hour per recipient however they were triggered, and Better
+Auth's own limits on sign-in and reset requests.
 
 `BETTER_AUTH_SECRET` signs sessions and email links. Generate one with:
 
@@ -253,7 +263,8 @@ On the live site a **Cron Trigger** runs it every 20 minutes (`triggers` in
 through the app itself, so it gets the same Hyperdrive and env as any other
 request. Runs are logged as `[cron] ingest …` in the Worker's logs.
 
-Each run wakes the Neon compute, which then idles down after five minutes, so a
+Each run also clears expired sessions, spent email tokens and old rate-limit
+rows (`prune_stale_rows`). Each run wakes the Neon compute, which then idles down after five minutes, so a
 20-minute schedule keeps it up about a quarter of the time — well inside the
 free plan's compute hours.
 

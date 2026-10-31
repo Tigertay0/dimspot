@@ -97,6 +97,13 @@ export async function createAccount(
     return { signedIn: false, email, upgraded: true };
   }
 
+  // Better Auth answers a duplicate sign-up with a generic success while
+  // verification is required, which would leave the person waiting for an
+  // email that never comes. The upgrade path says so; this one should too.
+  if (await (await auth.$context).internalAdapter.findUserByEmail(email)) {
+    throw new EmailTakenError();
+  }
+
   try {
     await auth.api.signUpEmail({
       body: { email, password: input.password, name: "Neighbor", callbackURL: VERIFIED_CALLBACK },

@@ -1,12 +1,14 @@
 import "server-only";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { betterAuth } from "better-auth";
+import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { anonymous } from "better-auth/plugins";
+import { createHash } from "node:crypto";
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "./constants";
 import { getPool } from "./db";
-import { linkEmail, sendEmail } from "./email";
+import { linkEmail, sendEmail, type OutgoingEmail } from "./email";
+import { LIMITS, consumeRateLimit } from "./rate-limit";
 
 /**
  * Accounts (PRD section 4.3), on Better Auth with users stored in the app's
@@ -52,6 +54,25 @@ const lockDownAuth = createAuthMiddleware(async (ctx) => {
   }
 });
 
+/**
+ * Sends an account email unless that inbox has had too many lately.
+ *
+ * Every path that emails someone (sign-up, an unconfirmed sign-in, a reset
+ * request) can be triggered by a stranger, and the per-address limits do not
+ * stop several addresses aiming at one inbox. Keyed on a hash of the
+ * recipient, so the address itself is never stored.
+ */
+async function sendAccountEmail(mail: OutgoingEmail): Promise<void> {
+  const recipient = createHash("sha256").update(mail.to.toLowerCase()).digest("hex").slice(0, 32);
+  const { limit, windowMs } = LIMITS.accountEmailPerRecipient;
+  const allowed = await consumeRateLimit(`email:to:${recipient}`, limit, windowMs);
+  if (!allowed.allowed) {
+    console.warn("[auth] account email skipped: recipient over its hourly limit");
+    return;
+  }
+  await sendEmail(mail);
+}
+
 /** Lets an email go out after the response, so its timing reveals nothing. */
 function inBackground(promise: Promise<unknown>): void {
   const logged = promise.catch((error) =>
@@ -74,10 +95,11 @@ function baseURL(): string {
   return url || "http://localhost:3000";
 }
 
-function createAuth() {
+/** The full configuration; exported so tests can check it against the schema. */
+export function authOptions() {
   const url = baseURL();
 
-  return betterAuth({
+  return {
     appName: "Outage Tracker",
     baseURL: url,
     basePath: "/api/auth",
@@ -124,7 +146,7 @@ function createAuth() {
       maxPasswordLength: MAX_PASSWORD_LENGTH,
       revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user, url: link }) => {
-        await sendEmail(
+        await sendAccountEmail(
           linkEmail(
             user.email,
             "Reset your Outage Tracker password",
@@ -139,10 +161,16 @@ function createAuth() {
     emailVerification: {
       sendOnSignUp: true,
       sendOnSignIn: true,
-      autoSignInAfterVerification: true,
+      // Off on purpose. The link goes to whoever owns the address, but the
+      // account it confirms was set up by whoever typed the address in — so
+      // signing the clicker in could put a stranger's browser into an account
+      // someone else holds the password to. The person who created the account
+      // is already signed in on their own device (it is the same user), and
+      // anywhere else they sign in with their password.
+      autoSignInAfterVerification: false,
       expiresIn: DAY,
       sendVerificationEmail: async ({ user, url: link }) => {
-        await sendEmail(
+        await sendAccountEmail(
           linkEmail(
             user.email,
             "Confirm your Outage Tracker account",
@@ -156,6 +184,14 @@ function createAuth() {
     },
 
     databaseHooks: {
+      session: {
+        create: {
+          // PRD 6.3 asks for minimal personal data, and nothing reads these.
+          before: async (session) => ({
+            data: { ...session, ipAddress: null, userAgent: null },
+          }),
+        },
+      },
       user: {
         update: {
           // Confirming the address is what makes an upgraded guest a full
@@ -208,7 +244,11 @@ function createAuth() {
       }),
       nextCookies(), // must stay last
     ],
-  });
+  } satisfies BetterAuthOptions;
+}
+
+function createAuth() {
+  return betterAuth(authOptions());
 }
 
 export type Auth = ReturnType<typeof createAuth>;

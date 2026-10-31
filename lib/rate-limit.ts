@@ -172,6 +172,8 @@ export const LIMITS = {
    * Supabase Auth allowed for anonymous sign-ins.
    */
   guestSessionByAddress: { limit: 30, windowMs: 60 * 60 * 1000 },
+  /** Account emails one inbox may receive, however they were triggered. */
+  accountEmailPerRecipient: { limit: 5, windowMs: 60 * 60 * 1000 },
   /** Each attempt can email an address of the caller's choosing. */
   createAccount: { limit: 5, windowMs: 60 * 60 * 1000 },
   createAccountByAddress: { limit: 10, windowMs: 60 * 60 * 1000 },

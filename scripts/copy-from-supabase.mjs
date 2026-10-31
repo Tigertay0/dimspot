@@ -12,7 +12,9 @@
 // person; their old sessions do not carry over.
 //
 // Not copied: rate_limit_events (expire within the hour) and schema_version
-// (replaced by _migrations). Prints counts only, never credentials.
+// (replaced by _migrations). Prints counts only, never credentials. For the
+// final run, stop writes on the old site first: rows added while it pages
+// through a table can be missed (the count check then fails, loudly).
 import { readFileSync } from "node:fs";
 import pg from "pg";
 
@@ -144,7 +146,21 @@ try {
       `SELECT count(*)::int AS present FROM ${name} WHERE id = ANY($1::uuid[])`,
       [ids],
     );
-    report.push({ table: name, source: rows.length, inserted: written, inNeon });
+    // An official outage Neon's own ingest already holds (same feed and feed
+    // id, different row id) is covered, not lost.
+    let covered = inNeon;
+    if (name === "outages") {
+      const { rows: [{ superseded }] } = await client.query(
+        `SELECT count(*)::int AS superseded
+         FROM jsonb_to_recordset($1::jsonb) AS r(id uuid, source_name text, source_id text)
+         WHERE r.source_name IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM outages o WHERE o.id = r.id)
+           AND EXISTS (SELECT 1 FROM outages o WHERE o.source_name = r.source_name AND o.source_id = r.source_id)`,
+        [JSON.stringify(rows.map(({ id, source_name, source_id }) => ({ id, source_name, source_id })))],
+      );
+      covered += superseded;
+    }
+    report.push({ table: name, source: rows.length, inserted: written, inNeon: covered });
   }
 } finally {
   await client.end();

@@ -1,5 +1,5 @@
+import pg from "pg";
 import { getAuth } from "@/lib/auth";
-import { query } from "@/lib/db";
 
 /** Rows this test run created, removed by cleanup(). */
 const created = { users: new Set<string>(), outages: new Set<string>() };
@@ -42,14 +42,31 @@ export function uniqueEmail(label: string): string {
   return `outage-test-${label}-${crypto.randomUUID().slice(0, 8)}@example.com`;
 }
 
+/**
+ * Runs `work` as the branch owner. The app's own login may not delete users or
+ * touch providers (db/migrations/0005_review_fixes.sql), so tests clean up and
+ * inspect privileges with this instead.
+ */
+export async function asOwner<T>(work: (client: pg.Client) => Promise<T>): Promise<T> {
+  const url = process.env.MIGRATION_DATABASE_URL;
+  if (!url) throw new Error("Set MIGRATION_DATABASE_URL (dev branch owner) for the database tests.");
+  const client = new pg.Client({ connectionString: url });
+  await client.connect();
+  try {
+    return await work(client);
+  } finally {
+    await client.end();
+  }
+}
+
 export async function cleanup(): Promise<void> {
-  // Outages first: deleting a user only nulls reported_by on its reports.
-  if (created.outages.size > 0) {
-    await query("DELETE FROM outages WHERE id = ANY($1::uuid[])", [[...created.outages]]);
-  }
-  if (created.users.size > 0) {
-    await query("DELETE FROM users WHERE id = ANY($1::uuid[])", [[...created.users]]);
-  }
+  const outages = [...created.outages];
+  const users = [...created.users];
   created.outages.clear();
   created.users.clear();
+  await asOwner(async (client) => {
+    // Outages first: deleting a user only nulls reported_by on its reports.
+    if (outages.length > 0) await client.query("DELETE FROM outages WHERE id = ANY($1::uuid[])", [outages]);
+    if (users.length > 0) await client.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [users]);
+  });
 }

@@ -40,10 +40,21 @@ function localDatabaseUrl(): string | null {
   return url ? url : null;
 }
 
-/** Whether there is a database to talk to, or the demo store should be used. */
+/**
+ * Whether there is a database to talk to, or the demo store should be used.
+ *
+ * On the live Worker the answer is always yes: a missing binding is a broken
+ * deploy, and quietly falling back to the in-memory store would accept reports
+ * and then lose them.
+ */
 export function isDatabaseConfigured(): boolean {
   const request = workerRequest();
-  if (request) return Boolean(request.env.HYPERDRIVE?.connectionString);
+  if (request) {
+    if (!request.env.HYPERDRIVE?.connectionString) {
+      throw new Error("The HYPERDRIVE binding is missing; check wrangler.jsonc.");
+    }
+    return true;
+  }
   return localDatabaseUrl() !== null;
 }
 
@@ -107,25 +118,40 @@ export async function transaction<T>(
   work: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
   const client = await getPool().connect();
+  let broken: Error | undefined;
   try {
     await client.query("BEGIN");
     const result = await work(client);
     await client.query("COMMIT");
     return result;
   } catch (error) {
-    await client.query("ROLLBACK").catch(() => undefined);
+    await client.query("ROLLBACK").catch((rollbackError: Error) => {
+      // A connection that cannot roll back must not go back into the pool.
+      broken = rollbackError;
+    });
     throw error;
   } finally {
-    client.release();
+    client.release(broken);
   }
 }
 
-/** Postgres error codes the app turns into client errors rather than 500s. */
+/** Postgres error codes the app handles rather than reporting as a 500. */
 export const PG = {
   uniqueViolation: "23505",
   foreignKeyViolation: "23503",
-  invalidTextRepresentation: "22P02",
 } as const;
+
+/**
+ * Errors that mean the value the caller sent cannot be stored — malformed
+ * text for a typed column, a NUL byte, a string longer than its column —
+ * so the request is wrong, not the server.
+ */
+const BAD_INPUT_CODES = new Set(["22P02", "22021", "22001", "22003"]);
+
+export function isBadInputError(error: unknown): boolean {
+  const code = pgCode(error);
+  return code !== null && BAD_INPUT_CODES.has(code);
+}
 
 export function pgCode(error: unknown): string | null {
   const code = (error as { code?: unknown } | null)?.code;

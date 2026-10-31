@@ -49,6 +49,8 @@ export function AuthSheet({
   onResetTokenUsed?: () => void;
 }) {
   const isSignedIn = Boolean(session?.identity.email);
+  // After a password reset the next step is signing in, not creating an account.
+  const [afterReset, setAfterReset] = useState(false);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -57,11 +59,20 @@ export function AuthSheet({
         className="flex max-h-[85vh] flex-col sm:mx-auto sm:max-w-lg sm:rounded-t-2xl"
       >
         {resetToken ? (
-          <NewPassword token={resetToken} onDone={() => onResetTokenUsed?.()} />
+          <NewPassword
+            token={resetToken}
+            onDone={() => {
+              setAfterReset(true);
+              onResetTokenUsed?.();
+            }}
+          />
         ) : isSignedIn ? (
           <SignedIn session={session!} onOpenChange={onOpenChange} />
         ) : (
-          <SignedOut onOpenChange={onOpenChange} />
+          <SignedOut
+            onOpenChange={onOpenChange}
+            defaultTab={afterReset ? "signin" : "create"}
+          />
         )}
       </SheetContent>
     </Sheet>
@@ -288,7 +299,13 @@ function SignedIn({
   );
 }
 
-function SignedOut({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
+function SignedOut({
+  onOpenChange,
+  defaultTab,
+}: {
+  onOpenChange: (open: boolean) => void;
+  defaultTab: "create" | "signin";
+}) {
   const [confirmationSentTo, setConfirmationSentTo] = useState<string | null>(
     null,
   );
@@ -333,7 +350,7 @@ function SignedOut({ onOpenChange }: { onOpenChange: (open: boolean) => void }) 
         </SheetDescription>
       </SheetHeader>
 
-      <Tabs defaultValue="create" className="flex min-h-0 flex-1 flex-col">
+      <Tabs defaultValue={defaultTab} className="flex min-h-0 flex-1 flex-col">
         <div className="px-5 pt-3">
           <TabsList className="w-full">
             <TabsTrigger value="create" className="flex-1">

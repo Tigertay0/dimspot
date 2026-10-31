@@ -148,6 +148,14 @@ describe("creating an account from a guest", () => {
     );
   });
 
+  it("tells a session-less sign-up that the address is taken", async () => {
+    const guest = await newGuest();
+    const email = uniqueEmail("dupe");
+    await createAccount(guest.headers, { email, password: PASSWORD });
+
+    await expect(createAccount(new Headers(), { email, password: PASSWORD })).rejects.toBeInstanceOf(EmailTakenError);
+  });
+
   it("signs up a new user when there is no session at all", async () => {
     const email = uniqueEmail("fresh");
     const outcome = await createAccount(new Headers(), { email, password: PASSWORD });
@@ -187,9 +195,16 @@ describe("password reset", () => {
   });
 
   it("sends nothing for an address with no account", async () => {
+    const known = await newGuest();
+    const email = uniqueEmail("known");
+    await createAccount(known.headers, { email, password: PASSWORD });
+    await linkSentTo(email); // the background sender is running
+    mail.sent = [];
+
     await getAuth().api.requestPasswordReset({ body: { email: uniqueEmail("nobody"), redirectTo: "/?auth=reset" } });
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(mail.sent).toEqual([]);
+    await getAuth().api.requestPasswordReset({ body: { email, redirectTo: "/?auth=reset" } });
+    await linkSentTo(email); // sent after the unknown one, so that one had its chance
+    expect(mail.sent.map((m) => m.to)).toEqual([email]);
   });
 });
 

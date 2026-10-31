@@ -287,6 +287,8 @@ async function send(target: Target, payload: PushPayload): Promise<boolean> {
  * `void` promise started before that is abandoned partway through the
  * recipient list.
  */
+const SEND_BATCH = 20;
+
 export async function notifyNewOutage(outage: Outage): Promise<number> {
   if (!pushConfigured()) return 0;
 
@@ -298,16 +300,22 @@ export async function notifyNewOutage(outage: Outage): Promise<number> {
   const where = outage.city ? ` in ${outage.city}` : "";
   const what = outage.providerName ?? outage.serviceType;
 
-  const results = await Promise.all(
-    targets.map((target) =>
-      send(target, {
-        title: `${SEVERITY_META[outage.severity].label}: ${what}`,
-        body: `Reported${where}. Tap to see details.`,
-        url: `/?outage=${outage.id}`,
-        tag: `outage-${outage.id}`,
-      }),
-    ),
-  );
+  const payload: PushPayload = {
+    title: `${SEVERITY_META[outage.severity].label}: ${what}`,
+    body: `Reported${where}. Tap to see details.`,
+    url: `/?outage=${outage.id}`,
+    tag: `outage-${outage.id}`,
+  };
 
-  return results.filter(Boolean).length;
+  // A few at a time: each send is an outbound request plus encryption, and a
+  // dead endpoint's cleanup needs one of the request's few database
+  // connections.
+  let delivered = 0;
+  for (let i = 0; i < targets.length; i += SEND_BATCH) {
+    const results = await Promise.all(
+      targets.slice(i, i + SEND_BATCH).map((target) => send(target, payload)),
+    );
+    delivered += results.filter(Boolean).length;
+  }
+  return delivered;
 }

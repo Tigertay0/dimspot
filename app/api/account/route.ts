@@ -5,7 +5,7 @@ import { EmailTakenError, createAccount } from "@/lib/account";
 import { badRequest, ok, readJson, serverError, tooMany } from "@/lib/api";
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@/lib/constants";
 import { isDatabaseConfigured } from "@/lib/db";
-import { getWritableIdentity } from "@/lib/identity";
+import { getIdentity } from "@/lib/identity";
 import { LIMITS, consumeAddressLimit, consumeRateLimit } from "@/lib/rate-limit";
 import { fieldErrors } from "@/lib/validation";
 
@@ -31,21 +31,24 @@ export async function POST(request: Request) {
       return badRequest("Accounts are unavailable on this deployment.");
     }
 
-    const perAddress = await consumeAddressLimit("account:create:addr", request, LIMITS.createAccountByAddress);
-    if (perAddress) return tooMany(perAddress);
-
-    // Makes sure there is a guest to upgrade, as any other first write would.
-    const identity = await getWritableIdentity();
-    const perIdentity = await consumeRateLimit(
-      `account:create:${identity.id}`,
-      LIMITS.createAccount.limit,
-      LIMITS.createAccount.windowMs,
-    );
-    if (!perIdentity.allowed) return tooMany(perIdentity);
-
     const parsed = bodySchema.safeParse(await readJson(request));
     if (!parsed.success) {
       return badRequest("Check the highlighted fields", fieldErrors(parsed.error));
+    }
+
+    const perAddress = await consumeAddressLimit("account:create:addr", request, LIMITS.createAccountByAddress);
+    if (perAddress) return tooMany(perAddress);
+
+    // The guest being upgraded, if there is one. Not minted here: a visitor
+    // with no session at all simply signs up (lib/account.ts).
+    const identity = await getIdentity();
+    if (identity.isAuthenticated) {
+      const perIdentity = await consumeRateLimit(
+        `account:create:${identity.id}`,
+        LIMITS.createAccount.limit,
+        LIMITS.createAccount.windowMs,
+      );
+      if (!perIdentity.allowed) return tooMany(perIdentity);
     }
 
     const outcome = await createAccount(await headers(), parsed.data);

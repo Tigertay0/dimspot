@@ -23,10 +23,9 @@ function authorized(request: NextRequest): boolean {
   const expected = process.env.CRON_SECRET;
   if (!expected) return false;
 
+  // The header only: a query string would put the secret in request logs.
   const header = request.headers.get("authorization") ?? "";
-  const presented = header.startsWith("Bearer ")
-    ? header.slice(7)
-    : (request.nextUrl.searchParams.get("secret") ?? "");
+  const presented = header.startsWith("Bearer ") ? header.slice(7) : "";
 
   // Constant-time, and length-guarded because timingSafeEqual throws on a
   // length mismatch — which would itself leak the expected length.
