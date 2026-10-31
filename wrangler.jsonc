@@ -1,0 +1,53 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "outage-app",
+  "main": "worker.ts",
+  "compatibility_date": "2026-10-01",
+  // nodejs_compat covers pg's sockets and web-push's crypto and https.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      // Self-reference used by the OpenNext adapter; must match "name" above.
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "outage-app"
+    }
+  ],
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  // Public feed ingest (worker.ts -> /api/ingest) every 20 minutes. NWS warnings
+  // expire in hours, so this is the advisory layer's refresh rate.
+  "triggers": { "crons": ["*/20 * * * *"] },
+  // Neon Postgres (project outage-app, branch main) through Cloudflare's
+  // connection pool, as the outage_worker role (db/migrations/0003_app_role.sql).
+  // Created with query caching disabled, so every read sees the latest write.
+  // localConnectionString is only for `npm run preview`; set
+  // CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE to the dev branch to
+  // run the Worker locally against real data.
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "4742c9c0a5b44739ba69bed9c786a48e",
+      "localConnectionString": "postgres://postgres@localhost:5432/outage"
+    }
+  ],
+  // Verification and password reset emails (Cloudflare Email Sending), from a
+  // subdomain onboarded with `npx wrangler email sending enable mail.adetayo.dev`.
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "allowed_sender_addresses": ["noreply@mail.adetayo.dev"]
+    }
+  ],
+  "vars": {
+    "BETTER_AUTH_URL": "https://outage-app.tiger-tayo.workers.dev",
+    "EMAIL_FROM": "noreply@mail.adetayo.dev"
+  }
+  // Secrets (set with `npx wrangler secret put NAME`, never stored here):
+  // BETTER_AUTH_SECRET, CRON_SECRET, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY,
+  // VAPID_SUBJECT, RATE_LIMIT_SALT, CLOUDFLARE_RADAR_TOKEN, and optionally
+  // NWS_USER_AGENT, NOMINATIM_BASE_URL, GEOCODER_USER_AGENT, GEOCODER_COUNTRY_CODES.
+}

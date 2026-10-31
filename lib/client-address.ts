@@ -1,6 +1,9 @@
 import "server-only";
 import { createHash } from "node:crypto";
 
+const IN_WORKER =
+  typeof navigator !== "undefined" && navigator.userAgent === "Cloudflare-Workers";
+
 /**
  * Identify the client for rate-limiting purposes.
  *
@@ -10,18 +13,22 @@ import { createHash } from "node:crypto";
  */
 
 /**
- * `x-forwarded-for` is a client-supplied header everywhere except behind a
- * proxy that overwrites it. Vercel does overwrite it, and puts the real client
- * first. Anywhere else, treat it as a hint rather than a fact — which is why
- * this is a throttle layered on top of the per-identity limit, not the only
- * control.
+ * On Cloudflare, `cf-connecting-ip` is set by the edge to the address that
+ * actually connected, overwriting anything the client sent, so it is the only
+ * header trusted when present. `x-forwarded-for` and `x-real-ip` are
+ * client-supplied everywhere except behind a proxy that overwrites them; they
+ * are a fallback for local development, and are not consulted at all when the
+ * Cloudflare header exists — otherwise a caller could rotate a forged value to
+ * get a fresh bucket per request.
  */
 export function clientAddress(request: Request): string | null {
   const headers = request.headers;
 
-  // Vercel's own header is not client-settable, so prefer it where present.
-  const vercel = headers.get("x-vercel-forwarded-for");
-  if (vercel) return vercel.split(",")[0]!.trim();
+  const cloudflare = headers.get("cf-connecting-ip")?.trim();
+  if (cloudflare) return cloudflare;
+  // On the live Worker every outside request carries it; one that does not
+  // gets no address rather than a client-chosen one.
+  if (IN_WORKER) return null;
 
   const forwarded = headers.get("x-forwarded-for");
   if (forwarded) return forwarded.split(",")[0]!.trim();
