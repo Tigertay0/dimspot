@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { getAuth } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db";
+import { LIMITS, consumeAddressLimit } from "@/lib/rate-limit";
 
 /**
  * Who is acting on a request.
@@ -135,10 +136,19 @@ export async function getIdentity(
     if (session) return userIdentity(session.user);
 
     if (allowSignIn) {
-      // nextCookies() writes the new session cookie onto this response.
-      const created = await auth.api.signInAnonymous({ headers: requestHeaders });
-      if (created?.user) return userIdentity({ ...created.user, isAnonymous: true });
-      reason = "Could not create a guest session.";
+      const blocked = await consumeAddressLimit(
+        "guest:create:addr",
+        requestHeaders,
+        LIMITS.guestSessionByAddress,
+      );
+      if (blocked) {
+        reason = "Too many new guest sessions from this network. Try again later.";
+      } else {
+        // nextCookies() writes the new session cookie onto this response.
+        const created = await auth.api.signInAnonymous({ headers: requestHeaders });
+        if (created?.user) return userIdentity({ ...created.user, isAnonymous: true });
+        reason = "Could not create a guest session.";
+      }
     } else {
       reason = "No session, and this request may not create one.";
     }

@@ -21,8 +21,9 @@ const IN_WORKER =
  * Cloudflare header exists — otherwise a caller could rotate a forged value to
  * get a fresh bucket per request.
  */
-export function clientAddress(request: Request): string | null {
-  const headers = request.headers;
+export function clientAddress(source: Request | Headers): string | null {
+  // next/headers' headers() is Headers-shaped but not guaranteed to be one.
+  const headers = source instanceof Request ? source.headers : source;
 
   const cloudflare = headers.get("cf-connecting-ip")?.trim();
   if (cloudflare) return cloudflare;
@@ -44,8 +45,8 @@ export function clientAddress(request: Request): string | null {
  * more guessable for a known address — acceptable, since nothing here is
  * retained beyond the rate-limit window.
  */
-export function addressBucket(prefix: string, request: Request): string | null {
-  const address = clientAddress(request);
+export function addressBucket(prefix: string, source: Request | Headers): string | null {
+  const address = clientAddress(source);
   if (!address) return null;
 
   const salt = process.env.RATE_LIMIT_SALT ?? "outage-tracker";

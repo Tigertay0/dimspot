@@ -128,7 +128,7 @@ export async function consumeRateLimit(
  */
 export async function consumeAddressLimit(
   prefix: string,
-  request: Request,
+  request: Request | Headers,
   config: { limit: number; windowMs: number },
 ): Promise<RateLimitResult | null> {
   const bucket = addressBucket(prefix, request);
@@ -166,6 +166,12 @@ export const LIMITS = {
   resolve: { limit: 20, windowMs: 60 * 60 * 1000 },
   resolveByAddress: { limit: 30, windowMs: 60 * 60 * 1000 },
   comment: { limit: 20, windowMs: 60 * 60 * 1000 },
+  /**
+   * New guest users, per client address. Every first visit mints one, so this
+   * is what stops a script filling the users table; it matches the 30 an hour
+   * Supabase Auth allowed for anonymous sign-ins.
+   */
+  guestSessionByAddress: { limit: 30, windowMs: 60 * 60 * 1000 },
   /** Each attempt can email an address of the caller's choosing. */
   createAccount: { limit: 5, windowMs: 60 * 60 * 1000 },
   createAccountByAddress: { limit: 10, windowMs: 60 * 60 * 1000 },
