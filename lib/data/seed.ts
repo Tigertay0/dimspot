@@ -1,7 +1,7 @@
 import type { Provider, ServiceType, Severity } from "@/lib/types";
 
 /**
- * Providers mirror db/seed-providers.sql, with stable slugs so the local and
+ * Providers mirror db/migrations/0004_seed_providers.sql, with stable slugs so the local and
  * Postgres repositories agree on identifiers during development.
  */
 const PROVIDER_ROWS: Array<[string, string, ServiceType]> = [
