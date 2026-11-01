@@ -30,7 +30,7 @@ const client = new pg.Client({ connectionString: databaseUrl() });
 await client.connect();
 try {
   // One runner at a time; a second waits here instead of failing midway.
-  await client.query("select pg_advisory_lock(hashtext('outage-app migrations'))");
+  await client.query("select pg_advisory_lock(hashtext('dimspot migrations'))");
   // A schema change waits at most this long behind live traffic, then fails.
   await client.query("set lock_timeout = '10s'");
   await client.query(

@@ -28,7 +28,7 @@ import { LIMITS, consumeAddressLimit } from "@/lib/rate-limit";
  * reports false so the caller can say something useful instead of a 500.
  */
 
-export const GUEST_COOKIE = "outage_guest_id";
+export const GUEST_COOKIE = "dimspot_guest_id";
 /**
  * What this server mints. The prefix matters: it keeps a cookie value from ever
  * looking like a user id, so a hand-written cookie holding someone's UUID cannot

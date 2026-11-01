@@ -1,10 +1,13 @@
 # Setup
 
+Dimspot was called Outage Tracker (repo and Worker `outage-app`) until
+1 November 2026. The database roles and the `outages` table kept their names.
+
 The live site runs on **Cloudflare Workers** (Next.js through
 [OpenNext](https://opennext.js.org/cloudflare)), with data in **Neon Postgres +
 PostGIS** reached through **Cloudflare Hyperdrive**, and accounts on
 **[Better Auth](https://www.better-auth.com)** with the users stored in that same
-database. It lives at <https://outage-app.tiger-tayo.workers.dev>.
+database. It lives at <https://dimspot.tiger-tayo.workers.dev>.
 
 ## Nothing to set up
 
@@ -38,7 +41,7 @@ refuses to build while one exists.
 
 ## Database: Neon + PostGIS
 
-Project `outage-app` (id `hidden-thunder-45493613`) in the Neon org
+Project `dimspot` (id `hidden-thunder-45493613`) in the Neon org
 `org-fancy-wildflower-11294399`, region `aws-us-east-1`, Postgres 17. Two
 branches:
 
@@ -113,7 +116,7 @@ node scripts/hyperdrive.mjs update 4742c9c0a5b44739ba69bed9c786a48e .secrets/neo
 
 ### Hyperdrive
 
-Config `outage-app` (id `4742c9c0a5b44739ba69bed9c786a48e`, binding `HYPERDRIVE`)
+Config `dimspot` (id `4742c9c0a5b44739ba69bed9c786a48e`, binding `HYPERDRIVE`)
 points at the `main` branch's direct (not pooled) host as `outage_worker`, with
 query caching **off**, so every read sees the latest write.
 [`lib/db.ts`](lib/db.ts) builds one `pg` pool per Worker request on its
@@ -271,13 +274,13 @@ free plan's compute hours.
 To run it by hand:
 
 ```bash
-curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://outage-app.tiger-tayo.workers.dev/api/ingest
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://dimspot.tiger-tayo.workers.dev/api/ingest
 ```
 
 To check a deployment without holding the secret:
 
 ```bash
-curl -I https://outage-app.tiger-tayo.workers.dev/api/ingest
+curl -I https://dimspot.tiger-tayo.workers.dev/api/ingest
 ```
 
 `x-ingest-writable: false` means the Worker has no database binding.
@@ -431,7 +434,7 @@ npm run deploy
 ```
 
 Builds with OpenNext (`node -r ./scripts/win-junctions.cjs` makes the build work
-on Windows without symlink rights) and deploys the Worker `outage-app`, its
+on Windows without symlink rights) and deploys the Worker `dimspot`, its
 assets, its bindings and the Cron Trigger. `npx wrangler` must be logged in to
 the Cloudflare account that owns it.
 

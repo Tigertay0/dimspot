@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "outage-app",
+  "name": "dimspot",
   "main": "worker.ts",
   "compatibility_date": "2026-10-01",
   // nodejs_compat covers pg's sockets and web-push's crypto and https.
@@ -13,7 +13,7 @@
     {
       // Self-reference used by the OpenNext adapter; must match "name" above.
       "binding": "WORKER_SELF_REFERENCE",
-      "service": "outage-app"
+      "service": "dimspot"
     }
   ],
   "workers_dev": true,
@@ -21,7 +21,7 @@
   // Public feed ingest (worker.ts -> /api/ingest) every 20 minutes. NWS warnings
   // expire in hours, so this is the advisory layer's refresh rate.
   "triggers": { "crons": ["*/20 * * * *"] },
-  // Neon Postgres (project outage-app, branch main) through Cloudflare's
+  // Neon Postgres (project dimspot, branch main) through Cloudflare's
   // connection pool, as the outage_worker role (db/migrations/0003_app_role.sql).
   // Created with query caching disabled, so every read sees the latest write.
   // localConnectionString is only for `npm run preview`; set
@@ -43,7 +43,7 @@
     }
   ],
   "vars": {
-    "BETTER_AUTH_URL": "https://outage-app.tiger-tayo.workers.dev",
+    "BETTER_AUTH_URL": "https://dimspot.tiger-tayo.workers.dev",
     "EMAIL_FROM": "noreply@mail.adetayo.dev"
   }
   // Secrets (set with `npx wrangler secret put NAME`, never stored here):

@@ -24,7 +24,7 @@ const NOMINATIM_BASE =
 
 const USER_AGENT =
   process.env.GEOCODER_USER_AGENT ??
-  "OutageTracker/1.0 (https://github.com/Tigertay0/outage-app)";
+  "Dimspot/1.0 (https://github.com/Tigertay0/dimspot)";
 
 interface NominatimPlace {
   place_id: number;

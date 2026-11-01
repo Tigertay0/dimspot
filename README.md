@@ -1,10 +1,10 @@
-# Outage Tracker
+# Dimspot
 
 Power, internet and cellular outages on one live map. Report what is down where
 you are, confirm what other people report, and find out whether the problem is
 your router or your whole street.
 
-Live at <https://outage-app.tiger-tayo.workers.dev>. The product spec lives in
+Live at <https://dimspot.tiger-tayo.workers.dev>. The product spec lives in
 [PRD/outage_tracker_prd.md](PRD/outage_tracker_prd.md).
 
 ## Run it

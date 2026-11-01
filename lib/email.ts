@@ -33,7 +33,7 @@ export interface OutgoingEmail {
 }
 
 const DEFAULT_FROM = "noreply@mail.adetayo.dev";
-const SENDER_NAME = "Outage Tracker";
+const SENDER_NAME = "Dimspot";
 
 /**
  * Guest accounts carry a placeholder address on the reserved `.invalid` TLD

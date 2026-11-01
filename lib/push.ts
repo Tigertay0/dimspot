@@ -70,7 +70,7 @@ function ensureVapid() {
   webpush.setVapidDetails(
     // Push services use this to contact the operator. The old default was an
     // address at a domain this project does not own.
-    process.env.VAPID_SUBJECT ?? "https://github.com/Tigertay0/outage-app",
+    process.env.VAPID_SUBJECT ?? "https://github.com/Tigertay0/dimspot",
     process.env.VAPID_PUBLIC_KEY!,
     process.env.VAPID_PRIVATE_KEY!,
   );

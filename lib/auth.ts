@@ -100,7 +100,7 @@ export function authOptions() {
   const url = baseURL();
 
   return {
-    appName: "Outage Tracker",
+    appName: "Dimspot",
     baseURL: url,
     basePath: "/api/auth",
     secret: process.env.BETTER_AUTH_SECRET,
@@ -149,8 +149,8 @@ export function authOptions() {
         await sendAccountEmail(
           linkEmail(
             user.email,
-            "Reset your Outage Tracker password",
-            "Someone asked to reset the password for this Outage Tracker account.",
+            "Reset your Dimspot password",
+            "Someone asked to reset the password for this Dimspot account.",
             "Choose a new password",
             link,
             "The link works once and expires in an hour. If this wasn't you, ignore this email.",
@@ -173,8 +173,8 @@ export function authOptions() {
         await sendAccountEmail(
           linkEmail(
             user.email,
-            "Confirm your Outage Tracker account",
-            "Confirm this address to finish creating your Outage Tracker account.",
+            "Confirm your Dimspot account",
+            "Confirm this address to finish creating your Dimspot account.",
             "Confirm my email",
             link,
             "The link expires in 24 hours. If you didn't create an account, ignore this email.",
@@ -220,7 +220,7 @@ export function authOptions() {
     },
 
     advanced: {
-      cookiePrefix: "outage",
+      cookiePrefix: "dimspot",
       useSecureCookies: IS_PROD,
       // Cloudflare sets this to the real visitor address; nothing else is trusted.
       ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] },

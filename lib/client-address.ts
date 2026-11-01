@@ -77,7 +77,7 @@ export function addressBucket(prefix: string, source: Request | Headers): string
   if (!raw) return null;
   const address = networkKey(raw);
 
-  const salt = process.env.RATE_LIMIT_SALT ?? "outage-tracker";
+  const salt = process.env.RATE_LIMIT_SALT ?? "dimspot";
   const digest = createHash("sha256")
     .update(`${salt}:${address}`)
     .digest("hex")

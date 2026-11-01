@@ -66,11 +66,11 @@ self.addEventListener("push", (event) => {
   try {
     payload = event.data.json();
   } catch {
-    payload = { title: "Outage Tracker", body: event.data.text(), url: "/" };
+    payload = { title: "Dimspot", body: event.data.text(), url: "/" };
   }
 
   event.waitUntil(
-    self.registration.showNotification(payload.title ?? "Outage Tracker", {
+    self.registration.showNotification(payload.title ?? "Dimspot", {
       body: payload.body ?? "",
       icon: "/icons/icon-192.png",
       badge: "/icons/badge-72.png",

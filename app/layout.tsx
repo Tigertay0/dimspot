@@ -16,11 +16,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Outage Tracker — Power, internet and cellular outages near you",
+  title: "Dimspot — Power, internet and cellular outages near you",
   description:
     "See power, internet and cellular outages on one live map. Report what is down where you are, confirm what others report, and find out whether the problem is your router or your whole street.",
   keywords: [
-    "outage tracker",
+    "dimspot",
+    "outage map",
     "service outage",
     "power outage",
     "internet outage",
@@ -31,19 +32,19 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Outage Tracker",
+    title: "Dimspot",
   },
   formatDetection: { telephone: false },
   openGraph: {
     type: "website",
-    siteName: "Outage Tracker",
-    title: "Outage Tracker",
+    siteName: "Dimspot",
+    title: "Dimspot",
     description:
       "Power, internet and cellular outages on one live map. Report, confirm, and see what is actually down.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Outage Tracker",
+    title: "Dimspot",
     description: "Service outages on one live map.",
   },
 };
