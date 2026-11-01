@@ -456,6 +456,10 @@ build time, so they must be in the environment of the shell that runs
 Schema changes go out before the code that needs them: run the migration
 against `main`, then deploy.
 
+`vercel.json` exists only to stop the old Vercel project redeploying on pushes
+to `main` (this code has no database there, so it would serve demo data). Delete
+it together with the Vercel project once that is switched off.
+
 ---
 
 ## Troubleshooting
