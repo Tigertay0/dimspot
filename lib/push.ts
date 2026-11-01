@@ -1,10 +1,8 @@
 import "server-only";
 import webpush from "web-push";
 import { MILES_TO_METERS, SEVERITY_META } from "./constants";
-import { isSupabaseConfigured } from "./data";
+import { isDatabaseConfigured, query } from "./db";
 import { haversineMeters } from "./geo";
-import { createServiceRoleClient } from "./supabase/server";
-import type { Json } from "./supabase/database.types";
 import type { NotificationSettings, Outage, Severity } from "./types";
 import { isPushServiceEndpoint } from "./validation";
 
@@ -19,18 +17,19 @@ import { isPushServiceEndpoint } from "./validation";
  *
  * Where subscriptions live
  *
- * With Supabase configured they are rows in `push_subscriptions` (migration
- * 007), matched to an outage by distance in SQL. They used to live in a Map on
- * the server process, which on serverless meant every cold start forgot every
- * subscriber and each instance knew only the browsers that had registered
- * through it — alerts were close to never delivered. The Map remains only for
- * the local no-database backend, where one process is all there is.
+ * With a database they are rows in `push_subscriptions`, matched to an outage
+ * by distance in SQL (push_targets). They used to live in a Map on the server
+ * process, which on serverless meant every cold start forgot every subscriber
+ * and each instance knew only the browsers that had registered through it —
+ * alerts were close to never delivered. The Map remains only for the local
+ * no-database backend, where one process is all there is.
  *
- * Writes use the service-role client. Reads for fan-out must see every
- * subscriber, which RLS forbids to a user session by design; and an endpoint
- * that moves between users when someone signs in cannot be re-owned through a
- * per-user RLS update. Identity is still established from the session before
- * anything is written.
+ * An endpoint moves to whoever registers it last (one row per browser), and
+ * the identity doing so is always established from the session first.
+ *
+ * Sending uses `web-push`, which runs on Workers under nodejs_compat (tested on
+ * workerd: the encryption and the HTTPS request both work). The VAPID keys are
+ * the ones the Vercel deployment used, so existing subscriptions keep working.
  */
 
 export interface SubscriptionInput {
@@ -56,18 +55,7 @@ export function pushConfigured(): boolean {
       process.env.VAPID_PRIVATE_KEY?.trim() &&
       process.env.VAPID_PUBLIC_KEY !== "YOUR_VAPID_PUBLIC_KEY",
   );
-  if (!vapid) return false;
-
-  // Against Supabase the subscriptions are stored and read with the service
-  // role. Without it the toggle would accept a subscription it can never use.
-  return !isSupabaseConfigured() || usesDatabase();
-}
-
-function usesDatabase(): boolean {
-  return (
-    isSupabaseConfigured() &&
-    (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim().length > 0
-  );
+  return vapid;
 }
 
 export function publicVapidKey(): string | null {
@@ -82,7 +70,7 @@ function ensureVapid() {
   webpush.setVapidDetails(
     // Push services use this to contact the operator. The old default was an
     // address at a domain this project does not own.
-    process.env.VAPID_SUBJECT ?? "https://github.com/Tigertay0/outage-app",
+    process.env.VAPID_SUBJECT ?? "https://github.com/Tigertay0/dimspot",
     process.env.VAPID_PUBLIC_KEY!,
     process.env.VAPID_PRIVATE_KEY!,
   );
@@ -131,29 +119,36 @@ function memoryTargets(outage: Outage): Target[] {
 
 /** Register or update this browser's subscription. Idempotent per endpoint. */
 export async function saveSubscription(sub: SubscriptionInput): Promise<void> {
-  if (!usesDatabase()) {
+  if (!isDatabaseConfigured()) {
     memory().set(sub.endpoint, sub);
     return;
   }
 
-  const { error } = await createServiceRoleClient()
-    .from("push_subscriptions")
-    .upsert(
-      {
-        user_id: sub.identity,
-        endpoint: sub.endpoint,
-        keys: sub.keys as unknown as Json,
-        settings: sub.settings as unknown as Json,
-        center: sub.center
-          ? `SRID=4326;POINT(${sub.center.longitude} ${sub.center.latitude})`
-          : null,
-        timezone: sub.timezone,
-      },
-      // One row per browser; a sign-in re-owns it rather than duplicating it.
-      { onConflict: "endpoint" },
-    );
-
-  if (error) throw new Error(`saveSubscription: ${error.message}`);
+  // One row per browser; a sign-in re-owns it rather than duplicating it.
+  await query(
+    `INSERT INTO push_subscriptions (user_id, endpoint, keys, settings, center, timezone)
+     VALUES (
+       $1, $2, $3::jsonb, $4::jsonb,
+       CASE WHEN $5::float8 IS NULL THEN NULL
+            ELSE ST_SetSRID(ST_MakePoint($5::float8, $6::float8), 4326)::geography END,
+       $7
+     )
+     ON CONFLICT (endpoint) DO UPDATE SET
+       user_id = EXCLUDED.user_id,
+       keys = EXCLUDED.keys,
+       settings = EXCLUDED.settings,
+       center = EXCLUDED.center,
+       timezone = EXCLUDED.timezone`,
+    [
+      sub.identity,
+      sub.endpoint,
+      JSON.stringify(sub.keys),
+      JSON.stringify(sub.settings),
+      sub.center?.longitude ?? null,
+      sub.center?.latitude ?? null,
+      sub.timezone,
+    ],
+  );
 }
 
 /**
@@ -164,37 +159,21 @@ export async function saveSubscription(sub: SubscriptionInput): Promise<void> {
  * one would strand the row whenever the owning identity had changed.
  */
 export async function removeSubscription(endpoint: string): Promise<void> {
-  if (!usesDatabase()) {
+  if (!isDatabaseConfigured()) {
     memory().delete(endpoint);
     return;
   }
 
-  const { error } = await createServiceRoleClient()
-    .from("push_subscriptions")
-    .delete()
-    .eq("endpoint", endpoint);
-
-  if (error) throw new Error(`removeSubscription: ${error.message}`);
+  await query("DELETE FROM push_subscriptions WHERE endpoint = $1", [endpoint]);
 }
 
 async function targetsFor(outage: Outage): Promise<Target[]> {
-  if (!usesDatabase()) return memoryTargets(outage);
+  if (!isDatabaseConfigured()) return memoryTargets(outage);
 
-  const { data, error } = await createServiceRoleClient().rpc("push_targets", {
-    outage_lat: outage.latitude,
-    outage_lng: outage.longitude,
-    outage_severity: outage.severity,
-    exclude_user: outage.reportedBy ?? undefined,
-  });
-
-  if (error) throw new Error(`push_targets: ${error.message}`);
-
-  return (data ?? []).map((row) => ({
-    endpoint: row.endpoint,
-    keys: row.keys as unknown as Target["keys"],
-    settings: row.settings as unknown as NotificationSettings,
-    timezone: row.timezone,
-  }));
+  return query<Target>(
+    "SELECT endpoint, keys, settings, timezone FROM push_targets($1, $2, $3, $4)",
+    [outage.latitude, outage.longitude, outage.severity, outage.reportedBy],
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -224,7 +203,7 @@ function minutesNowIn(timezone: string | null, now: Date): number {
 /**
  * Quiet hours are "HH:MM" in the subscriber's own time zone.
  *
- * This used to compare against the server clock, which on Vercel is UTC — so
+ * This used to compare against the server clock, which is UTC — so
  * someone in Chicago with 22:00–07:00 quiet hours was silenced from 5pm to 2am
  * local time and woken up overnight.
  */
@@ -303,10 +282,13 @@ async function send(target: Target, payload: PushPayload): Promise<boolean> {
 /**
  * Fan out a new-outage alert.
  *
- * Must run inside `after()`, not as a floating promise: Vercel freezes the
- * function once the response is sent, and a `void` promise started before
- * that is simply abandoned partway through the recipient list.
+ * Must run inside `after()` (on Workers, the request's waitUntil), not as a
+ * floating promise: the runtime stops work once the response is sent, and a
+ * `void` promise started before that is abandoned partway through the
+ * recipient list.
  */
+const SEND_BATCH = 20;
+
 export async function notifyNewOutage(outage: Outage): Promise<number> {
   if (!pushConfigured()) return 0;
 
@@ -318,16 +300,22 @@ export async function notifyNewOutage(outage: Outage): Promise<number> {
   const where = outage.city ? ` in ${outage.city}` : "";
   const what = outage.providerName ?? outage.serviceType;
 
-  const results = await Promise.all(
-    targets.map((target) =>
-      send(target, {
-        title: `${SEVERITY_META[outage.severity].label}: ${what}`,
-        body: `Reported${where}. Tap to see details.`,
-        url: `/?outage=${outage.id}`,
-        tag: `outage-${outage.id}`,
-      }),
-    ),
-  );
+  const payload: PushPayload = {
+    title: `${SEVERITY_META[outage.severity].label}: ${what}`,
+    body: `Reported${where}. Tap to see details.`,
+    url: `/?outage=${outage.id}`,
+    tag: `outage-${outage.id}`,
+  };
 
-  return results.filter(Boolean).length;
+  // A few at a time: each send is an outbound request plus encryption, and a
+  // dead endpoint's cleanup needs one of the request's few database
+  // connections.
+  let delivered = 0;
+  for (let i = 0; i < targets.length; i += SEND_BATCH) {
+    const results = await Promise.all(
+      targets.slice(i, i + SEND_BATCH).map((target) => send(target, payload)),
+    );
+    delivered += results.filter(Boolean).length;
+  }
+  return delivered;
 }

@@ -96,6 +96,10 @@ export function dominantSeverity(severities: Severity[]): Severity {
 
 export const MILES_TO_METERS = 1609.344;
 
+/** Account passwords. Shared by the sign-up form and the server's checks. */
+export const MIN_PASSWORD_LENGTH = 8;
+export const MAX_PASSWORD_LENGTH = 128;
+
 /**
  * Display names for upstream feeds, keyed by the `source_name` stored on each
  * ingested row. Doubles as attribution: these are other organisations' data.

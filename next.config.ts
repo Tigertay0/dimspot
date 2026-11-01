@@ -18,6 +18,9 @@ const securityHeaders = [
   // A referrer is useful to the tile host for attribution, but the path can
   // carry a deep-linked outage id, so only the origin travels cross-site.
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  // HTTPS only, for a year. workers.dev is served over HTTPS already; this
+  // stops a downgraded first visit from being the one that leaks a cookie.
+  { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
   // Geolocation is requested for "outages near me", from this origin only.
   {
     key: "Permissions-Policy",
@@ -38,8 +41,8 @@ const securityHeaders = [
       // Basemap tiles and sprites are raster/vector data from the tile host.
       "img-src 'self' data: blob: https://tiles.openfreemap.org",
       "font-src 'self' data:",
-      // Supabase (REST, auth, realtime), the tile host, and nothing else.
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://tiles.openfreemap.org",
+      // The app's own API (auth included) and the tile host, nothing else.
+      "connect-src 'self' https://tiles.openfreemap.org",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -49,6 +52,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // pg reaches Hyperdrive through pg-cloudflare's Workers socket. Next only
+  // traces its Node stub, and the Cloudflare build copies the full Workers
+  // version only for packages listed here.
+  serverExternalPackages: ["pg", "pg-cloudflare"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

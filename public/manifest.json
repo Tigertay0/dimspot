@@ -1,6 +1,6 @@
 {
-  "name": "Outage Tracker",
-  "short_name": "Outages",
+  "name": "Dimspot",
+  "short_name": "Dimspot",
   "description": "Power, internet and cellular outages on one live map. Report what is down, confirm what others report.",
   "start_url": "/",
   "scope": "/",

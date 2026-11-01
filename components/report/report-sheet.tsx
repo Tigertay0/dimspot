@@ -61,18 +61,21 @@ export function ReportSheet({
     [providers, serviceType],
   );
 
-  // Reset between reports so the next one starts clean.
-  useEffect(() => {
-    if (open) return;
-
-    setStep("service");
-    setServiceType(null);
-    setProviderId(null);
-    setSeverity(null);
-    setDescription("");
-    setPlace(null);
-    onRequestPicking(false);
-  }, [open, onRequestPicking]);
+  // Reset between reports so the next one starts clean. Done while rendering
+  // the close rather than in an effect, so no frame shows the stale form; the
+  // effect below already turns picking off whenever the sheet is closed.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (!open) {
+      setStep("service");
+      setServiceType(null);
+      setProviderId(null);
+      setSeverity(null);
+      setDescription("");
+      setPlace(null);
+    }
+  }
 
   useEffect(() => {
     onRequestPicking(open && step === "location");

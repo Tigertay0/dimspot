@@ -4,16 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   configured: true,
   identityCount: 0,
-  serviceRpc: vi.fn(),
-  sessionRpc: vi.fn(),
-  createServiceRoleClient: vi.fn(),
-  createServerSupabaseClient: vi.fn(),
+  query: vi.fn(),
 }));
 
-vi.mock("@/lib/data", () => ({ isSupabaseConfigured: () => mocks.configured }));
-vi.mock("@/lib/supabase/server", () => ({
-  createServiceRoleClient: mocks.createServiceRoleClient,
-  createServerSupabaseClient: mocks.createServerSupabaseClient,
+vi.mock("@/lib/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/db")>()),
+  isDatabaseConfigured: () => mocks.configured,
+  query: mocks.query,
 }));
 // A fresh identity per call, so only the per-address cap can trip in these tests.
 vi.mock("@/lib/identity", () => ({
@@ -23,21 +20,24 @@ vi.mock("@/lib/identity", () => ({
 import { GET } from "@/app/api/geocode/route";
 import { LIMITS } from "@/lib/rate-limit";
 
-function geocodeRequest(address: string | null = "203.0.113.7") {
+function geocodeRequest(address: string | null = "203.0.113.7", extra: Record<string, string> = {}) {
   return new NextRequest("http://localhost/api/geocode?q=springfield", {
-    headers: address ? { "x-forwarded-for": address } : {},
+    headers: { ...(address ? { "x-forwarded-for": address } : {}), ...extra },
   });
 }
 
 const allowedRow = [{ allowed: true, remaining: 29, retry_after: 0 }];
 
+/** The bucket keys passed to consume_rate_limit, in call order. */
+function bucketKeys(): string[] {
+  return mocks.query.mock.calls
+    .filter(([sql]) => String(sql).includes("consume_rate_limit"))
+    .map(([, params]) => (params as unknown[])[0] as string);
+}
+
 beforeEach(() => {
   mocks.configured = true;
-  mocks.serviceRpc.mockReset().mockResolvedValue({ data: allowedRow, error: null });
-  mocks.sessionRpc.mockReset().mockResolvedValue({ data: null, error: { message: "permission denied for function consume_rate_limit" } });
-  mocks.createServiceRoleClient.mockReset().mockReturnValue({ rpc: mocks.serviceRpc });
-  mocks.createServerSupabaseClient.mockReset().mockResolvedValue({ rpc: mocks.sessionRpc });
-  vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-role-test-key");
+  mocks.query.mockReset().mockResolvedValue(allowedRow);
   vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => new Response("[]", { status: 200 })));
   vi.spyOn(console, "error").mockImplementation(() => {});
   // The in-memory counters live on globalThis; start each test from empty.
@@ -51,22 +51,19 @@ afterEach(() => {
 });
 
 describe("GET /api/geocode per-address cap — shared limiter", () => {
-  it("counts the address in Postgres through the service-role client with the geocode limits", async () => {
+  it("counts the address in Postgres with the geocode limits", async () => {
     const response = await GET(geocodeRequest());
 
     expect(response.status).toBe(200);
-    expect(mocks.createServiceRoleClient).toHaveBeenCalled();
-    expect(mocks.createServerSupabaseClient).not.toHaveBeenCalled();
-    expect(mocks.serviceRpc).toHaveBeenCalledTimes(1);
-    expect(mocks.serviceRpc).toHaveBeenCalledWith("consume_rate_limit", {
-      bucket_key: expect.stringMatching(/^geocode:addr:[0-9a-f]{32}$/),
-      max_hits: LIMITS.geocode.limit,
-      window_seconds: LIMITS.geocode.windowMs / 1000,
-    });
+    expect(mocks.query).toHaveBeenCalledTimes(1);
+    expect(mocks.query).toHaveBeenCalledWith(
+      expect.stringContaining("consume_rate_limit"),
+      [expect.stringMatching(/^geocode:addr:[0-9a-f]{32}$/), LIMITS.geocode.limit, LIMITS.geocode.windowMs / 1000],
+    );
   });
 
   it("answers 429 with Retry-After when the shared counter says the address is over its cap", async () => {
-    mocks.serviceRpc.mockResolvedValue({ data: [{ allowed: false, remaining: 0, retry_after: 42 }], error: null });
+    mocks.query.mockResolvedValue([{ allowed: false, remaining: 0, retry_after: 42 }]);
 
     const response = await GET(geocodeRequest());
 
@@ -80,7 +77,7 @@ describe("GET /api/geocode per-address cap — shared limiter", () => {
   });
 
   it("holds across cold starts: the shared count, not process memory, decides", async () => {
-    mocks.serviceRpc.mockResolvedValue({ data: [{ allowed: false, remaining: 0, retry_after: 5 }], error: null });
+    mocks.query.mockResolvedValue([{ allowed: false, remaining: 0, retry_after: 5 }]);
     // A cold start empties the in-process buckets; the cap must still apply.
     delete (globalThis as { __rateBuckets?: unknown }).__rateBuckets;
 
@@ -90,13 +87,22 @@ describe("GET /api/geocode per-address cap — shared limiter", () => {
   it("uses a different bucket per address and none when the address is unknown", async () => {
     await GET(geocodeRequest("203.0.113.7"));
     await GET(geocodeRequest("198.51.100.9"));
-    const keys = mocks.serviceRpc.mock.calls.map(([, args]) => args.bucket_key);
-    expect(new Set(keys).size).toBe(2);
+    expect(new Set(bucketKeys()).size).toBe(2);
 
-    mocks.serviceRpc.mockClear();
+    mocks.query.mockClear();
     const response = await GET(geocodeRequest(null));
     expect(response.status).toBe(200);
-    expect(mocks.serviceRpc).not.toHaveBeenCalled();
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it("buckets by cf-connecting-ip and ignores a forged x-forwarded-for beside it", async () => {
+    await GET(geocodeRequest("203.0.113.7", { "cf-connecting-ip": "192.0.2.1" }));
+    await GET(geocodeRequest("198.51.100.9", { "cf-connecting-ip": "192.0.2.1" }));
+    await GET(geocodeRequest("203.0.113.7"));
+
+    const [first, second, xffOnly] = bucketKeys();
+    expect(first).toBe(second);
+    expect(xffOnly).not.toBe(first);
   });
 });
 
@@ -111,25 +117,11 @@ describe("GET /api/geocode per-address cap — in-memory fallback", () => {
 
     expect(blocked.status).toBe(429);
     expect(Number(blocked.headers.get("Retry-After"))).toBeGreaterThan(0);
-    expect(mocks.createServiceRoleClient).not.toHaveBeenCalled();
-    expect(mocks.createServerSupabaseClient).not.toHaveBeenCalled();
-  });
-
-  it("falls back to the in-memory counter without a service-role key, as the rest of rate-limit.ts does", async () => {
-    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "");
-
-    for (let i = 0; i < LIMITS.geocode.limit; i++) {
-      expect((await GET(geocodeRequest())).status).toBe(200);
-    }
-    const blocked = await GET(geocodeRequest());
-
-    expect(mocks.createServiceRoleClient).not.toHaveBeenCalled();
-    expect(mocks.sessionRpc).toHaveBeenCalled(); // tried, was refused (migration 010), degraded
-    expect(blocked.status).toBe(429);
+    expect(mocks.query).not.toHaveBeenCalled();
   });
 
   it("falls back to the in-memory counter when the database call fails", async () => {
-    mocks.serviceRpc.mockResolvedValue({ data: null, error: { message: "connection refused" } });
+    mocks.query.mockRejectedValue(new Error("connection refused"));
 
     for (let i = 0; i < LIMITS.geocode.limit; i++) {
       expect((await GET(geocodeRequest())).status).toBe(200);

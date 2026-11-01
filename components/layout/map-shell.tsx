@@ -56,7 +56,15 @@ export function MapShell() {
       new URLSearchParams(window.location.search).get("action") === "report",
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [authOpen, setAuthOpen] = useState(false);
+  // /?auth=reset&token=… is where a password reset email's link lands.
+  const [resetToken, setResetToken] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const params = new URLSearchParams(window.location.search);
+    return params.get("auth") === "reset" && !params.get("error")
+      ? params.get("token")
+      : null;
+  });
+  const [authOpen, setAuthOpen] = useState(() => resetToken !== null);
   const [selectedAdvisory, setSelectedAdvisory] = useState<Advisory | null>(null);
   const [picking, setPicking] = useState(false);
   const [listExpanded, setListExpanded] = useState(false);
@@ -108,10 +116,11 @@ export function MapShell() {
   }, []);
 
   /**
-   * Report the outcome of an email confirmation or password reset.
+   * Report the outcome of an email confirmation or password reset link.
    *
-   * `/auth/callback` always redirects back here with `?auth=…` rather than
-   * rendering a page of its own, so the person lands on the map either way.
+   * Both emails link through /api/auth, which redirects back here with
+   * `?auth=confirmed` or `?auth=reset&token=…` — plus `&error=…` when the link
+   * was expired or already used — so the person lands on the map either way.
    * The params are stripped afterwards so a refresh does not repeat the toast.
    */
   useEffect(() => {
@@ -119,25 +128,23 @@ export function MapShell() {
     const result = params.get("auth");
     if (!result) return;
 
-    if (result === "confirmed") {
-      toast({
-        title: "Email confirmed",
-        description: "Your account is ready. You are signed in on this device.",
-      });
-      queryClient.invalidateQueries();
-    } else {
+    if (params.get("error")) {
       toast({
         variant: "destructive",
         title: "That link did not work",
-        description:
-          params.get("reason") === "missing-code"
-            ? "The link was incomplete. Try requesting a new one."
-            : (params.get("reason") ?? "Please request a new link."),
+        description: "It has expired or was already used. Request a new one.",
       });
+    } else if (result === "confirmed") {
+      toast({
+        title: "Email confirmed",
+        description: "Your account is ready. Sign in with your email and password on any device.",
+      });
+      queryClient.invalidateQueries();
     }
 
     params.delete("auth");
-    params.delete("reason");
+    params.delete("error");
+    params.delete("token");
     const query = params.toString();
     window.history.replaceState(
       {},
@@ -298,7 +305,16 @@ export function MapShell() {
         }}
       />
 
-      <AuthSheet open={authOpen} onOpenChange={setAuthOpen} session={session} />
+      <AuthSheet
+        open={authOpen}
+        onOpenChange={(open) => {
+          setAuthOpen(open);
+          if (!open) setResetToken(null);
+        }}
+        session={session}
+        resetToken={resetToken}
+        onResetTokenUsed={() => setResetToken(null)}
+      />
 
       <SettingsSheet
         open={settingsOpen}

@@ -23,7 +23,7 @@ export function DemoBanner() {
       <p className="flex-1 text-card-foreground">
         <span className="font-semibold">Demo data.</span> No database connected —
         these outages are samples, and anything you report resets when the server
-        restarts. See SETUP.md to connect Supabase.
+        restarts. See SETUP.md to connect a database.
       </p>
       <button
         type="button"

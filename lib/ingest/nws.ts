@@ -154,7 +154,7 @@ function headers(): HeadersInit {
     // NWS blocks requests without a contactable User-Agent.
     "User-Agent":
       process.env.NWS_USER_AGENT ??
-      "OutageTracker/1.0 (https://github.com/Tigertay0/outage-app)",
+      "Dimspot/1.0 (https://github.com/Tigertay0/dimspot)",
     Accept: "application/geo+json",
   };
 }

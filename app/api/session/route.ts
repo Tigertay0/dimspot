@@ -1,5 +1,5 @@
 import { ok, serverError } from "@/lib/api";
-import { isSupabaseConfigured } from "@/lib/data";
+import { isDatabaseConfigured } from "@/lib/db";
 import { getWritableIdentity } from "@/lib/identity";
 import { pushConfigured } from "@/lib/push";
 
@@ -26,17 +26,16 @@ export async function GET() {
       },
       capabilities: {
         /**
-         * False when Supabase is connected but could not issue an identity the
-         * database will accept — almost always because anonymous sign-in is
-         * disabled for the project. Reads still work; the UI says so rather
-         * than letting a report fail at submit time.
+         * False when there is a database but no identity it will accept could
+         * be issued — the database or auth setup is broken. Reads still work;
+         * the UI says so rather than letting a report fail at submit time.
          */
         write: identity.canWrite,
         writeBlockedReason: identity.writeBlockedReason,
-        accounts: isSupabaseConfigured(),
+        accounts: isDatabaseConfigured(),
         push: pushConfigured(),
         /** Local mode means data is demo data and resets on restart. */
-        demoData: !isSupabaseConfigured(),
+        demoData: !isDatabaseConfigured(),
       },
     });
   } catch (error) {

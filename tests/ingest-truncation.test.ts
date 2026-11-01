@@ -3,13 +3,13 @@ import type { IngestedOutage, SourceResult } from "@/lib/ingest/source";
 
 /**
  * Feed results per source, and a tiny in-memory `outages` table whose
- * sync_official_outages mirrors migration 009: upsert every row passed,
- * resolve every active row of that source that was not passed.
+ * sync_official_outages mirrors db/migrations/0002_app.sql: upsert every row
+ * passed, resolve every active row of that source that was not passed.
  */
 const mocks = vi.hoisted(() => ({
   results: {} as Record<string, () => Promise<SourceResult>>,
   outages: [] as Array<Record<string, unknown>>,
-  rpc: vi.fn(),
+  query: vi.fn(),
   failActiveRead: false,
 }));
 
@@ -26,44 +26,48 @@ function fakeSource(name: string) {
   };
 }
 
-vi.mock("@/lib/data", () => ({ isSupabaseConfigured: () => true }));
+vi.mock("@/lib/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/db")>()),
+  isDatabaseConfigured: () => true,
+  query: mocks.query,
+}));
 vi.mock("@/lib/ingest/nws", () => ({ NwsSource: fakeSource("nws") }));
 vi.mock("@/lib/ingest/odin", () => ({ OdinSource: fakeSource("odin") }));
 vi.mock("@/lib/ingest/ioda", () => ({ IodaSource: fakeSource("ioda") }));
 vi.mock("@/lib/ingest/cloudflare-radar", () => ({ CloudflareRadarSource: fakeSource("cloudflare-radar") }));
-vi.mock("@/lib/supabase/server", () => ({
-  createServiceRoleClient: () => ({
-    rpc: mocks.rpc,
-    from: (table: string) => {
-      if (table === "advisories") return { upsert: async () => ({ error: null }) };
-      const filters: Record<string, unknown> = {};
-      const query = {
-        select: () => query,
-        eq: (column: string, value: unknown) => {
-          filters[column] = value;
-          return query;
-        },
-        then: (resolve: (value: unknown) => void) => {
-          const data = mocks.outages.filter((o) => Object.entries(filters).every(([k, v]) => o[k] === v));
-          resolve({ data, error: null, count: mocks.failActiveRead ? data.length + 1 : data.length });
-        },
-      };
-      return query;
-    },
-  }),
-}));
 
-import { pointFromGeography, runIngest } from "@/lib/ingest/run";
+import { runIngest } from "@/lib/ingest/run";
 
-/** Hex EWKB for a SRID 4326 point, as PostgREST returns a geography column. */
-function ewkb(lng: number, lat: number): string {
-  const bytes = Buffer.alloc(25);
-  bytes.writeUInt8(1, 0);
-  bytes.writeUInt32LE(0x20000001, 1);
-  bytes.writeUInt32LE(4326, 5);
-  bytes.writeDoubleLE(lng, 9);
-  bytes.writeDoubleLE(lat, 17);
-  return bytes.toString("hex");
+/** sync_official_outages over the in-memory table. */
+function syncOfficialOutages(source: string, rows: Array<Record<string, unknown>>) {
+  for (const row of rows) {
+    const existing = mocks.outages.find((o) => o.source_name === source && o.source_id === row.source_id);
+    if (existing) Object.assign(existing, row, { status: "active" });
+    else mocks.outages.push({ ...row, source_name: source, status: "active" });
+  }
+  const passed = new Set(rows.map((r) => r.source_id));
+  let resolved = 0;
+  for (const o of mocks.outages) {
+    if (o.source_name === source && o.status === "active" && !passed.has(o.source_id)) {
+      o.status = "resolved";
+      resolved++;
+    }
+  }
+  return [{ upserted: rows.length, resolved }];
+}
+
+/** Routes each statement runIngest sends to the matching fake. */
+async function fakeQuery(sql: string, params: unknown[] = []) {
+  if (sql.includes("sync_official_outages")) {
+    return syncOfficialOutages(params[0] as string, JSON.parse(params[1] as string));
+  }
+  if (sql.includes("prune_expired_advisories")) return [{ removed: 0 }];
+  if (sql.includes("INSERT INTO advisories")) return [];
+  if (sql.includes("FROM outages")) {
+    if (mocks.failActiveRead) throw new Error("connection reset");
+    return mocks.outages.filter((o) => o.source_name === params[0] && o.status === "active");
+  }
+  throw new Error(`unexpected query: ${sql.slice(0, 60)}`);
 }
 
 function stored(source: string, id: string, extra: Record<string, unknown> = {}) {
@@ -73,7 +77,8 @@ function stored(source: string, id: string, extra: Record<string, unknown> = {})
     status: "active",
     service_type: "internet",
     severity: "degraded",
-    location: ewkb(-97.5, 35.4),
+    latitude: 35.4,
+    longitude: -97.5,
     city: null,
     state: "Oklahoma",
     description: `stored ${id}`,
@@ -113,26 +118,7 @@ beforeEach(() => {
   mocks.results = {};
   mocks.outages = [];
   mocks.failActiveRead = false;
-  mocks.rpc.mockReset().mockImplementation(async (name: string, args: Record<string, unknown>) => {
-    if (name === "prune_expired_advisories") return { data: 0, error: null };
-    const source = args.feed_source as string;
-    const rows = args.feed_rows as Array<Record<string, unknown>>;
-    for (const row of rows) {
-      const existing = mocks.outages.find((o) => o.source_name === source && o.source_id === row.source_id);
-      const location = ewkb(row.longitude as number, row.latitude as number);
-      if (existing) Object.assign(existing, row, { location, status: "active" });
-      else mocks.outages.push({ ...row, location, source_name: source, status: "active" });
-    }
-    const passed = new Set(rows.map((r) => r.source_id));
-    let resolved = 0;
-    for (const o of mocks.outages) {
-      if (o.source_name === source && o.status === "active" && !passed.has(o.source_id)) {
-        o.status = "resolved";
-        resolved++;
-      }
-    }
-    return { data: [{ upserted: rows.length, resolved }], error: null };
-  });
+  mocks.query.mockReset().mockImplementation(fakeQuery);
   warn = vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -203,24 +189,8 @@ describe("runIngest official-outage sync", () => {
 
     const report = await runIngest();
 
-    expect(mocks.rpc).not.toHaveBeenCalledWith("sync_official_outages", expect.anything());
+    expect(mocks.query).not.toHaveBeenCalledWith(expect.stringContaining("sync_official_outages"), expect.anything());
     expect(statusOf("ioda", "b")).toBe("active");
     expect(report.sources.find((s) => s.source === "ioda")?.ok).toBe(false);
-  });
-});
-
-describe("pointFromGeography", () => {
-  it("reads a hex EWKB point", () => {
-    expect(pointFromGeography(ewkb(-97.5, 35.4))).toEqual({ lat: 35.4, lng: -97.5 });
-  });
-
-  it("reads a GeoJSON point", () => {
-    expect(pointFromGeography({ type: "Point", coordinates: [-97.5, 35.4] })).toEqual({ lat: 35.4, lng: -97.5 });
-  });
-
-  it("rejects anything that is not a point", () => {
-    expect(pointFromGeography(null)).toBeNull();
-    expect(pointFromGeography("zz")).toBeNull();
-    expect(pointFromGeography({ type: "Polygon", coordinates: [] })).toBeNull();
   });
 });

@@ -1,6 +1,7 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { InvalidInputError } from "./data/repository";
+import { isBadInputError } from "./db";
 import type { RateLimitResult } from "./rate-limit";
 
 /** Shared response helpers so every route reports errors the same way. */
@@ -40,6 +41,10 @@ export function serverError(error: unknown, context: string) {
       error.message,
       error.field ? { [error.field]: error.message } : undefined,
     );
+  }
+
+  if (isBadInputError(error)) {
+    return badRequest("Part of that request could not be stored. Check what you entered.");
   }
 
   console.error(`[${context}]`, error);
