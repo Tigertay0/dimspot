@@ -33,18 +33,22 @@ try {
 
   const exists = (await client.query("select 1 from pg_roles where rolname = $1", [ROLE])).rowCount > 0;
   const pw = client.escapeLiteral(password);
+  // A role name cannot be a bound parameter, so it is quoted the same way the
+  // database name below already is. ROLE is a constant today; escaping it now
+  // means a later change that reads it from argv cannot become an injection.
+  const role = client.escapeIdentifier(ROLE);
   if (exists) {
-    await client.query(`alter role ${ROLE} with login inherit nosuperuser nocreaterole nocreatedb nobypassrls password ${pw}`);
+    await client.query(`alter role ${role} with login inherit nosuperuser nocreaterole nocreatedb nobypassrls password ${pw}`);
   } else {
-    await client.query(`create role ${ROLE} with login inherit nosuperuser nocreaterole nocreatedb nobypassrls password ${pw}`);
+    await client.query(`create role ${role} with login inherit nosuperuser nocreaterole nocreatedb nobypassrls password ${pw}`);
   }
-  await client.query(`grant outage_app to ${ROLE}`);
+  await client.query(`grant outage_app to ${role}`);
   // The client-side query timeout only stops waiting; these stop the server
   // holding row locks for a Worker request that has already gone away.
-  await client.query(`alter role ${ROLE} set statement_timeout = '20s'`);
-  await client.query(`alter role ${ROLE} set lock_timeout = '5s'`);
-  await client.query(`alter role ${ROLE} set idle_in_transaction_session_timeout = '15s'`);
-  await client.query(`grant connect on database ${client.escapeIdentifier(client.database)} to ${ROLE}`);
+  await client.query(`alter role ${role} set statement_timeout = '20s'`);
+  await client.query(`alter role ${role} set lock_timeout = '5s'`);
+  await client.query(`alter role ${role} set idle_in_transaction_session_timeout = '15s'`);
+  await client.query(`grant connect on database ${client.escapeIdentifier(client.database)} to ${role}`);
   renameSync(tmp, out);
   console.log(`${exists ? "rotated" : "created"} ${ROLE}; connection string written to ${out}`);
 } catch (err) {

@@ -35,7 +35,7 @@ export function FilterSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { data: providers = [] } = useProviders();
+  const { data: providers = [], isError: providersFailed } = useProviders();
 
   const serviceTypes = useFilters((s) => s.serviceTypes);
   const severities = useFilters((s) => s.severities);
@@ -167,6 +167,15 @@ export function FilterSheet({
                 </Button>
               )}
             </div>
+
+            {/* Otherwise a failed fetch looks identical to "this deployment
+                has no providers", and the whole section just goes missing. */}
+            {providersFailed && providers.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Could not load the provider list. Every provider is included
+                until it loads.
+              </p>
+            )}
 
             <div className="space-y-4">
               {SERVICE_TYPES.map((type) => {

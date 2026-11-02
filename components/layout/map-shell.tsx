@@ -85,7 +85,14 @@ export function MapShell() {
   );
 
   const { data: session } = useSession();
-  const { data: outages = [], isFetching } = useOutages(bounds);
+  const {
+    data: outages = [],
+    isFetching,
+    // A failed fetch must not reach the list as an empty one: "no outages
+    // reported nearby" is the one answer this app must never guess at.
+    isError: outagesFailed,
+    refetch: refetchOutages,
+  } = useOutages(bounds);
   const showAdvisories = useFilters((s) => s.showAdvisories);
   const { data: advisories = [] } = useAdvisories(bounds, showAdvisories);
 
@@ -277,6 +284,8 @@ export function MapShell() {
               outages={outages}
               advisories={showAdvisories ? advisories : []}
               loading={isFetching}
+              failed={outagesFailed}
+              onRetry={refetchOutages}
               center={center}
               expanded={listExpanded}
               onExpandedChange={setListExpanded}
