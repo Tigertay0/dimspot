@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { z } from "zod";
 import { badRequest, ok, serverError, tooMany } from "@/lib/api";
 import { getIdentity } from "@/lib/identity";
 import { LIMITS, consumeAddressLimit, rateLimit } from "@/lib/rate-limit";
@@ -26,23 +27,40 @@ const USER_AGENT =
   process.env.GEOCODER_USER_AGENT ??
   "Dimspot/1.0 (https://github.com/Tigertay0/dimspot)";
 
-interface NominatimPlace {
-  place_id: number;
-  display_name: string;
-  lat: string;
-  lon: string;
-  type?: string;
-  addresstype?: string;
-  address?: {
-    city?: string;
-    town?: string;
-    village?: string;
-    state?: string;
-    postcode?: string;
-    road?: string;
-    house_number?: string;
-  };
-}
+/**
+ * Nominatim's response shape, validated rather than asserted.
+ *
+ * This is third-party JSON, so it gets the same treatment as any other input
+ * crossing a boundary. Casting it was unsound in a way that reached the client:
+ * a record missing `lat`/`lon` became `Number(undefined)` — NaN — and was
+ * served as a perfectly ordinary GeocodeResult.
+ */
+const coordinateSchema = z
+  .union([z.number(), z.string().trim().min(1)])
+  .transform((value) => Number(value))
+  .refine((value) => Number.isFinite(value), "Not a coordinate");
+
+const nominatimPlaceSchema = z.object({
+  place_id: z.union([z.number(), z.string()]),
+  display_name: z.string().min(1),
+  lat: coordinateSchema,
+  lon: coordinateSchema,
+  type: z.string().optional(),
+  addresstype: z.string().optional(),
+  address: z
+    .object({
+      city: z.string().optional(),
+      town: z.string().optional(),
+      village: z.string().optional(),
+      state: z.string().optional(),
+      postcode: z.string().optional(),
+      road: z.string().optional(),
+      house_number: z.string().optional(),
+    })
+    .optional(),
+});
+
+type NominatimPlace = z.infer<typeof nominatimPlaceSchema>;
 
 /**
  * Zoom appropriate to how specific the matched place is.
@@ -82,8 +100,8 @@ function toResult(place: NominatimPlace): GeocodeResult {
   return {
     id: String(place.place_id),
     label: place.display_name,
-    latitude: Number(place.lat),
-    longitude: Number(place.lon),
+    latitude: place.lat,
+    longitude: place.lon,
     zoom: zoomForType(place.addresstype ?? place.type),
     city: address.city ?? address.town ?? address.village ?? null,
     state: address.state ?? null,
@@ -91,7 +109,10 @@ function toResult(place: NominatimPlace): GeocodeResult {
   };
 }
 
-async function callNominatim(path: string, params: URLSearchParams) {
+async function callNominatim(
+  path: string,
+  params: URLSearchParams,
+): Promise<unknown> {
   const response = await fetch(`${NOMINATIM_BASE}${path}?${params}`, {
     headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
     // Nominatim results are stable enough to cache at the edge for a while.
@@ -141,7 +162,7 @@ export async function GET(request: NextRequest) {
         return badRequest("lat and lng must be numbers");
       }
 
-      const place = (await callNominatim(
+      const body = await callNominatim(
         "/reverse",
         new URLSearchParams({
           lat: String(latitude),
@@ -150,17 +171,24 @@ export async function GET(request: NextRequest) {
           zoom: "18",
           addressdetails: "1",
         }),
-      )) as NominatimPlace & { error?: string };
+      );
 
-      if (!place || place.error) return ok({ results: [] });
-      return ok({ results: [toResult(place)] });
+      // Nominatim reports "nothing here" as { error: … }, which is an answer,
+      // not a failure.
+      if (!body || (body as { error?: string }).error) return ok({ results: [] });
+
+      const place = nominatimPlaceSchema.safeParse(body);
+      if (!place.success) {
+        throw new Error("Nominatim /reverse returned an unexpected shape");
+      }
+      return ok({ results: [toResult(place.data)] });
     }
 
     const query = params.get("q")?.trim();
     if (!query) return badRequest("Provide q, or lat and lng");
     if (query.length < 2) return ok({ results: [] });
 
-    const places = (await callNominatim(
+    const places = await callNominatim(
       "/search",
       new URLSearchParams({
         q: query,
@@ -169,9 +197,22 @@ export async function GET(request: NextRequest) {
         addressdetails: "1",
         countrycodes: process.env.GEOCODER_COUNTRY_CODES ?? "us",
       }),
-    )) as NominatimPlace[];
+    );
 
-    return ok({ results: (places ?? []).map(toResult) });
+    // A non-array body means the upstream is answering something other than a
+    // search; a 500 lets the client say "search is unavailable" rather than
+    // showing an upstream failure as "no places matched".
+    if (!Array.isArray(places)) {
+      throw new Error("Nominatim /search did not return a list");
+    }
+
+    // One malformed entry drops that suggestion instead of the whole list.
+    const results = places.flatMap((place) => {
+      const parsed = nominatimPlaceSchema.safeParse(place);
+      return parsed.success ? [toResult(parsed.data)] : [];
+    });
+
+    return ok({ results });
   } catch (error) {
     return serverError(error, "GET /api/geocode");
   }

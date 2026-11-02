@@ -1,6 +1,14 @@
 "use client";
 
-import { CheckCircle2, ChevronUp, CloudAlert, Loader2, Plus } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronUp,
+  CloudAlert,
+  Loader2,
+  Plus,
+  RefreshCw,
+  TriangleAlert,
+} from "lucide-react";
 import { SERVICE_COVERAGE, SERVICE_META, SEVERITY_META, sourceLabel } from "@/lib/constants";
 import { formatDistance, haversineMeters } from "@/lib/geo";
 import { locationLabel, timeAgo } from "@/lib/format";
@@ -23,6 +31,8 @@ export function NearbyPanel({
   outages,
   advisories,
   loading,
+  failed,
+  onRetry,
   center,
   expanded,
   onExpandedChange,
@@ -33,6 +43,9 @@ export function NearbyPanel({
   outages: Outage[];
   advisories: Advisory[];
   loading: boolean;
+  /** The outage fetch failed, so this list is not an answer about the world. */
+  failed: boolean;
+  onRetry: () => void;
   center: { latitude: number; longitude: number } | null;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
@@ -62,8 +75,15 @@ export function NearbyPanel({
   const lone = serviceTypes.length === 1 ? serviceTypes[0] : null;
   const kind = lone ? `${SERVICE_META[lone].shortLabel.toLowerCase()} ` : "";
 
-  const summary =
-    active > 0
+  // A failed fetch says nothing about what is in view, so it never borrows the
+  // "no outages" wording — or the reassuring tick next to it.
+  const summary = failed
+    ? outages.length > 0
+      ? // A refetch failed over data that did load, so the list is real but
+        // stale. Saying it could not load would be wrong in the other direction.
+        "Outages may be out of date"
+      : "Could not load outages"
+    : active > 0
       ? `${active} ${kind}outage${active === 1 ? "" : "s"} in view`
       : advisories.length > 0
         ? `No ${kind}outages · ${advisories.length} weather warning${advisories.length === 1 ? "" : "s"}`
@@ -84,7 +104,10 @@ export function NearbyPanel({
       >
         <span className="flex items-center gap-2 text-sm font-medium">
           {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          {active === 0 && advisories.length === 0 && !loading && (
+          {failed && !loading && (
+            <TriangleAlert className="h-3.5 w-3.5 text-muted-foreground" />
+          )}
+          {!failed && active === 0 && advisories.length === 0 && !loading && (
             <CheckCircle2 className="h-3.5 w-3.5 text-severity-resolved" />
           )}
           {summary}
@@ -101,11 +124,15 @@ export function NearbyPanel({
         <ul className="max-h-[calc(55vh-3.5rem)] divide-y overflow-y-auto overscroll-contain">
           {visible.length === 0 && (
             <li>
-              <EmptyState
-                advisories={advisories}
-                onSelectAdvisory={onSelectAdvisory}
-                onReport={onReport}
-              />
+              {failed ? (
+                <FailedState onRetry={onRetry} loading={loading} />
+              ) : (
+                <EmptyState
+                  advisories={advisories}
+                  onSelectAdvisory={onSelectAdvisory}
+                  onReport={onReport}
+                />
+              )}
             </li>
           )}
 
@@ -175,6 +202,50 @@ export function NearbyPanel({
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+/**
+ * What the list shows when the fetch failed.
+ *
+ * Deliberately not the empty state. "Either everything is working, or nobody
+ * has reported it yet" is a claim about the world; when the request failed, the
+ * app knows nothing about the world and has to say so, or someone checking
+ * whether their power is out gets told everything is fine.
+ */
+function FailedState({
+  onRetry,
+  loading,
+}: {
+  onRetry: () => void;
+  loading: boolean;
+}) {
+  return (
+    <div className="px-4 py-6">
+      <div className="flex flex-col items-center text-center">
+        <span
+          aria-hidden
+          className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground"
+        >
+          <TriangleAlert className="h-5 w-5" />
+        </span>
+
+        <p className="text-sm font-medium">Could not load outages</p>
+        <p className="mt-1 max-w-xs text-sm text-muted-foreground">
+          This is a connection problem, not an all-clear. Check your connection
+          and try again.
+        </p>
+
+        <Button variant="secondary" onClick={onRetry} disabled={loading} className="mt-4">
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
+          Try again
+        </Button>
+      </div>
     </div>
   );
 }

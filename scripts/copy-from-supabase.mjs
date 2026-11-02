@@ -119,6 +119,9 @@ try {
 
   for (const { name, parents = [] } of TABLES) {
     const rows = await tableRows(name);
+    // A table name cannot be a bound parameter. It comes from the TABLES
+    // constant above today; quoting it keeps that from being load-bearing.
+    const table = client.escapeIdentifier(name);
     // A child whose parent was skipped (say, an official outage Neon's own
     // ingest already holds under another id) is left out rather than failing.
     const conditions = [
@@ -132,8 +135,8 @@ try {
       const batch = rows.slice(i, i + 500);
       // Geography columns arrive as hex EWKB, which PostGIS accepts as input.
       const result = await client.query(
-        `INSERT INTO ${name}
-         SELECT r.* FROM jsonb_populate_recordset(NULL::${name}, $1::jsonb) AS r
+        `INSERT INTO ${table}
+         SELECT r.* FROM jsonb_populate_recordset(NULL::${table}, $1::jsonb) AS r
          ${where}
          ON CONFLICT DO NOTHING`,
         [JSON.stringify(batch)],
@@ -143,7 +146,7 @@ try {
 
     const ids = rows.map((r) => r.id);
     const { rows: [{ present: inNeon }] } = await client.query(
-      `SELECT count(*)::int AS present FROM ${name} WHERE id = ANY($1::uuid[])`,
+      `SELECT count(*)::int AS present FROM ${table} WHERE id = ANY($1::uuid[])`,
       [ids],
     );
     // An official outage Neon's own ingest already holds (same feed and feed

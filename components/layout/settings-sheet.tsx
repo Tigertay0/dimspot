@@ -46,11 +46,15 @@ export function SettingsSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       {data ? (
-        // Keyed on the loaded copy, so opening the sheet again after a change
+        // Keyed on the sheet session, so opening it again after a change
         // elsewhere remounts the form with fresh values. Syncing props into
         // state with an effect would render stale values first.
+        //
+        // Deliberately not keyed on the preferences themselves: the query
+        // refetches on window focus, so a change arriving from another tab
+        // remounted the form mid-edit and discarded whatever was being typed.
         <SettingsForm
-          key={`${open}:${JSON.stringify(data.preferences)}`}
+          key={String(open)}
           initial={data.preferences}
           isAuthenticated={data.isAuthenticated}
           currentView={currentView}
