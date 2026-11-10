@@ -5,6 +5,7 @@ import { Bell, BellOff, Loader2, MapPin, Trash2 } from "lucide-react";
 import { SEVERITY_META } from "@/lib/constants";
 import { usePreferences, useSavePreferences } from "@/lib/hooks/use-preferences";
 import { usePush } from "@/lib/hooks/use-push";
+import { type Appearance, useAppearance } from "@/lib/hooks/use-appearance";
 import type { SavedLocation, Severity, UserPreferences } from "@/lib/types";
 import { SEVERITIES } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
+import { cn } from "@/lib/utils";
 
 const RADIUS_OPTIONS = [1, 5, 10, 25];
 
@@ -194,8 +196,10 @@ function SettingsForm({
         </SheetHeader>
 
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-3">
+          <AppearancePicker />
+
           <section>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="mb-2 text-[13px] font-semibold text-muted-foreground">
               Alerts
             </h3>
 
@@ -232,7 +236,7 @@ function SettingsForm({
                 {notifications.enabled && (
                   <>
                     <div>
-                      <Label className="mb-1.5 block text-xs uppercase tracking-wide text-muted-foreground">
+                      <Label className="mb-1.5 block text-[13px] text-muted-foreground">
                         Only tell me about
                       </Label>
                       <div className="flex flex-wrap gap-2">
@@ -261,7 +265,7 @@ function SettingsForm({
                     </div>
 
                     <div>
-                      <Label className="mb-1.5 block text-xs uppercase tracking-wide text-muted-foreground">
+                      <Label className="mb-1.5 block text-[13px] text-muted-foreground">
                         Within
                       </Label>
                       <div className="flex gap-2">
@@ -289,7 +293,7 @@ function SettingsForm({
                       <div>
                         <Label
                           htmlFor="quiet-start"
-                          className="mb-1.5 block text-xs uppercase tracking-wide text-muted-foreground"
+                          className="mb-1.5 block text-[13px] text-muted-foreground"
                         >
                           Quiet from
                         </Label>
@@ -307,7 +311,7 @@ function SettingsForm({
                       <div>
                         <Label
                           htmlFor="quiet-end"
-                          className="mb-1.5 block text-xs uppercase tracking-wide text-muted-foreground"
+                          className="mb-1.5 block text-[13px] text-muted-foreground"
                         >
                           Until
                         </Label>
@@ -330,7 +334,7 @@ function SettingsForm({
           </section>
 
           <section className="border-t pt-4">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="mb-2 text-[13px] font-semibold text-muted-foreground">
               Saved places
             </h3>
 
@@ -414,5 +418,44 @@ function SettingsForm({
           </Button>
       </SheetFooter>
     </SheetContent>
+  );
+}
+
+const APPEARANCES: { value: Appearance; label: string; hint: string }[] = [
+  { value: "night", label: "Night", hint: "Dimspot's own look" },
+  { value: "dusk", label: "Dusk", hint: "Light and warm" },
+  { value: "system", label: "System", hint: "Follow this device" },
+];
+
+/** Applies at once and is remembered on this device; not part of the saved form. */
+function AppearancePicker() {
+  const { appearance, setAppearance } = useAppearance();
+  return (
+    <section>
+      <h3 id="appearance-label" className="mb-2 text-[13px] font-semibold text-muted-foreground">
+        Appearance
+      </h3>
+      <div role="group" aria-labelledby="appearance-label" className="grid grid-cols-3 gap-2">
+        {APPEARANCES.map((option) => {
+          const selected = appearance === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => setAppearance(option.value)}
+              className={cn(
+                "flex flex-col items-start rounded-xl border px-3 py-2.5 text-left transition-colors duration-150",
+                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                selected ? "border-primary bg-primary/10" : "hover:bg-muted/60",
+              )}
+            >
+              <span className="text-sm font-semibold">{option.label}</span>
+              <span className="text-xs text-muted-foreground">{option.hint}</span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }

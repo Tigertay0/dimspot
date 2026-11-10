@@ -321,7 +321,7 @@ function EmptyState({
 
       {advisories.length > 0 && (
         <div className="mt-6 border-t pt-4">
-          <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <h3 className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-muted-foreground">
             <CloudAlert className="h-3.5 w-3.5" />
             Weather in this area
           </h3>

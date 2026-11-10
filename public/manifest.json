@@ -2,7 +2,7 @@
   "name": "Dimspot",
   "short_name": "Dimspot",
   "description": "Power, internet and cellular outages on one live map. Report what is down, confirm what others report.",
-  "start_url": "/",
+  "start_url": "/map",
   "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -25,7 +25,7 @@
       "name": "Report an outage",
       "short_name": "Report",
       "description": "Report a service outage where you are",
-      "url": "/?action=report"
+      "url": "/map?action=report"
     }
   ],
   "categories": ["utilities", "news"]

@@ -303,7 +303,7 @@ export async function notifyNewOutage(outage: Outage): Promise<number> {
   const payload: PushPayload = {
     title: `${SEVERITY_META[outage.severity].label}: ${what}`,
     body: `Reported${where}. Tap to see details.`,
-    url: `/?outage=${outage.id}`,
+    url: `/map?outage=${outage.id}`,
     tag: `outage-${outage.id}`,
   };
 

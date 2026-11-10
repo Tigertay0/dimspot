@@ -14,10 +14,11 @@ import Map, {
 import { DEFAULT_VIEW, HOME_BOUNDS, MARKER_ZOOM } from "@/lib/constants";
 import { useNow } from "@/lib/hooks/use-now";
 import type { Advisory, BoundingBox, Outage } from "@/lib/types";
-import { FALLBACK_STYLE, basemapUrl } from "./basemap";
+import { FALLBACK_STYLE } from "./basemap";
 import { MARKERS_MIN_ZOOM, heatLayer, outagesToGeoJSON } from "./heat-layer";
 import { AdvisoryMarker, ClusterMarker, OutageMarker } from "./markers";
 import { useClusters, type ClusterProperties, type PointProperties } from "./use-clusters";
+import { useTintedBasemap } from "./use-tinted-basemap";
 
 /** Reported within this many minutes counts as "fresh" and gets a pulse ring. */
 const FRESH_MINUTES = 15;
@@ -200,14 +201,15 @@ export function OutageMap({
     });
   }, [flyTo]);
 
-  const mapStyle = useMemo(
-    () => (styleFailed ? FALLBACK_STYLE : basemapUrl(theme)),
-    [styleFailed, theme],
-  );
+  const tinted = useTintedBasemap(theme);
+  const mapStyle = styleFailed ? FALLBACK_STYLE : tinted;
 
   // Ticks once a minute rather than being read during render, so marker
   // freshness is stable state instead of an impure read.
   const now = useNow(60_000);
+
+  // Wait for the tinted style so the map is created once, with its final look.
+  if (!mapStyle) return <div aria-hidden className="absolute inset-0 bg-background" />;
 
   return (
     <Map

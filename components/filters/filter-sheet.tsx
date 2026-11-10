@@ -90,7 +90,7 @@ export function FilterSheet({
 
         <div className="flex-1 overflow-y-auto px-5 pb-4">
           <section className="py-3">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="mb-2 text-[13px] font-semibold text-muted-foreground">
               Service
             </h3>
             <div className="grid grid-cols-2 gap-2">
@@ -119,7 +119,7 @@ export function FilterSheet({
           </section>
 
           <section className="py-3">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="mb-2 text-[13px] font-semibold text-muted-foreground">
               Severity
             </h3>
             <div className="flex flex-wrap gap-2">
@@ -151,7 +151,7 @@ export function FilterSheet({
 
           <section className="py-3">
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <h3 className="text-[13px] font-semibold text-muted-foreground">
                 Providers
               </h3>
               {allSelected ? (
