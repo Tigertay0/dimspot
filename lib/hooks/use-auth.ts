@@ -151,7 +151,7 @@ export function useResetPassword() {
       await post("/api/auth/request-password-reset", {
         email,
         // The emailed link lands back on the map with ?auth=reset&token=…
-        redirectTo: "/?auth=reset",
+        redirectTo: "/map?auth=reset",
       });
     },
   });

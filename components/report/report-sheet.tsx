@@ -234,7 +234,7 @@ export function ReportSheet({
 
               {serviceType && providerOptions.length > 0 && (
                 <div>
-                  <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">
+                  <Label className="mb-2 block text-[13px] text-muted-foreground">
                     Provider (optional)
                   </Label>
                   <div className="flex flex-wrap gap-2">

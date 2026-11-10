@@ -1,0 +1,186 @@
+/* Tokens for the homepage (values from .design/minimal/design-system.md). Scoped, so the
+   Lights Out landing and the map keep their own. */
+.minimal-root {
+  --m-bg: #fafafa;
+  --m-surface: #ffffff;
+  --m-surface-2: #f2f2f2;
+  --m-ink: #171717;
+  --m-ink-hover: #383838;
+  --m-ink-2: #4d4d4d;
+  --m-muted: #6d6d6d;
+  --m-line: #e6e6e6;
+  --m-dark: #111111;
+  --m-dark-2: #1a1a1a;
+  --m-dark-line: #262626;
+  --m-dark-ink: #ededed;
+  --m-dark-ink-2: #a1a1a1;
+  --m-amber: #ffb21a;
+  --m-up: #16a34a;
+  --m-degraded: #d97706;
+  --m-down: #dc2626;
+  --m-maint: #2563eb;
+  --m-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --m-shadow: 0 1px 2px rgb(23 23 23 / 0.04), 0 8px 24px rgb(23 23 23 / 0.04);
+  --m-shadow-btn: 0 1px 2px rgb(23 23 23 / 0.06);
+
+  background: var(--m-bg);
+  color: var(--m-ink);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.minimal-root h1,
+.minimal-root h2 {
+  text-wrap: balance;
+}
+.minimal-root p {
+  text-wrap: pretty;
+}
+
+/* transitions-dev 24 "Learn more hover": the CTA chevron slides and spreads into an arrow. */
+.minimal-root {
+  --learn-shift: 2px;
+  --learn-spread: 8deg;
+  --learn-in: 350ms;
+  --learn-out: 350ms;
+  --learn-ease: var(--m-ease);
+  --stagger-dur: 500ms;
+  --stagger-distance: 12px;
+  --stagger-stagger: 40ms;
+  --stagger-blur: 3px;
+  --stagger-ease: var(--m-ease);
+}
+.t-learn-chevron {
+  display: inline-flex;
+  transform: translateX(0);
+  transition: transform var(--learn-out) var(--learn-ease);
+}
+.t-learn-arm {
+  transform-box: view-box;
+  transform-origin: 10px 8px;
+  vector-effect: non-scaling-stroke;
+  transition: transform var(--learn-out) var(--learn-ease);
+}
+.t-learn:hover .t-learn-chevron { transform: translateX(var(--learn-shift)); transition-duration: var(--learn-in); }
+.t-learn:hover .t-learn-arm { transition-duration: var(--learn-in); }
+.t-learn:hover .t-learn-arm-top { transform: rotate(var(--learn-spread)); }
+.t-learn:hover .t-learn-arm-bot { transform: rotate(calc(var(--learn-spread) * -1)); }
+@media (prefers-reduced-motion: reduce) {
+  .t-learn-chevron, .t-learn-arm { transition: none !important; }
+}
+
+/* transitions-dev 18 "Texts reveal": staggered blurred rise for a heading and its line. */
+.t-stagger-line {
+  display: block;
+  opacity: 0;
+  transform: translateY(var(--stagger-distance));
+  filter: blur(var(--stagger-blur));
+  transition:
+    opacity   var(--stagger-dur) var(--stagger-ease),
+    transform var(--stagger-dur) var(--stagger-ease),
+    filter    var(--stagger-dur) var(--stagger-ease);
+  will-change: transform, opacity, filter;
+}
+.t-stagger-line--2 { transition-delay: var(--stagger-stagger); }
+.t-stagger.is-shown .t-stagger-line {
+  opacity: 1;
+  transform: translateY(0);
+  filter: blur(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-stagger-line { transition: none !important; opacity: 1; transform: none; filter: none; }
+}
+/* Without scripting the reveal never arms, so show the text. */
+@media (scripting: none) {
+  .t-stagger-line { opacity: 1; transform: none; filter: none; }
+}
+
+/* Heading device 2 (How it works): a left-to-right clip wipe. */
+.m-wipe { clip-path: inset(0 100% 0 0); transition: clip-path 700ms var(--m-ease); }
+.m-wipe.is-shown { clip-path: inset(0 0 0 0); }
+@media (prefers-reduced-motion: reduce), (scripting: none) {
+  .m-wipe { clip-path: none; transition: none; }
+}
+
+/* Heading device 3 (close): the underline under "now" draws once. */
+.m-draw { background: linear-gradient(currentColor, currentColor) 0 100% / 0% 2px no-repeat; transition: background-size 600ms var(--m-ease) 200ms; padding-bottom: 2px; }
+.m-draw.is-shown { background-size: 100% 2px; }
+@media (prefers-reduced-motion: reduce), (scripting: none) {
+  .m-draw { background-size: 100% 2px; transition: none; }
+}
+
+/* Hero headline words (Blur Out Up, CSS) and the phone's rise. */
+@keyframes m-word {
+  from { opacity: 0; transform: translateY(10px); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+.m-word { display: inline-block; white-space: pre; animation: m-word 560ms var(--m-ease) both; }
+@keyframes m-rise-lg {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+.m-rise-lg { animation: m-rise-lg 700ms var(--m-ease) both; }
+.m-tilt { transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); }
+
+/* Grid lines fade in once behind the hero. */
+@keyframes m-fade { from { opacity: 0; } to { opacity: 1; } }
+.m-grid { animation: m-fade 700ms var(--m-ease) 400ms both; }
+
+/* Dark band: wipe from the top, then the dots and the amber ring. */
+.m-band { clip-path: inset(0 0 100% 0); transition: clip-path 700ms var(--m-ease); }
+.m-band.is-shown { clip-path: inset(0 0 0 0); }
+.m-band-dot { opacity: 0; transform: scale(0.4); transform-box: fill-box; transform-origin: center; transition: opacity 400ms var(--m-ease), transform 400ms var(--m-ease); }
+.m-band.is-shown .m-band-dot { opacity: 0.7; transform: none; }
+.m-band-ring { opacity: 0; transform: scale(0.4); transform-box: fill-box; transform-origin: center; transition: opacity 700ms var(--m-ease) 300ms, transform 700ms var(--m-ease) 300ms; }
+.m-band.is-shown .m-band-ring { opacity: 0.45; transform: none; }
+
+/* Day card: transitions-dev "Text states swap" on the incoming text. */
+@keyframes m-swap-in {
+  from { opacity: 0; transform: translateY(4px); filter: blur(2px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+.m-swap { animation: m-swap-in 150ms var(--m-ease) both; }
+
+/* Reduced motion and no scripting: everything at rest. Motion writes inline initial styles for the bars,
+   so those need !important. */
+@media (prefers-reduced-motion: reduce) {
+  .m-word, .m-rise-lg, .m-grid, .m-swap { animation: none; }
+  .m-tilt { transform: none; }
+  .m-band { clip-path: none; transition: none; }
+  .m-band-dot { opacity: 0.7; transform: none; transition: none; }
+  .m-band-ring { opacity: 0.45; transform: none; transition: none; }
+}
+@media (scripting: none) {
+  .m-band { clip-path: none; }
+  .m-band-dot { opacity: 0.7; transform: none; }
+  .m-band-ring { opacity: 0.45; transform: none; }
+  .m-bar { transform: none !important; }
+}
+
+/* Hero copy entrance (CSS, so the CTAs are visible before hydration). */
+@keyframes m-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.m-rise {
+  animation: m-rise 700ms var(--m-ease) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .m-rise { animation: none; }
+}
+
+/* Status dot ripple: the page's one ambient loop. Paused offscreen via [data-paused]. */
+@keyframes m-ripple {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--dot) 45%, transparent); }
+  72% { box-shadow: 0 0 0 7px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.m-dot-ripple {
+  animation: m-ripple 2.25s ease-out infinite;
+}
+.m-dot-ripple[data-paused="true"] {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .m-dot-ripple { animation: none; }
+}

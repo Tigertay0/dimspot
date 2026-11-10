@@ -74,14 +74,16 @@ export function ClusterMarker({
       style={{
         width: size,
         height: size,
-        // One soft halo instead of the old opaque white ring: the ring read as
-        // a sticker pasted on the map, and stacked badly when clusters overlap.
-        boxShadow: `0 0 0 ${Math.round(size / 8)}px ${halo(color, 0.18)}`,
+        // A soft halo plus a wide glow in the cluster's own colour: on the night
+        // map clusters read as pools of streetlight, like the landing page.
+        boxShadow: `0 0 0 ${Math.round(size / 8)}px ${halo(color, 0.18)}, 0 0 ${Math.round(size * 0.7)}px ${halo(color, 0.45)}`,
+        // Text in the page surface colour: dark on the bright night tones, light on dusk.
+        color: "var(--background)",
       }}
       className={cn(
         "group relative flex items-center justify-center rounded-full",
-        "border border-white/70 dark:border-white/25",
-        "font-medium text-white tabular-nums",
+        "border border-background/40",
+        "font-semibold tabular-nums",
         "transition-[transform,box-shadow] duration-150 ease-out",
         "hover:scale-105 focus-visible:outline-none focus-visible:ring-2",
         "focus-visible:ring-foreground focus-visible:ring-offset-2",
@@ -169,10 +171,11 @@ export function OutageMarker({
           borderColor: color,
           // Lucide strokes with currentColor, so the icon follows the fill and
           // stays legible whether the marker is solid or hollow.
-          color: solid ? "white" : color,
+          color: solid ? "var(--background)" : color,
+          // The lamp glow: confirmed outages glow, unconfirmed ones glow faintly.
           boxShadow: isSelected
-            ? `0 0 0 4px ${halo(color, 0.3)}, 0 2px 6px rgb(0 0 0 / 0.28)`
-            : "0 1px 3px rgb(0 0 0 / 0.3)",
+            ? `0 0 0 4px ${halo(color, 0.3)}, 0 0 18px 2px ${halo(color, 0.6)}`
+            : `0 0 ${solid ? 14 : 8}px ${solid ? 1 : 0}px ${halo(color, solid ? 0.55 : 0.3)}, 0 1px 2px rgb(0 0 0 / 0.3)`,
         }}
         className={cn(
           "relative flex h-[18px] w-[18px] items-center justify-center rounded-full",
