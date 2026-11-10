@@ -7,7 +7,7 @@ The live site runs on **Cloudflare Workers** (Next.js through
 [OpenNext](https://opennext.js.org/cloudflare)), with data in **Neon Postgres +
 PostGIS** reached through **Cloudflare Hyperdrive**, and accounts on
 **[Better Auth](https://www.better-auth.com)** with the users stored in that same
-database. It lives at <https://dimspot.tiger-tayo.workers.dev>.
+database. It lives at <https://dimspot.adetayo.dev>.
 
 ## Nothing to set up
 
@@ -274,13 +274,13 @@ free plan's compute hours.
 To run it by hand:
 
 ```bash
-curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://dimspot.tiger-tayo.workers.dev/api/ingest
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://dimspot.adetayo.dev/api/ingest
 ```
 
 To check a deployment without holding the secret:
 
 ```bash
-curl -I https://dimspot.tiger-tayo.workers.dev/api/ingest
+curl -I https://dimspot.adetayo.dev/api/ingest
 ```
 
 `x-ingest-writable: false` means the Worker has no database binding.
