@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dimspot — Power, internet and cellular outages near you",
+  title: "Dimspot: power, internet and cellular outages near you",
   description:
     "See power, internet and cellular outages on one live map. Report what is down where you are, confirm what others report, and find out whether the problem is your router or your whole street.",
   keywords: [
@@ -60,11 +60,21 @@ export const viewport: Viewport = {
   ],
 };
 
+/**
+ * Sets the night/dusk class before first paint from the saved appearance
+ * (lib/hooks/use-appearance.ts), so Dusk users never see a dark flash. A fixed
+ * string with no user input; the CSP allows inline scripts.
+ */
+const APPEARANCE_SCRIPT = `try{var a=localStorage.getItem("dimspot-appearance");var d=a==="dusk"?false:a==="system"?matchMedia("(prefers-color-scheme: dark)").matches:true;document.documentElement.classList.toggle("dark",d)}catch(e){}`;
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: APPEARANCE_SCRIPT }} />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <QueryProvider>
           {children}

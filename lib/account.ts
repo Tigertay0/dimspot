@@ -37,7 +37,7 @@ export class EmailTakenError extends Error {
   }
 }
 
-const VERIFIED_CALLBACK = "/?auth=confirmed";
+const VERIFIED_CALLBACK = "/map?auth=confirmed";
 
 /** Attach credentials to the anonymous user `userId`, keeping its id. */
 async function upgradeGuest(userId: string, email: string, password: string): Promise<void> {
