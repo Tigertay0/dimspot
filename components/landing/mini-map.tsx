@@ -6,6 +6,7 @@
  */
 
 import Map from "react-map-gl/maplibre";
+import "@/components/map/maplibre-worker";
 import { basemapUrl } from "@/components/map/basemap";
 
 export default function MiniMap({ latitude, longitude }: { latitude: number; longitude: number }) {
