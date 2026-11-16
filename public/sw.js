@@ -6,8 +6,9 @@
  * the app shell, so the map frame and "you are offline" state can render.
  */
 
-const SHELL_CACHE = "outage-shell-v1";
-const SHELL_ASSETS = ["/", "/manifest.json"];
+// v2: the landing page moved to / and the map to /map, so shells are cached per page.
+const SHELL_CACHE = "dimspot-shell-v3";
+const SHELL_ASSETS = ["/map", "/manifest.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -51,10 +52,15 @@ self.addEventListener("fetch", (event) => {
       fetch(request)
         .then((response) => {
           const copy = response.clone();
-          caches.open(SHELL_CACHE).then((cache) => cache.put("/", copy));
+          caches.open(SHELL_CACHE).then((cache) => cache.put(url.pathname, copy));
           return response;
         })
-        .catch(() => caches.match("/").then((cached) => cached ?? Response.error())),
+        .catch(() =>
+          caches
+            .match(url.pathname)
+            .then((cached) => cached ?? caches.match("/map"))
+            .then((cached) => cached ?? Response.error()),
+        ),
     );
   }
 });
@@ -66,7 +72,7 @@ self.addEventListener("push", (event) => {
   try {
     payload = event.data.json();
   } catch {
-    payload = { title: "Dimspot", body: event.data.text(), url: "/" };
+    payload = { title: "Dimspot", body: event.data.text(), url: "/map" };
   }
 
   event.waitUntil(
@@ -78,14 +84,14 @@ self.addEventListener("push", (event) => {
       // than stacking a second one.
       tag: payload.tag ?? "outage",
       renotify: false,
-      data: { url: payload.url ?? "/" },
+      data: { url: payload.url ?? "/map" },
     }),
   );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const target = event.notification.data?.url ?? "/";
+  const target = event.notification.data?.url ?? "/map";
 
   event.waitUntil(
     self.clients

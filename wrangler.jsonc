@@ -17,6 +17,8 @@
     }
   ],
   "workers_dev": true,
+  // The public address. workers.dev stays on as a second, trusted origin.
+  "routes": [{ "pattern": "dimspot.adetayo.dev", "custom_domain": true }],
   "observability": { "enabled": true },
   // Public feed ingest (worker.ts -> /api/ingest) every 20 minutes. NWS warnings
   // expire in hours, so this is the advisory layer's refresh rate.
@@ -43,7 +45,9 @@
     }
   ],
   "vars": {
-    "BETTER_AUTH_URL": "https://dimspot.tiger-tayo.workers.dev",
+    "BETTER_AUTH_URL": "https://dimspot.adetayo.dev",
+    // Extra origins allowed to sign in (comma-separated), so the old workers.dev link keeps working.
+    "BETTER_AUTH_TRUSTED_ORIGINS": "https://dimspot.tiger-tayo.workers.dev",
     "EMAIL_FROM": "noreply@mail.adetayo.dev"
   }
   // Secrets (set with `npx wrangler secret put NAME`, never stored here):

@@ -4,7 +4,7 @@
 // @ts-nocheck: .open-next/worker.js only exists after a build.
 import app from "./.open-next/worker.js";
 
-const FALLBACK_ORIGIN = "https://dimspot.tiger-tayo.workers.dev";
+const FALLBACK_ORIGIN = "https://dimspot.adetayo.dev";
 
 export default {
   fetch: app.fetch,

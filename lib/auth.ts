@@ -85,6 +85,14 @@ function inBackground(promise: Promise<unknown>): void {
   }
 }
 
+/** Extra origins allowed to sign in, from BETTER_AUTH_TRUSTED_ORIGINS (comma-separated https:// addresses). */
+function extraTrustedOrigins(): string[] {
+  return (process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter((origin) => /^https:\/\/[^/]+$/.test(origin));
+}
+
 function baseURL(): string {
   const url = process.env.BETTER_AUTH_URL?.trim() ?? "";
   // A live server must know its own https address: it decides secure cookies
@@ -104,7 +112,7 @@ export function authOptions() {
     baseURL: url,
     basePath: "/api/auth",
     secret: process.env.BETTER_AUTH_SECRET,
-    trustedOrigins: [url],
+    trustedOrigins: [url, ...extraTrustedOrigins()],
     database: getPool(),
 
     user: {

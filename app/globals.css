@@ -13,30 +13,32 @@
    maps them onto utility classes (bg-card, text-muted-foreground, ...).
 --------------------------------------------------------------------------- */
 
+/* Dimspot app palette, shared with the landing page (design-system.md).
+   Night is the default (html.dark is set in the root layout); :root is the
+   dusk light mode. Sodium is the one action colour in both. */
 :root {
-  --background: hsl(0 0% 100%);
-  --foreground: hsl(0 0% 3.9%);
-  --card: hsl(0 0% 100%);
-  --card-foreground: hsl(0 0% 3.9%);
-  --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(0 0% 3.9%);
-  --primary: hsl(0 0% 9%);
-  --primary-foreground: hsl(0 0% 98%);
-  --secondary: hsl(0 0% 96.1%);
-  --secondary-foreground: hsl(0 0% 9%);
-  --muted: hsl(0 0% 96.1%);
-  --muted-foreground: hsl(0 0% 40%);
-  --accent: hsl(0 0% 96.1%);
-  --accent-foreground: hsl(0 0% 9%);
+  --background: #f4e9dc; /* dusk */
+  --foreground: #161a26; /* ink */
+  --card: #fbf6ef;
+  --card-foreground: #161a26;
+  --popover: #fbf6ef;
+  --popover-foreground: #161a26;
+  --primary: #ffb21a; /* sodium: report, selection */
+  --primary-foreground: #161a26;
+  --secondary: #eadccb; /* dusk-deep */
+  --secondary-foreground: #161a26;
+  --muted: #eadccb;
+  --muted-foreground: #4a4f5e; /* ink-soft, 6.5:1 on dusk-deep */
+  --accent: #eadccb;
+  --accent-foreground: #161a26;
   --destructive: hsl(0 72% 45%);
-  --destructive-foreground: hsl(0 0% 98%);
-  --border: hsl(0 0% 89.8%);
-  --input: hsl(0 0% 89.8%);
-  --ring: hsl(0 0% 3.9%);
-  --radius: 0.75rem;
+  --destructive-foreground: #fff6e5;
+  --border: rgb(22 26 38 / 0.1);
+  --input: rgb(22 26 38 / 0.16);
+  --ring: #161a26; /* sodium would vanish on cream */
+  --radius: 1rem;
 
-  /* Severity scale. Deliberately not pure red/orange/yellow: these are darkened
-     enough to hold a 4.5:1 contrast ratio against white for text use. */
+  /* Severity scale. Darkened enough to hold 4.5:1 as text on the dusk surfaces. */
   --severity-complete: hsl(0 72% 45%);
   --severity-degraded: hsl(24 90% 40%);
   --severity-intermittent: hsl(38 92% 33%);
@@ -44,30 +46,31 @@
 }
 
 .dark {
-  --background: hsl(0 0% 6%);
-  --foreground: hsl(0 0% 98%);
-  --card: hsl(0 0% 9%);
-  --card-foreground: hsl(0 0% 98%);
-  --popover: hsl(0 0% 9%);
-  --popover-foreground: hsl(0 0% 98%);
-  --primary: hsl(0 0% 98%);
-  --primary-foreground: hsl(0 0% 9%);
-  --secondary: hsl(0 0% 15%);
-  --secondary-foreground: hsl(0 0% 98%);
-  --muted: hsl(0 0% 15%);
-  --muted-foreground: hsl(0 0% 65%);
-  --accent: hsl(0 0% 15%);
-  --accent-foreground: hsl(0 0% 98%);
-  --destructive: hsl(0 72% 55%);
-  --destructive-foreground: hsl(0 0% 98%);
-  --border: hsl(0 0% 18%);
-  --input: hsl(0 0% 18%);
-  --ring: hsl(0 0% 83.1%);
+  --background: #0c1222; /* night */
+  --foreground: #fff6e5; /* lamp */
+  --card: #151c30; /* night-raised */
+  --card-foreground: #fff6e5;
+  --popover: #151c30;
+  --popover-foreground: #fff6e5;
+  --primary: #ffb21a; /* sodium */
+  --primary-foreground: #0c1222;
+  --secondary: #1e2740; /* night-high */
+  --secondary-foreground: #fff6e5;
+  --muted: #1e2740;
+  --muted-foreground: #b9bbc6; /* lamp-soft */
+  --accent: #232d4a;
+  --accent-foreground: #fff6e5;
+  --destructive: hsl(0 72% 52%);
+  --destructive-foreground: #fff6e5;
+  --border: rgb(255 246 229 / 0.1);
+  --input: rgb(255 246 229 / 0.14);
+  --ring: #ffb21a;
 
-  --severity-complete: hsl(0 84% 62%);
-  --severity-degraded: hsl(24 95% 58%);
-  --severity-intermittent: hsl(45 93% 55%);
-  --severity-resolved: hsl(142 65% 50%);
+  /* The landing's severity tones: they glow like lamps on the night map. */
+  --severity-complete: hsl(0 80% 68%);
+  --severity-degraded: hsl(24 90% 62%);
+  --severity-intermittent: hsl(42 92% 60%);
+  --severity-resolved: hsl(142 55% 55%);
 }
 
 @theme inline {
@@ -164,4 +167,47 @@
   .animate-pulse-ring {
     animation: none;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Lights Out (landing) tokens. See design-system.md and .design/brief.md.
+   Sodium is the color of light itself: the city's lights, the outage boundary
+   and the primary button. It is used nowhere else in the UI.
+--------------------------------------------------------------------------- */
+@theme {
+  --color-dusk: #f4e9dc;
+  --color-dusk-deep: #eadccb;
+  --color-night: #0c1222;
+  --color-night-raised: #151c30;
+  --color-night-high: #1e2740;
+  --color-ink: #161a26;
+  --color-ink-soft: #4a4f5e;
+  --color-lamp: #fff6e5;
+  --color-lamp-soft: #b9bbc6;
+  --color-horizon: #e7a39a;
+  --color-violet: #6e5a8a;
+  --color-sodium: #ffb21a;
+  --color-sodium-hover: #ffc24d;
+
+  --ease-lights: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@theme inline {
+  --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-text: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Intermittent service line in the landing outage card: flickers once on hover. */
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  20% { opacity: 0.2; }
+  40% { opacity: 0.9; }
+  60% { opacity: 0.1; }
+  80% { opacity: 0.7; }
+}
+
+/* Landing hero: the sodium glow behind the globe breathes slowly. */
+@keyframes breathe {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.08); }
 }

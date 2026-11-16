@@ -40,6 +40,9 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       // Basemap tiles and sprites are raster/vector data from the tile host.
       "img-src 'self' data: blob: https://tiles.openfreemap.org",
+      // The landing's descent film is fetched from this origin and played from
+      // memory (a blob URL) so it can be scrubbed by the scroll.
+      "media-src 'self' blob:",
       "font-src 'self' data:",
       // The app's own API (auth included) and the tile host, nothing else.
       "connect-src 'self' https://tiles.openfreemap.org",
@@ -51,13 +54,38 @@ const securityHeaders = [
   },
 ];
 
+/**
+ * The map moved from / to /map when / became the landing page. Links already in
+ * the wild (delivered push notifications, installed app shortcuts, auth emails)
+ * still point at /?outage=, /?action= or /?auth=, so those keep landing on the map.
+ * Next.js carries the query string through to the destination.
+ */
+const legacyMapQueries = ["outage", "action", "auth"];
+
 const nextConfig: NextConfig = {
   // pg reaches Hyperdrive through pg-cloudflare's Workers socket. Next only
   // traces its Node stub, and the Cloudflare build copies the full Workers
   // version only for packages listed here.
   serverExternalPackages: ["pg", "pg-cloudflare"],
+  async redirects() {
+    return legacyMapQueries.map((key) => ({
+      source: "/",
+      has: [{ type: "query" as const, key }],
+      destination: "/map",
+      permanent: false,
+    }));
+  },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // The descent film is several megabytes and its file names are not
+      // content-hashed, so it is cached for a day and refreshed in the
+      // background rather than revalidated on every visit or pinned forever.
+      {
+        source: "/landing/descent/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }],
+      },
+    ];
   },
 };
 
