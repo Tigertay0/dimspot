@@ -8,8 +8,8 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/outages/:id/resolve — "it's back for me".
  *
- * On Supabase this is a vote; the status only flips once enough people agree
- * (see apply_resolution_votes in migration 002). The local repository resolves
+ * With a database this is a vote; the status only flips once enough people
+ * agree (see apply_resolution_votes in db/migrations/0002_app.sql). The local repository resolves
  * immediately, which is fine for demo data.
  */
 export async function POST(

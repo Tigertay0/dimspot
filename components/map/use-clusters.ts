@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import Supercluster from "supercluster";
 import { MARKER_ZOOM } from "@/lib/constants";
 import type { Outage, Severity, ServiceType } from "@/lib/types";
@@ -125,15 +125,23 @@ export function useClusters(outages: Outage[], viewport: Viewport | null) {
     ) as ClusterFeature[];
   }, [index, viewport]);
 
-  return {
-    clusters,
-    /** Zoom that breaks a given cluster into its children. */
-    expansionZoom: (clusterId: number) =>
-      Math.min(index.getClusterExpansionZoom(clusterId), 18),
-    /** The individual outages inside a cluster, for the spider list. */
-    leaves: (clusterId: number, limit = 25): Outage[] =>
+  /** Zoom that breaks a given cluster into its children. */
+  const expansionZoom = useCallback(
+    (clusterId: number) => Math.min(index.getClusterExpansionZoom(clusterId), 18),
+    [index],
+  );
+
+  /** The individual outages inside a cluster, for the spider list. */
+  const leaves = useCallback(
+    (clusterId: number, limit = 25): Outage[] =>
       index
         .getLeaves(clusterId, limit)
         .map((leaf) => (leaf.properties as PointProperties).outage),
-  };
+    [index],
+  );
+
+  // Both are memoised on `index` so the callers that wrap them in useCallback
+  // actually get a stable function back; as inline closures they changed
+  // identity every render and defeated that memoisation entirely.
+  return { clusters, expansionZoom, leaves };
 }

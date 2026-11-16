@@ -169,6 +169,9 @@ function toast({ ...props }: Toast) {
 function useToast() {
   const [state, setState] = React.useState<State>(memoryState)
 
+  // Subscribe once per mount. Depending on `state` here unsubscribed and
+  // resubscribed on every dispatch, which risks dropping the listener mid-swap
+  // when toasts arrive in quick succession.
   React.useEffect(() => {
     listeners.push(setState)
     return () => {
@@ -177,7 +180,7 @@ function useToast() {
         listeners.splice(index, 1)
       }
     }
-  }, [state])
+  }, [])
 
   return {
     ...state,

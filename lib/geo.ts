@@ -54,7 +54,8 @@ const mod360 = (n: number) => ((n % 360) + 360) % 360;
  * -250..250, and a view over the Pacific reports 170..200. Clamping those
  * would drop part of the view, so longitudes are wrapped instead. A view that
  * then crosses the antimeridian comes out with minLng > maxLng, which the SQL
- * functions (migration 011) and isWithinBounds both read as "wraps around".
+ * functions (db/migrations/0002_app.sql) and isWithinBounds both read as
+ * "wraps around".
  */
 export function normalizeBounds(bounds: BoundingBox): BoundingBox {
   const minLat = Math.max(-90, Math.min(bounds.minLat, bounds.maxLat));

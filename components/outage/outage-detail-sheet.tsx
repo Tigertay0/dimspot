@@ -8,6 +8,7 @@ import {
   Loader2,
   MapPin,
   MessageSquare,
+  RefreshCw,
   Send,
   ThumbsUp,
   Users,
@@ -31,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
@@ -52,7 +54,7 @@ export function OutageDetailSheet({
   outageId: string | null;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { data: outage, isLoading } = useOutageDetail(outageId);
+  const { data: outage, isLoading, isError, refetch } = useOutageDetail(outageId);
   const confirm = useConfirmOutage(outageId ?? "");
   const resolve = useResolveOutage(outageId ?? "");
   const addComment = useAddComment(outageId ?? "");
@@ -97,12 +99,31 @@ export function OutageDetailSheet({
         side="bottom"
         className="flex max-h-[85vh] flex-col sm:mx-auto sm:max-w-lg sm:rounded-t-2xl"
       >
-        {isLoading || !outage ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-16">
             {/* Radix requires a title on every dialog for screen readers, so
                 the loading state announces itself rather than opening silent. */}
             <SheetTitle className="sr-only">Loading outage details</SheetTitle>
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : !outage ? (
+          // Without this branch a failed or missing fetch left `isLoading`
+          // false and `outage` undefined, so the spinner above span on forever.
+          <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+            <SheetTitle className="text-base">
+              {isError ? "Could not load this outage" : "Outage not found"}
+            </SheetTitle>
+            <SheetDescription className="max-w-xs">
+              {isError
+                ? "Something went wrong fetching the details."
+                : "It may have been removed since you last looked."}
+            </SheetDescription>
+            {isError && (
+              <Button variant="secondary" onClick={() => refetch()}>
+                <RefreshCw className="h-4 w-4" />
+                Try again
+              </Button>
+            )}
           </div>
         ) : (
           <>

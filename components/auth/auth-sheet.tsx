@@ -1,8 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Loader2, LogOut, MailCheck, UserRound } from "lucide-react";
-import { useCreateAccount, useSignIn, useSignOut } from "@/lib/hooks/use-auth";
+import { CheckCircle2, KeyRound, Loader2, LogOut, MailCheck, UserRound } from "lucide-react";
+import { MIN_PASSWORD_LENGTH } from "@/lib/constants";
+import {
+  useCreateAccount,
+  useResetPassword,
+  useSetNewPassword,
+  useSignIn,
+  useSignOut,
+} from "@/lib/hooks/use-auth";
 import type { SessionInfo } from "@/lib/hooks/use-outages";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +24,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 
-/** Supabase's own minimum. Stated up front rather than after a failed submit. */
-const MIN_PASSWORD = 6;
+/** The server's minimum. Stated up front rather than after a failed submit. */
+const MIN_PASSWORD = MIN_PASSWORD_LENGTH;
 
 /**
  * Account sheet (PRD section 4.3).
@@ -31,12 +38,19 @@ export function AuthSheet({
   open,
   onOpenChange,
   session,
+  resetToken = null,
+  onResetTokenUsed,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   session: SessionInfo | undefined;
+  /** From a password reset email's link; shows the new-password form. */
+  resetToken?: string | null;
+  onResetTokenUsed?: () => void;
 }) {
   const isSignedIn = Boolean(session?.identity.email);
+  // After a password reset the next step is signing in, not creating an account.
+  const [afterReset, setAfterReset] = useState(false);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -44,13 +58,184 @@ export function AuthSheet({
         side="bottom"
         className="flex max-h-[85vh] flex-col sm:mx-auto sm:max-w-lg sm:rounded-t-2xl"
       >
-        {isSignedIn ? (
+        {resetToken ? (
+          <NewPassword
+            token={resetToken}
+            onDone={() => {
+              setAfterReset(true);
+              onResetTokenUsed?.();
+            }}
+          />
+        ) : isSignedIn ? (
           <SignedIn session={session!} onOpenChange={onOpenChange} />
         ) : (
-          <SignedOut onOpenChange={onOpenChange} />
+          <SignedOut
+            onOpenChange={onOpenChange}
+            defaultTab={afterReset ? "signin" : "create"}
+          />
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+/** Reached from the link in a password reset email. */
+function NewPassword({ token, onDone }: { token: string; onDone: () => void }) {
+  const [password, setPassword] = useState("");
+  const setNewPassword = useSetNewPassword();
+  const { toast } = useToast();
+  const tooShort = password.length > 0 && password.length < MIN_PASSWORD;
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (password.length < MIN_PASSWORD) return;
+
+    try {
+      await setNewPassword.mutateAsync({ token, newPassword: password });
+      toast({
+        title: "Password changed",
+        description: "Sign in with your new password.",
+      });
+      onDone();
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Could not change your password",
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    }
+  }
+
+  return (
+    <>
+      <SheetHeader className="pr-12">
+        <SheetTitle>Choose a new password</SheetTitle>
+        <SheetDescription>
+          This signs out every other device on the account.
+        </SheetDescription>
+      </SheetHeader>
+
+      <form onSubmit={submit} className="space-y-4 px-5 py-4">
+        <div>
+          <Label htmlFor="new-password" className="mb-1.5 block">
+            New password
+          </Label>
+          <Input
+            id="new-password"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+            minLength={MIN_PASSWORD}
+            autoComplete="new-password"
+            aria-describedby="new-password-hint"
+          />
+          <p
+            id="new-password-hint"
+            className={`mt-1.5 text-xs ${tooShort ? "text-destructive" : "text-muted-foreground"}`}
+          >
+            At least {MIN_PASSWORD} characters.
+          </p>
+        </div>
+
+        <Button
+          type="submit"
+          className="w-full"
+          disabled={setNewPassword.isPending || password.length < MIN_PASSWORD}
+        >
+          {setNewPassword.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+          Save new password
+        </Button>
+      </form>
+    </>
+  );
+}
+
+/** "Forgot password?" from the sign-in tab. */
+function ForgotPassword({ onBack }: { onBack: () => void }) {
+  const [email, setEmail] = useState("");
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const resetPassword = useResetPassword();
+  const { toast } = useToast();
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await resetPassword.mutateAsync({ email: email.trim() });
+      setSentTo(email.trim());
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Could not send the email",
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    }
+  }
+
+  if (sentTo) {
+    return (
+      <>
+        <SheetHeader className="pr-12">
+          <SheetTitle>Check your email</SheetTitle>
+          <SheetDescription>
+            If {sentTo} has an account, a link to choose a new password is on
+            its way.
+          </SheetDescription>
+        </SheetHeader>
+        <div className="flex-1 px-5 py-4">
+          <p className="flex items-start gap-2 text-sm text-muted-foreground">
+            <MailCheck className="mt-0.5 h-4 w-4 shrink-0" />
+            The link works once and expires in an hour.
+          </p>
+        </div>
+        <div className="border-t px-5 py-4">
+          <Button className="w-full" variant="outline" onClick={onBack}>
+            Back to sign in
+          </Button>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <SheetHeader className="pr-12">
+        <SheetTitle>Reset your password</SheetTitle>
+        <SheetDescription>
+          We will email you a link to choose a new one.
+        </SheetDescription>
+      </SheetHeader>
+
+      <form onSubmit={submit} className="space-y-4 px-5 py-4">
+        <div>
+          <Label htmlFor="reset-email" className="mb-1.5 block">
+            Email
+          </Label>
+          <Input
+            id="reset-email"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+            autoComplete="email"
+            inputMode="email"
+            placeholder="you@example.com"
+          />
+        </div>
+
+        <Button type="submit" className="w-full" disabled={resetPassword.isPending || !email}>
+          {resetPassword.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <KeyRound className="h-4 w-4" />
+          )}
+          Send reset link
+        </Button>
+        <Button type="button" variant="ghost" className="w-full" onClick={onBack}>
+          Back to sign in
+        </Button>
+      </form>
+    </>
   );
 }
 
@@ -114,10 +299,19 @@ function SignedIn({
   );
 }
 
-function SignedOut({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
+function SignedOut({
+  onOpenChange,
+  defaultTab,
+}: {
+  onOpenChange: (open: boolean) => void;
+  defaultTab: "create" | "signin";
+}) {
   const [confirmationSentTo, setConfirmationSentTo] = useState<string | null>(
     null,
   );
+  const [forgot, setForgot] = useState(false);
+
+  if (forgot) return <ForgotPassword onBack={() => setForgot(false)} />;
 
   if (confirmationSentTo) {
     return (
@@ -156,7 +350,7 @@ function SignedOut({ onOpenChange }: { onOpenChange: (open: boolean) => void }) 
         </SheetDescription>
       </SheetHeader>
 
-      <Tabs defaultValue="create" className="flex min-h-0 flex-1 flex-col">
+      <Tabs defaultValue={defaultTab} className="flex min-h-0 flex-1 flex-col">
         <div className="px-5 pt-3">
           <TabsList className="w-full">
             <TabsTrigger value="create" className="flex-1">
@@ -181,6 +375,7 @@ function SignedOut({ onOpenChange }: { onOpenChange: (open: boolean) => void }) 
             mode="signin"
             onOpenChange={onOpenChange}
             onConfirmationSent={setConfirmationSentTo}
+            onForgotPassword={() => setForgot(true)}
           />
         </TabsContent>
       </Tabs>
@@ -192,10 +387,12 @@ function CredentialsForm({
   mode,
   onOpenChange,
   onConfirmationSent,
+  onForgotPassword,
 }: {
   mode: "create" | "signin";
   onOpenChange: (open: boolean) => void;
   onConfirmationSent: (email: string) => void;
+  onForgotPassword?: () => void;
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -298,6 +495,12 @@ function CredentialsForm({
         {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
         {mode === "create" ? "Create account" : "Sign in"}
       </Button>
+
+      {mode === "signin" && onForgotPassword && (
+        <Button type="button" variant="ghost" className="w-full" onClick={onForgotPassword}>
+          Forgot password?
+        </Button>
+      )}
     </form>
   );
 }

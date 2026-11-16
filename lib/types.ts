@@ -1,7 +1,7 @@
 /**
  * Domain types shared by the API routes, the data layer and the UI.
  *
- * These are deliberately independent of the Supabase-generated row types: the
+ * These are deliberately independent of the database's row shapes: the
  * local (no-database) repository has to satisfy the same shapes, and the API
  * responses are what the client actually consumes.
  */

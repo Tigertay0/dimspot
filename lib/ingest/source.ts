@@ -21,10 +21,9 @@ import type { Severity } from "@/lib/types";
 /**
  * Ceiling on any single upstream request.
  *
- * Sources are fetched one after another inside one serverless invocation, so a
- * feed that accepts the connection and then stalls does not just fail itself —
- * it eats the budget of every source queued behind it, and the run dies at the
- * route's maxDuration having written nothing. Shared here so a new adapter
+ * Sources are fetched one after another inside one cron invocation, so a feed
+ * that accepts the connection and then stalls does not just fail itself — it
+ * eats the time of every source queued behind it. Shared here so a new adapter
  * cannot forget it.
  */
 export const FETCH_TIMEOUT_MS = 30_000;

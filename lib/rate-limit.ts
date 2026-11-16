@@ -1,12 +1,6 @@
 import "server-only";
 import { addressBucket } from "./client-address";
-import { isSupabaseConfigured } from "./data";
-import { createServerSupabaseClient, createServiceRoleClient } from "./supabase/server";
-
-/** Whether the server can act for itself rather than as the calling user. */
-function serviceRoleAvailable(): boolean {
-  return (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim().length > 0;
-}
+import { isDatabaseConfigured, query } from "./db";
 
 /**
  * Fixed-window rate limiting.
@@ -16,16 +10,19 @@ function serviceRoleAvailable(): boolean {
  *
  * Two implementations behind one call:
  *
- *   - `rateLimit` counts in process memory. On serverless that means each warm
- *     instance enforces its own copy of the limit, so treat it as a courtesy
- *     throttle. It needs no database, so it is what the local backend uses.
- *   - `consumeRateLimit` counts in Postgres (migration 005), shared across
- *     every instance. This is the one that actually constrains a determined
- *     caller, and it is used wherever Supabase is configured.
+ *   - `rateLimit` counts in process memory. On Workers that means each isolate
+ *     enforces its own copy of the limit, so treat it as a courtesy throttle.
+ *     It needs no database, so it is what the local backend uses.
+ *   - `consumeRateLimit` counts in Postgres (consume_rate_limit in
+ *     db/migrations/0002_app.sql), shared across every isolate. This is the one
+ *     that actually constrains a determined caller, and it is used wherever a
+ *     database is configured.
  *
- * The distinction matters because anonymous sign-in requires CAPTCHA to be off,
- * so a bot can mint a fresh identity per request; a per-address limit that only
- * holds within one instance would not slow that down.
+ * The distinction matters because guest identities are free to mint, so a bot
+ * can get a fresh identity per request; a per-address limit that only holds
+ * within one isolate would not slow that down. (Workers rate-limit bindings
+ * were considered, but they only count over 10 or 60 seconds; these windows
+ * are an hour.)
  */
 
 interface Window {
@@ -93,35 +90,22 @@ export async function consumeRateLimit(
   limit: number,
   windowMs: number,
 ): Promise<RateLimitResult> {
-  if (!isSupabaseConfigured()) {
+  if (!isDatabaseConfigured()) {
     return rateLimit(key, limit, windowMs);
   }
 
   try {
-    // Service role, not the caller's session. consume_rate_limit takes the
-    // bucket key as an argument, so a client able to call it directly could
-    // spend someone else's quota — name their bucket, burn their allowance,
-    // and they can no longer report an outage. Counting is the server's job,
-    // and migration 010 revokes the function from anon and authenticated to
-    // match. Without a service-role key the catch below falls back to the
-    // in-process limiter, which is the same degradation as a database outage.
-    const supabase = serviceRoleAvailable()
-      ? createServiceRoleClient()
-      : await createServerSupabaseClient();
-
-    const { data, error } = await supabase.rpc("consume_rate_limit", {
-      bucket_key: key,
-      max_hits: limit,
-      window_seconds: Math.ceil(windowMs / 1000),
-    });
-
-    if (error) throw new Error(error.message);
-
-    const row = (data as Array<{
+    // Only server code reaches the database, so no client can name someone
+    // else's bucket and spend their quota.
+    const [row] = await query<{
       allowed: boolean;
       remaining: number;
       retry_after: number;
-    }>)[0];
+    }>("SELECT * FROM consume_rate_limit($1, $2, $3)", [
+      key,
+      limit,
+      Math.ceil(windowMs / 1000),
+    ]);
 
     if (!row) throw new Error("consume_rate_limit returned no row");
 
@@ -144,7 +128,7 @@ export async function consumeRateLimit(
  */
 export async function consumeAddressLimit(
   prefix: string,
-  request: Request,
+  request: Request | Headers,
   config: { limit: number; windowMs: number },
 ): Promise<RateLimitResult | null> {
   const bucket = addressBucket(prefix, request);
@@ -182,6 +166,17 @@ export const LIMITS = {
   resolve: { limit: 20, windowMs: 60 * 60 * 1000 },
   resolveByAddress: { limit: 30, windowMs: 60 * 60 * 1000 },
   comment: { limit: 20, windowMs: 60 * 60 * 1000 },
+  /**
+   * New guest users, per client address. Every first visit mints one, so this
+   * is what stops a script filling the users table; it matches the 30 an hour
+   * Supabase Auth allowed for anonymous sign-ins.
+   */
+  guestSessionByAddress: { limit: 30, windowMs: 60 * 60 * 1000 },
+  /** Account emails one inbox may receive, however they were triggered. */
+  accountEmailPerRecipient: { limit: 5, windowMs: 60 * 60 * 1000 },
+  /** Each attempt can email an address of the caller's choosing. */
+  createAccount: { limit: 5, windowMs: 60 * 60 * 1000 },
+  createAccountByAddress: { limit: 10, windowMs: 60 * 60 * 1000 },
   /** Nominatim's usage policy is one request per second, per source. */
   geocode: { limit: 30, windowMs: 60 * 1000 },
 } as const;

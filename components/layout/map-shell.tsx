@@ -7,7 +7,10 @@ import { DEFAULT_VIEW } from "@/lib/constants";
 import { useAdvisories, useOutages, useSession } from "@/lib/hooks/use-outages";
 import { activeFilterCount, useFilters } from "@/lib/store/filters";
 import type { Advisory, BoundingBox, GeocodeResult, Outage } from "@/lib/types";
+import Link from "next/link";
+import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { FilterSheet } from "@/components/filters/filter-sheet";
 import { TypeChips } from "@/components/filters/type-chips";
@@ -21,6 +24,8 @@ import { SearchBar } from "@/components/search/search-bar";
 import { AccountButton, AuthSheet } from "@/components/auth/auth-sheet";
 import { DemoBanner } from "./demo-banner";
 import { SettingsSheet } from "./settings-sheet";
+import { useAppearance } from "@/lib/hooks/use-appearance";
+import { useHydrated } from "@/lib/hooks/use-hydrated";
 
 /**
  * The application shell.
@@ -41,7 +46,7 @@ export function MapShell() {
   const [flyTo, setFlyTo] = useState<MapView | null>(null);
 
   // Deep links are read once, when state is created, rather than in an effect:
-  // /?outage=<id> comes from a push notification, /?action=report from the
+  // /map?outage=<id> comes from a push notification, /map?action=report from the
   // manifest's app shortcut. Doing this in an effect would render the closed
   // state first and then immediately re-render with the sheet open.
   const [selectedId, setSelectedId] = useState<string | null>(() =>
@@ -56,7 +61,15 @@ export function MapShell() {
       new URLSearchParams(window.location.search).get("action") === "report",
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [authOpen, setAuthOpen] = useState(false);
+  // /?auth=reset&token=… is where a password reset email's link lands.
+  const [resetToken, setResetToken] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const params = new URLSearchParams(window.location.search);
+    return params.get("auth") === "reset" && !params.get("error")
+      ? params.get("token")
+      : null;
+  });
+  const [authOpen, setAuthOpen] = useState(() => resetToken !== null);
   const [selectedAdvisory, setSelectedAdvisory] = useState<Advisory | null>(null);
   const [picking, setPicking] = useState(false);
   const [listExpanded, setListExpanded] = useState(false);
@@ -69,15 +82,17 @@ export function MapShell() {
    * viewport was never reported, and the app fetched nothing until the user
    * panned. Picking the right style up front removes the swap entirely.
    */
-  const [theme, setTheme] = useState<"light" | "dark">(() =>
-    typeof window !== "undefined" &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light",
-  );
+  const { theme } = useAppearance();
 
   const { data: session } = useSession();
-  const { data: outages = [], isFetching } = useOutages(bounds);
+  const {
+    data: outages = [],
+    isFetching,
+    // A failed fetch must not reach the list as an empty one: "no outages
+    // reported nearby" is the one answer this app must never guess at.
+    isError: outagesFailed,
+    refetch: refetchOutages,
+  } = useOutages(bounds);
   const showAdvisories = useFilters((s) => s.showAdvisories);
   const { data: advisories = [] } = useAdvisories(bounds, showAdvisories);
 
@@ -93,25 +108,23 @@ export function MapShell() {
     providerIds: selectedProviderIds,
   });
 
-  // Follow the OS colour scheme for the basemap. There is no in-app theme
-  // switch yet, so matching the system is the least surprising behaviour.
+  // Night is the default; dusk and "match system" are chosen in settings.
+  const hydrated = useHydrated();
   useEffect(() => {
-    const query = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => {
-      setTheme(query.matches ? "dark" : "light");
-      document.documentElement.classList.toggle("dark", query.matches);
-    };
-
-    apply();
-    query.addEventListener("change", apply);
-    return () => query.removeEventListener("change", apply);
-  }, []);
+    // The pre-paint script in the root layout already set the right class; the
+    // hydration pass still reports the server default, so leave it alone until then.
+    if (!hydrated) return;
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    // Leaving the map (e.g. to the landing page) restores the default night class.
+    return () => document.documentElement.classList.add("dark");
+  }, [theme, hydrated]);
 
   /**
-   * Report the outcome of an email confirmation or password reset.
+   * Report the outcome of an email confirmation or password reset link.
    *
-   * `/auth/callback` always redirects back here with `?auth=…` rather than
-   * rendering a page of its own, so the person lands on the map either way.
+   * Both emails link through /api/auth, which redirects back here with
+   * `?auth=confirmed` or `?auth=reset&token=…` — plus `&error=…` when the link
+   * was expired or already used — so the person lands on the map either way.
    * The params are stripped afterwards so a refresh does not repeat the toast.
    */
   useEffect(() => {
@@ -119,25 +132,23 @@ export function MapShell() {
     const result = params.get("auth");
     if (!result) return;
 
-    if (result === "confirmed") {
-      toast({
-        title: "Email confirmed",
-        description: "Your account is ready. You are signed in on this device.",
-      });
-      queryClient.invalidateQueries();
-    } else {
+    if (params.get("error")) {
       toast({
         variant: "destructive",
         title: "That link did not work",
-        description:
-          params.get("reason") === "missing-code"
-            ? "The link was incomplete. Try requesting a new one."
-            : (params.get("reason") ?? "Please request a new link."),
+        description: "It has expired or was already used. Request a new one.",
       });
+    } else if (result === "confirmed") {
+      toast({
+        title: "Email confirmed",
+        description: "Your account is ready. Sign in with your email and password on any device.",
+      });
+      queryClient.invalidateQueries();
     }
 
     params.delete("auth");
-    params.delete("reason");
+    params.delete("error");
+    params.delete("token");
     const query = params.toString();
     window.history.replaceState(
       {},
@@ -180,6 +191,7 @@ export function MapShell() {
 
   return (
     <main className="fixed inset-0 overflow-hidden">
+      <h1 className="sr-only">Dimspot live outage map</h1>
       <OutageMap
         outages={outages}
         advisories={showAdvisories ? advisories : []}
@@ -211,6 +223,16 @@ export function MapShell() {
           </svg>
         </div>
       )}
+
+      {/* The brand, back to the landing page. Wide screens only: on a phone the
+          search bar needs the whole width. */}
+      <Link
+        href="/"
+        className="absolute top-3 left-3 z-30 hidden h-12 items-center gap-2 rounded-2xl border bg-background/85 px-4 text-[15px] font-semibold tracking-[-0.025em] shadow-lg backdrop-blur-xl xl:flex focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        <BrandMark />
+        Dimspot
+      </Link>
 
       {/* Above the bottom bar: the search suggestions drop down over the map
           and must not be painted on by the report button below them. */}
@@ -256,20 +278,30 @@ export function MapShell() {
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
           <div className="pointer-events-auto mx-auto max-w-lg">
             <div className="flex justify-end px-3 pb-3">
-              <Button
-                size="lg"
+              {/* The landing's action button: a sodium pill with a dark chip. */}
+              <button
+                type="button"
                 onClick={() => setReportOpen(true)}
-                className="h-14 rounded-full pl-5 pr-6 shadow-xl"
+                className={cn(
+                  "group/report inline-flex h-14 items-center gap-3 rounded-full bg-primary pr-2 pl-6 text-[16px] font-semibold tracking-[-0.01em] text-[#0c1222]",
+                  "shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_14px_32px_-12px_rgba(255,178,26,0.75)]",
+                  "transition-[background-color,transform] duration-200 hover:bg-[#ffc24d] active:scale-[0.98]",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                )}
               >
-                <Plus className="h-5 w-5" />
                 Report outage
-              </Button>
+                <span aria-hidden className="flex size-10 items-center justify-center rounded-full bg-[#0c1222] text-primary">
+                  <Plus className="h-5 w-5 transition-transform duration-300 group-hover/report:rotate-90" />
+                </span>
+              </button>
             </div>
 
             <NearbyPanel
               outages={outages}
               advisories={showAdvisories ? advisories : []}
               loading={isFetching}
+              failed={outagesFailed}
+              onRetry={refetchOutages}
               center={center}
               expanded={listExpanded}
               onExpandedChange={setListExpanded}
@@ -298,7 +330,16 @@ export function MapShell() {
         }}
       />
 
-      <AuthSheet open={authOpen} onOpenChange={setAuthOpen} session={session} />
+      <AuthSheet
+        open={authOpen}
+        onOpenChange={(open) => {
+          setAuthOpen(open);
+          if (!open) setResetToken(null);
+        }}
+        session={session}
+        resetToken={resetToken}
+        onResetTokenUsed={() => setResetToken(null)}
+      />
 
       <SettingsSheet
         open={settingsOpen}

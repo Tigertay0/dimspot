@@ -13,6 +13,12 @@ export const severitySchema = z.enum(SEVERITIES);
 export const latitudeSchema = z.number().min(-90).max(90);
 export const longitudeSchema = z.number().min(-180).max(180);
 
+/** A wall-clock time of day, "HH:MM" on a 24-hour clock. */
+const clockTimeSchema = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a time like 22:00")
+  .nullable();
+
 export const createOutageSchema = z.object({
   providerId: z.string().min(1).max(64).nullable(),
   serviceType: serviceTypeSchema,
@@ -49,8 +55,11 @@ export const preferencesSchema = z.object({
     enabled: z.boolean(),
     severityThreshold: severitySchema,
     radiusMiles: z.number().min(1).max(50),
-    quietHoursStart: z.string().nullable(),
-    quietHoursEnd: z.string().nullable(),
+    // "HH:MM", 24-hour. lib/push.ts turns these into minutes-past-midnight;
+    // anything else parses to NaN, and because every NaN comparison is false
+    // that would quietly disable quiet hours instead of rejecting the input.
+    quietHoursStart: clockTimeSchema,
+    quietHoursEnd: clockTimeSchema,
   }),
   defaultCenter: z
     .object({

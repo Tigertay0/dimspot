@@ -44,7 +44,7 @@ export function ReportSheet({
   onRequestPicking: (picking: boolean) => void;
   onReported: (outageId: string) => void;
 }) {
-  const { data: providers = [] } = useProviders();
+  const { data: providers = [], isError: providersFailed } = useProviders();
   const createOutage = useCreateOutage();
   const { toast } = useToast();
 
@@ -61,18 +61,21 @@ export function ReportSheet({
     [providers, serviceType],
   );
 
-  // Reset between reports so the next one starts clean.
-  useEffect(() => {
-    if (open) return;
-
-    setStep("service");
-    setServiceType(null);
-    setProviderId(null);
-    setSeverity(null);
-    setDescription("");
-    setPlace(null);
-    onRequestPicking(false);
-  }, [open, onRequestPicking]);
+  // Reset between reports so the next one starts clean. Done while rendering
+  // the close rather than in an effect, so no frame shows the stale form; the
+  // effect below already turns picking off whenever the sheet is closed.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (!open) {
+      setStep("service");
+      setServiceType(null);
+      setProviderId(null);
+      setSeverity(null);
+      setDescription("");
+      setPlace(null);
+    }
+  }
 
   useEffect(() => {
     onRequestPicking(open && step === "location");
@@ -83,22 +86,35 @@ export function ReportSheet({
   useEffect(() => {
     if (step !== "location" || !pickedLocation) return;
 
+    // Dragging the pin again supersedes this lookup. Clearing the timer alone
+    // left an in-flight request running, and whichever reply landed last won —
+    // so the confirmation screen could name the address of a spot the user had
+    // already moved away from.
+    const controller = new AbortController();
+
     const timer = setTimeout(async () => {
       setResolvingPlace(true);
       try {
         const response = await fetch(
           `/api/geocode?lat=${pickedLocation.latitude}&lng=${pickedLocation.longitude}`,
+          { signal: controller.signal },
         );
         const body = (await response.json()) as { results: GeocodeResult[] };
         setPlace(body.results[0] ?? null);
       } catch {
+        // An abort is a newer lookup taking over, not a failure: leave both the
+        // place and the spinner to the request that replaced this one.
+        if (controller.signal.aborted) return;
         setPlace(null);
       } finally {
-        setResolvingPlace(false);
+        if (!controller.signal.aborted) setResolvingPlace(false);
       }
     }, 600);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [step, pickedLocation]);
 
   const stepIndex = STEP_ORDER.indexOf(step);
@@ -207,9 +223,18 @@ export function ReportSheet({
                 ))}
               </div>
 
+              {/* The field is optional, so a failed list does not block the
+                  report — but say so rather than silently omitting the row. */}
+              {serviceType && providersFailed && providerOptions.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Could not load the provider list. You can still send the
+                  report without naming a provider.
+                </p>
+              )}
+
               {serviceType && providerOptions.length > 0 && (
                 <div>
-                  <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">
+                  <Label className="mb-2 block text-[13px] text-muted-foreground">
                     Provider (optional)
                   </Label>
                   <div className="flex flex-wrap gap-2">

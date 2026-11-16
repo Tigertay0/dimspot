@@ -30,17 +30,18 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files. The example template is committed on purpose: it is the list of
-# settings a contributor has to fill in, and it holds no secrets.
+# env files. None are used: the Cloudflare build copies every .env file it
+# finds into the deployed Worker, so local settings live in .secrets/dev.env.
 .env*
-!.env.example
-
-# vercel
-.vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
-# Supabase CLI scratch
-/supabase/.temp
+# Local credentials and dev settings (never commit)
+/.secrets/
+
+# Cloudflare build output and local state
+/.open-next/
+/.wrangler/
+.dev.vars*

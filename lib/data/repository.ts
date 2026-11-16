@@ -14,15 +14,16 @@ import type {
  * The storage contract every backend must satisfy.
  *
  * Two implementations exist:
- *   - SupabaseRepository — Postgres + PostGIS, used when the project is configured.
+ *   - PostgresRepository — Postgres + PostGIS, used when a database is configured.
  *   - LocalRepository    — in-process seeded store, so the app runs with no setup.
  *
- * `identity` is whoever is acting: a Supabase user id when signed in, or an
- * anonymous per-browser id issued by the guest cookie. Both are opaque strings
- * here; only the confirmation-uniqueness rule cares about them.
+ * `identity` is whoever is acting: a user id (anonymous or signed in) from the
+ * session, or — with no database — an anonymous per-browser id issued by the
+ * guest cookie. It always comes from the server's view of the session, never
+ * from the request, and every write is scoped to it.
  */
 export interface Repository {
-  readonly kind: "supabase" | "local";
+  readonly kind: "postgres" | "local";
 
   listProviders(): Promise<Provider[]>;
 

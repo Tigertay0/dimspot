@@ -1,14 +1,9 @@
-import { after } from "next/server";
 import type { NextRequest } from "next/server";
 import { ok, serverError } from "@/lib/api";
 import { getRepository } from "@/lib/data";
 import { parseBboxParam } from "@/lib/geo";
-import { refreshIfStale } from "@/lib/ingest/run";
 
 export const dynamic = "force-dynamic";
-// The background refresh after the response fetches NWS, its zone geometry
-// and ODIN; the default function limit is too tight for that.
-export const maxDuration = 60;
 
 /**
  * GET /api/advisories?bbox=minLng,minLat,maxLng,maxLat
@@ -24,16 +19,10 @@ export async function GET(request: NextRequest) {
     const bounds = parseBboxParam(request.nextUrl.searchParams.get("bbox"));
     const advisories = await getRepository().listAdvisories(bounds);
 
-    // After the response, not before it: this reader gets whatever is stored,
-    // and the next one gets fresher data. Vercel's Hobby plan caps cron at one
-    // run a day, so without this the layer would go a day stale for warnings
-    // that expire in hours.
-    after(() => refreshIfStale());
-
     return ok(
       { advisories },
-      // Alerts change on the order of minutes, and the ingest run polls every
-      // fifteen, so a short shared cache costs nothing in freshness.
+      // Alerts change on the order of minutes, and the ingest cron polls every
+      // twenty, so a short shared cache costs nothing in freshness.
       { headers: { "Cache-Control": "public, max-age=60, s-maxage=120" } },
     );
   } catch (error) {

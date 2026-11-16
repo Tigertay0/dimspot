@@ -16,13 +16,13 @@ import { DEFAULT_PREFERENCES, type Repository } from "./repository";
 import { SEED_OUTAGES, SEED_PROVIDERS, commentsForSeedIndex } from "./seed";
 
 /**
- * In-process repository so the app is usable with no Supabase project and no
- * API keys. Data lives for the lifetime of the server process; restarting
+ * In-process repository so the app is usable with no database and no API
+ * keys. Data lives for the lifetime of the server process; restarting
  * `next dev` re-seeds it.
  *
  * This is a development and demo backend, not a production one — it has no
  * durability and no cross-instance sharing. `getRepository()` prefers the
- * Supabase implementation whenever the environment is configured.
+ * Postgres implementation whenever a database is configured.
  */
 
 interface Store {
