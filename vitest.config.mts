@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    include: ["tests/**/*.test.ts", "lib/**/__tests__/**/*.test.ts"],
     // Against a real database; run with `npm run test:db`.
     exclude: ["tests/db/**", "node_modules/**"],
   },
