@@ -14,6 +14,7 @@
 import { Signal, Wifi, Zap } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LAND_DOTS } from "@/lib/landing/land-dots";
+import { usePrefersReducedMotion } from "@/lib/landing/use-prefers-reduced-motion";
 import { cn } from "@/lib/utils";
 
 type Service = "Power" | "Internet" | "Cell";
@@ -124,6 +125,7 @@ export function InteractiveGlobe({ className }: { className?: string }) {
   const time = useRef(0);
   const [label, setLabel] = useState<TourStop>(STOPS[0]);
   const [labelShown, setLabelShown] = useState(false);
+  const reduceMotion = usePrefersReducedMotion();
 
   const draw = useCallback((canvas: HTMLCanvasElement, animate: boolean) => {
     const ctx = canvas.getContext("2d");
@@ -239,7 +241,7 @@ export function InteractiveGlobe({ className }: { className?: string }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduce = reduceMotion;
     let frame = 0;
     let visible = true;
     let last = performance.now();
@@ -281,7 +283,7 @@ export function InteractiveGlobe({ className }: { className?: string }) {
       ro.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [draw, step]);
+  }, [draw, step, reduceMotion]);
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     drag.current = { ...drag.current, active: true, x: e.clientX, y: e.clientY, ry: camera.current.ry, rx: camera.current.rx };

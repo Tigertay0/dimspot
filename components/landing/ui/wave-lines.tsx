@@ -6,6 +6,7 @@
 // stands still under reduced motion.
 
 import * as React from "react";
+import { usePrefersReducedMotion } from "@/lib/landing/use-prefers-reduced-motion";
 import { cn } from "@/lib/utils";
 
 interface WaveLinesProps extends React.ComponentProps<"canvas"> {
@@ -17,6 +18,7 @@ interface WaveLinesProps extends React.ComponentProps<"canvas"> {
 
 export function WaveLines({ lines = 14, amplitude = 18, speed = 0.45, interactive = true, className, ...props }: WaveLinesProps) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const reduceMotion = usePrefersReducedMotion();
 
   React.useEffect(() => {
     const canvas = canvasRef.current;
@@ -24,7 +26,6 @@ export function WaveLines({ lines = 14, amplitude = 18, speed = 0.45, interactiv
     const parent = canvas?.parentElement;
     if (!canvas || !context || !parent) return;
 
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let width = 0;
     let height = 0;
     let frame = 0;
@@ -133,7 +134,7 @@ export function WaveLines({ lines = 14, amplitude = 18, speed = 0.45, interactiv
       parent.removeEventListener("pointermove", onPointerMove);
       parent.removeEventListener("pointerleave", onPointerLeave);
     };
-  }, [lines, amplitude, speed, interactive]);
+  }, [lines, amplitude, speed, interactive, reduceMotion]);
 
   return <canvas ref={canvasRef} aria-hidden className={cn("pointer-events-none absolute inset-0 size-full", className)} {...props} />;
 }

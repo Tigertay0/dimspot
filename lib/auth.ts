@@ -90,7 +90,14 @@ function extraTrustedOrigins(): string[] {
   return (process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? "")
     .split(",")
     .map((origin) => origin.trim())
-    .filter((origin) => /^https:\/\/[^/]+$/.test(origin));
+    .filter((origin) => origin.length > 0)
+    .filter((origin) => {
+      const valid = /^https:\/\/[^/]+$/.test(origin);
+      if (!valid) {
+        console.warn(`[auth] ignoring malformed BETTER_AUTH_TRUSTED_ORIGINS entry: ${origin}`);
+      }
+      return valid;
+    });
 }
 
 function baseURL(): string {
