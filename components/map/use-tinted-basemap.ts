@@ -62,7 +62,11 @@ export function useTintedBasemap(theme: Theme): StyleSpecification | string | nu
     const controller = new AbortController();
     const prefetchOther = () => {
       const other = OTHER[theme];
-      if (!cache.has(other)) fetchTinted(other).catch(() => undefined); // best effort
+      if (!cache.has(other)) {
+        fetchTinted(other).catch((error: unknown) => {
+          console.debug("Could not prefetch the other basemap theme", error);
+        });
+      }
     };
     if (cache.has(theme)) {
       prefetchOther();
