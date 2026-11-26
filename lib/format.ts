@@ -56,6 +56,8 @@ export function outageDuration(outage: Outage): string {
 
 /** The one-line location label used across markers, lists and the detail sheet. */
 export function locationLabel(outage: Outage): string {
+  // A network-wide outage has coordinates only because the schema needs them.
+  if (outage.scope === "national") return "Nationwide";
   if (outage.address) return outage.address;
   if (outage.city && outage.state) return `${outage.city}, ${outage.state}`;
   if (outage.city) return outage.city;

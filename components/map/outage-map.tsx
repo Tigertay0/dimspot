@@ -270,6 +270,13 @@ export function OutageMap({
         // assigned yet when `load` fires, and every read here would no-op.
         const map = event.target;
 
+        // MapLibre opens the compact attribution until the first drag, which
+        // on a phone lays a strip of text across the report button. Start it
+        // closed; the (i) button still opens it.
+        const attribution = map.getContainer().querySelector(".maplibregl-ctrl-attrib");
+        attribution?.classList.remove("maplibregl-compact-show");
+        attribution?.removeAttribute("open");
+
         // Fit the country to whatever viewport this actually is, then report
         // the resulting bounds. Padding keeps markers clear of the search bar
         // above and the list panel below.

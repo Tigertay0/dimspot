@@ -6,6 +6,7 @@ import {
   CloudAlert,
   Loader2,
   Plus,
+  RadioTower,
   RefreshCw,
   TriangleAlert,
 } from "lucide-react";
@@ -29,6 +30,7 @@ import { cn } from "@/lib/utils";
  */
 export function NearbyPanel({
   outages,
+  networkAlerts,
   advisories,
   loading,
   failed,
@@ -40,7 +42,10 @@ export function NearbyPanel({
   onSelectAdvisory,
   onReport,
 }: {
+  /** Outages with a place, in the current viewport. */
   outages: Outage[];
+  /** Outages of a whole network: listed first, wherever the map is looking. */
+  networkAlerts: Outage[];
   advisories: Advisory[];
   loading: boolean;
   /** The outage fetch failed, so this list is not an answer about the world. */
@@ -85,7 +90,9 @@ export function NearbyPanel({
       : "Could not load outages"
     : active > 0
       ? `${active} ${kind}outage${active === 1 ? "" : "s"} in view`
-      : advisories.length > 0
+      : networkAlerts.length > 0
+        ? `No ${kind}outages in view · ${networkAlerts.length} network alert${networkAlerts.length === 1 ? "" : "s"}`
+        : advisories.length > 0
         ? `No ${kind}outages · ${advisories.length} weather warning${advisories.length === 1 ? "" : "s"}`
         : `No ${kind}outages reported nearby`;
 
@@ -148,6 +155,44 @@ export function NearbyPanel({
 
       {expanded && (
         <ul className="max-h-[calc(62dvh-3.5rem)] divide-y overflow-y-auto overscroll-contain border-t">
+          {networkAlerts.map((alert) => (
+            <li key={alert.id}>
+              <button
+                type="button"
+                onClick={() => onSelect(alert)}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+              >
+                <span
+                  aria-hidden
+                  className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-severity-degraded/15 text-severity-degraded"
+                >
+                  <RadioTower className="size-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1.5">
+                    <span className="truncate text-sm font-semibold">
+                      {alert.providerName ?? "A US network"}
+                    </span>
+                    <Badge variant="muted" size="sm">
+                      Network-wide
+                    </Badge>
+                  </span>
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                    {SERVICE_META[alert.serviceType].label} · nationwide signal
+                  </span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="block text-xs font-medium">
+                    {sourceLabel(alert.sourceName, "short")}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {timeAgo(alert.reportedAt)}
+                  </span>
+                </span>
+              </button>
+            </li>
+          ))}
+
           {visible.length === 0 && (
             <li>
               {failed ? (

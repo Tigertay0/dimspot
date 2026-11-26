@@ -36,7 +36,7 @@ function isUuid(value: string): boolean {
   return UUID.test(value);
 }
 
-/** Row shape returned by search_outages (db/migrations/0002_app.sql). */
+/** Row shape returned by search_outages (db/migrations/0007_more_providers.sql). */
 interface SearchRow {
   id: string;
   provider_id: string | null;
@@ -62,6 +62,7 @@ interface SearchRow {
   source_name: string | null;
   customers_affected: number | null;
   start_known: boolean;
+  scope: string | null;
 }
 
 interface CommentRow {
@@ -101,6 +102,7 @@ function toOutage(row: SearchRow): Outage {
     sourceName: row.source_name,
     customersAffected: row.customers_affected,
     startKnown: row.start_known,
+    scope: row.scope === "national" ? "national" : null,
   };
 }
 

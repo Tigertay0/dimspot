@@ -81,10 +81,11 @@ function seed(): Store {
       estimatedRestoration: row.etaHours ? hoursAhead(row.etaHours) : null,
       verificationCount: row.confirmations,
       isVerified: row.confirmations >= VERIFICATION_THRESHOLD,
-      origin: "crowdsourced",
-      sourceName: null,
+      origin: row.network ? "official" : "crowdsourced",
+      sourceName: row.network ? "radar-anomalies" : null,
       customersAffected: null,
       startKnown: true,
+      scope: row.network ? "national" : null,
     });
 
     // Seeded confirmations are attributed to synthetic identities so the
@@ -118,7 +119,10 @@ function getStore(): Store {
 }
 
 function matches(outage: Outage, query: OutageQuery): boolean {
-  if (query.bounds && !isWithinBounds(outage, query.bounds)) return false;
+  // A network-wide outage is in every viewport; its point is nominal.
+  if (query.bounds && outage.scope !== "national" && !isWithinBounds(outage, query.bounds)) {
+    return false;
+  }
 
   if (query.serviceTypes && !query.serviceTypes.includes(outage.serviceType)) {
     return false;
@@ -258,6 +262,7 @@ export class LocalRepository implements Repository {
       sourceName: null,
       customersAffected: null,
       startKnown: true,
+      scope: null,
     };
 
     store.outages.set(id, outage);

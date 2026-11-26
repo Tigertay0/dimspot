@@ -57,6 +57,12 @@ export interface Outage {
    * reporting this, rather than when it actually began.
    */
   startKnown: boolean;
+  /**
+   * "national" when a whole network is affected rather than a place. The
+   * coordinates are then nominal and the outage is shown as a network alert,
+   * not as a pin.
+   */
+  scope: "national" | null;
 }
 
 export interface OutageComment {

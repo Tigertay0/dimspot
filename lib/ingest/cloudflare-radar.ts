@@ -226,6 +226,9 @@ export class CloudflareRadarSource implements OutageSource {
         state: place.state,
         estimatedRestoration: null,
         active: true,
+        // No state named: the event is country-wide, and the centre-of-the-US
+        // point above is a placeholder, not where it is.
+        ...(place.state === null ? { scope: "national" as const } : {}),
       });
     }
 

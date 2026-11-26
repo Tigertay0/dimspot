@@ -31,6 +31,8 @@ interface SeedOutage {
   /** Hours after "now" that service is expected back, if known. */
   etaHours?: number;
   resolvedAgoHours?: number;
+  /** A network-wide alert from a feed, rather than a report from a place. */
+  network?: boolean;
 }
 
 /**
@@ -76,6 +78,10 @@ export const SEED_OUTAGES: SeedOutage[] = [
   { city: "Philadelphia", state: "PA", latitude: 39.9526, longitude: -75.1652, providerId: "verizon", serviceType: "cellular", severity: "complete", agoHours: 1.9, confirmations: 19, description: "No signal anywhere in Center City." },
   { city: "Portland", state: "OR", latitude: 45.5152, longitude: -122.6784, providerId: "water", serviceType: "other", severity: "complete", agoHours: 10, confirmations: 9, description: "Water main break, no supply on the block.", etaHours: 12 },
   { city: "Nashville", state: "TN", latitude: 36.1627, longitude: -86.7816, providerId: "nes", serviceType: "power", severity: "intermittent", agoHours: 5.5, confirmations: 3, description: "Power blipping every so often since the wind picked up." },
+
+  // One network-wide alert, so the demo shows how those are listed. The
+  // coordinates are the nominal centre-of-the-country point the feeds use.
+  { city: "United States", state: "", latitude: 39.8283, longitude: -98.5795, providerId: "uscellular", serviceType: "cellular", severity: "degraded", agoHours: 0.7, confirmations: 0, description: "Cloudflare Radar detected an unusual drop in traffic from US Cellular (AS6614). Cloudflare has verified it. This is a signal for the whole network, not for one place, and a traffic drop is not always an outage.", network: true },
 
   // Recently resolved, so the history and timeline views have content.
   { city: "Las Vegas", state: "NV", latitude: 36.1699, longitude: -115.1398, providerId: "spectrum", serviceType: "internet", severity: "complete", agoHours: 26, confirmations: 31, description: "Regional fiber fault.", resolvedAgoHours: 20 },

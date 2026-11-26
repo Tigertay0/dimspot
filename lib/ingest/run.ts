@@ -1,6 +1,7 @@
 import "server-only";
 import { isDatabaseConfigured, iso, query } from "@/lib/db";
 import { CloudflareRadarSource } from "./cloudflare-radar";
+import { RadarAnomalySource } from "./radar-anomalies";
 import { IodaSource } from "./ioda";
 import { KUBRA_UTILITIES, KubraSource } from "./kubra";
 import { NwsSource } from "./nws";
@@ -24,6 +25,7 @@ const CORE_SOURCES: OutageSource[] = [
   new OdinSource(),
   new IodaSource(),
   new CloudflareRadarSource(),
+  new RadarAnomalySource(),
 ];
 
 /** One source per utility outage map, polled in rotation; see sourcesForRun. */
@@ -249,6 +251,7 @@ async function syncOutages(
       customers_affected: o.customersAffected,
       // Without a feed start time, reported_at is only when we first saw it.
       start_known: o.reportedAt !== null,
+      ...(o.scope ? { scope: o.scope } : {}),
     },
   }));
 

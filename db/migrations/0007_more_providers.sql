@@ -256,3 +256,127 @@ BEGIN
   RETURN QUERY SELECT n_upserted, n_resolved;
 END;
 $$;
+
+-- Network-wide outages.
+--
+-- A carrier or an ISP failing across its whole network has no place on a map:
+-- the feed names the network, not a location. Such a row carries
+-- metadata.scope = 'national' and a nominal point, and until now was only
+-- returned to a viewport that happened to contain that point, so someone
+-- zoomed in on their own city never saw it. search_outages now returns
+-- national rows for every viewport and says which rows they are, so the app
+-- can list them as network alerts instead of pinning them to the middle of
+-- the country. Every other filter (service type, severity, provider, status)
+-- still applies to them.
+--
+-- The return type gains a column, which Postgres only allows through a drop.
+-- Callers select by column name, so the deployed code is unaffected.
+DROP FUNCTION search_outages(
+  DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION,
+  TEXT[], TEXT[], TEXT[], INTEGER, INTEGER, UUID[]
+);
+
+CREATE FUNCTION search_outages(
+  min_lat DOUBLE PRECISION DEFAULT -90,
+  min_lng DOUBLE PRECISION DEFAULT -180,
+  max_lat DOUBLE PRECISION DEFAULT 90,
+  max_lng DOUBLE PRECISION DEFAULT 180,
+  service_types TEXT[] DEFAULT NULL,
+  provider_slugs TEXT[] DEFAULT NULL,
+  severities TEXT[] DEFAULT NULL,
+  resolved_within_hours INTEGER DEFAULT 0,
+  max_results INTEGER DEFAULT 1000,
+  outage_ids UUID[] DEFAULT NULL
+)
+RETURNS TABLE (
+  id UUID, provider_id UUID, provider_slug VARCHAR, provider_name VARCHAR,
+  service_type VARCHAR, severity VARCHAR, status VARCHAR,
+  latitude DOUBLE PRECISION, longitude DOUBLE PRECISION,
+  address TEXT, city VARCHAR, state VARCHAR, zip_code VARCHAR, description TEXT,
+  reported_by UUID, reported_at TIMESTAMPTZ, resolved_at TIMESTAMPTZ,
+  estimated_restoration TIMESTAMPTZ, verification_count INTEGER, is_verified BOOLEAN,
+  origin VARCHAR, source_name VARCHAR, customers_affected INTEGER, start_known BOOLEAN,
+  scope VARCHAR
+)
+LANGUAGE plpgsql
+STABLE
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  south DOUBLE PRECISION := GREATEST(LEAST(min_lat, max_lat), -90);
+  north DOUBLE PRECISION := LEAST(GREATEST(min_lat, max_lat), 90);
+  -- The API normalises longitudes into [-180, 180] (lib/geo.ts); the clamp is
+  -- for direct callers. A span of 360 or more is the whole world.
+  whole_world BOOLEAN := max_lng - min_lng >= 360;
+  west  DOUBLE PRECISION := GREATEST(LEAST(min_lng, 180), -180);
+  east  DOUBLE PRECISION := GREATEST(LEAST(max_lng, 180), -180);
+  box   GEOMETRY;
+  box2  GEOMETRY;
+BEGIN
+  IF whole_world THEN
+    box := ST_MakeEnvelope(-180, south, 180, north, 4326);
+  ELSIF west <= east THEN
+    box := ST_MakeEnvelope(west, south, east, north, 4326);
+  ELSE
+    -- Crosses the antimeridian.
+    box  := ST_MakeEnvelope(west, south, 180, north, 4326);
+    box2 := ST_MakeEnvelope(-180, south, east, north, 4326);
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    o.id, o.provider_id, p.slug,
+    COALESCE(p.name, LEFT(o.metadata->>'utility_name', 100))::VARCHAR(100),
+    o.service_type, o.severity, o.status,
+    ST_Y(o.location::geometry), ST_X(o.location::geometry),
+    o.address, o.city, o.state, o.zip_code, o.description,
+    o.reported_by, o.reported_at, o.resolved_at, o.estimated_restoration,
+    o.verification_count, o.is_verified,
+    o.origin, o.source_name,
+    CASE WHEN jsonb_typeof(o.metadata->'customers_affected') = 'number'
+      THEN (o.metadata->>'customers_affected')::NUMERIC::INTEGER END,
+    CASE WHEN jsonb_typeof(o.metadata->'start_known') = 'boolean'
+      THEN (o.metadata->>'start_known')::BOOLEAN ELSE TRUE END,
+    CASE WHEN o.metadata->>'scope' = 'national' THEN 'national' END::VARCHAR
+  FROM outages o
+  LEFT JOIN providers p ON p.id = o.provider_id
+  WHERE
+    (
+      outage_ids IS NOT NULL
+      -- Network-wide: in every viewport, wherever its nominal point is.
+      OR o.metadata->>'scope' = 'national'
+      OR ST_Intersects(o.location::geometry, box)
+      OR (box2 IS NOT NULL AND ST_Intersects(o.location::geometry, box2))
+    )
+    AND (
+      -- A direct lookup (a link or a notification) still loads a resolved
+      -- outage; only active and resolved ones are ever public.
+      (outage_ids IS NOT NULL AND o.status IN ('active', 'resolved'))
+      OR o.status = 'active'
+      OR (
+        o.status = 'resolved'
+        AND resolved_within_hours > 0
+        AND o.resolved_at > NOW() - (resolved_within_hours || ' hours')::INTERVAL
+      )
+    )
+    AND (outage_ids IS NULL OR o.id = ANY(outage_ids))
+    AND (service_types IS NULL OR o.service_type = ANY(service_types))
+    AND (severities IS NULL OR o.severity = ANY(severities))
+    AND (
+      provider_slugs IS NULL
+      OR array_length(provider_slugs, 1) IS NULL
+      OR p.slug = ANY(provider_slugs)
+    )
+  ORDER BY o.reported_at DESC
+  LIMIT max_results;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION search_outages(
+  DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION,
+  TEXT[], TEXT[], TEXT[], INTEGER, INTEGER, UUID[]
+) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION search_outages(
+  DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION,
+  TEXT[], TEXT[], TEXT[], INTEGER, INTEGER, UUID[]
+) TO outage_app;

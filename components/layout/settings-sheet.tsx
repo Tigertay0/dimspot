@@ -374,6 +374,7 @@ function SettingsForm({
                 variant="outline"
                 onClick={saveCurrentPlace}
                 disabled={!currentView}
+                className="h-12"
               >
                 Save
               </Button>

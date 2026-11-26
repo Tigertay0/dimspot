@@ -28,10 +28,12 @@ import type { IngestedOutage, OutageSource, SourceResult } from "./source";
  * code where there is one, otherwise town or county) is two or three requests
  * and is the same granularity the utility's own summary table uses.
  *
- * These are the utilities' public outage maps, read the way a browser reads
- * them, a few requests an hour each. They are not a documented API: a utility
- * can redeploy or change vendor without notice, which fails that one source
- * for a run (the runner isolates it) rather than the ingest.
+ * Off unless KUBRA_INGEST=on. These are the utilities' public outage maps,
+ * read the way a browser reads them, a few requests an hour each, but they are
+ * not a documented API and a utility's site terms may not welcome automated
+ * reads. That is a call for whoever runs the deployment, so it is opt-in (see
+ * SETUP.md). A utility can also redeploy or change vendor without notice, which
+ * fails that one source for a run (the runner isolates it), not the ingest.
  */
 
 const ORIGIN = "https://kubra.io";
@@ -259,9 +261,9 @@ export class KubraSource implements OutageSource {
     this.label = `${utility.name} outage map`;
   }
 
-  /** Off with KUBRA_INGEST=off, for a deployment that would rather not read these maps. */
+  /** Opt-in: reading utility outage maps is the deployment owner's decision. */
   isConfigured(): boolean {
-    return process.env.KUBRA_INGEST !== "off";
+    return process.env.KUBRA_INGEST === "on";
   }
 
   async fetch(): Promise<SourceResult> {

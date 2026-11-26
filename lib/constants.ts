@@ -47,15 +47,15 @@ export const SERVICE_COVERAGE: Record<
 > = {
   power: {
     live: true,
-    note: "Live data from about 110 utilities, including Pepco, BGE, ComEd, Dominion, DTE and Oncor, plus anything people report. Some large utilities are not covered yet.",
+    note: "Live utility data covers many US utilities, not all of them, plus anything people report. A quiet map can mean your utility is not one of them.",
   },
   internet: {
     live: true,
-    note: "Live data only catches whole regions losing connectivity, which is rare. A single provider going down in one area shows up only if someone reports it.",
+    note: "Live data catches a whole provider or a whole state losing connectivity. One neighbourhood going down shows up only if someone reports it.",
   },
   cellular: {
-    live: false,
-    note: "No free live feed reports cellular outages, so this layer shows only what people report.",
+    live: true,
+    note: "Live data catches a carrier's whole network dropping, not single towers. Local dead zones show up only if someone reports them.",
   },
   other: {
     live: false,
@@ -114,6 +114,8 @@ interface SourceMeta {
    * claims, and the detail sheet must not present the second as the first.
    */
   provenance: "reported" | "detected";
+  /** Replaces the stock sentence for this provenance, where it does not fit. */
+  attribution?: string;
 }
 
 export const SOURCE_LABELS: Record<string, SourceMeta> = {
@@ -136,6 +138,13 @@ export const SOURCE_LABELS: Record<string, SourceMeta> = {
     name: "Cloudflare Radar",
     short: "Radar",
     provenance: "detected",
+  },
+  "radar-anomalies": {
+    name: "Cloudflare Radar",
+    short: "Radar",
+    provenance: "detected",
+    attribution:
+      "Detected by Cloudflare Radar from the traffic it sees from this network, not reported by the provider. Your own connection may be fine.",
   },
 };
 
@@ -168,6 +177,7 @@ export function sourceAttribution(sourceName: string | null): string {
   }
 
   const meta = sourceName ? SOURCE_LABELS[sourceName] : undefined;
+  if (meta?.attribution) return meta.attribution;
   const label = sourceLabel(sourceName);
 
   if (meta?.provenance === "detected") {

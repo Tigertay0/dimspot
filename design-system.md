@@ -63,3 +63,12 @@ Severity tokens (`--severity-*`) stay as they are, plus lightened night variants
 | Vertical Cut Reveal | https://21st.dev/@cnippet-dev/components/vertical-cut-reveal | |
 | Expanded Map | https://21st.dev/@dev.shejanmahamud/components/expanded-map | |
 | Wave Lines | https://21st.dev/@balick/components/wave-lines | |
+
+## App (/map)
+- **Touch targets:** every control sets its own size. A control drawn under 44px adds the `tap-target` utility (globals.css), which grows the hit area with a pseudo-element and leaves layout alone. The blanket `min-height: 44px` rule for buttons and links applies to the landing pages only; in the app it stretched tabs, switches and checkboxes out of shape.
+- **Glass:** floating chrome over the map (search, chips, round controls, notes) uses the `glass` utility: card colour at 86%, blur, hairline, `--shadow-float`.
+- **Sheets:** `bg-card`, 28px top radius, `max-h-[88dvh]` (dvh, not vh, so iOS toolbars do not cover the footer) and `pb-safe` for the home indicator.
+- **Selection:** on sheets, a sodium outline with a 14% sodium wash (`Chip` tone `tint`, service tiles, severity rows), so the primary button stays the only solid sodium. Over the map, chips select by filling with the text colour (`Chip` tone `solid`).
+- **Sizes:** buttons 44 / 36 (`sm`) / 48 (`lg`); inputs 48; chips 36; badges 24; segmented tabs 44 with 36px segments; round map controls 44.
+- **Basemap:** OpenFreeMap recoloured per layer in `lib/map/brand-style.ts`. Night: land `#0e1528`, water `#060b18`, roads `#19234a` to `#2f3d72`, city labels `#c9ccd9`. Dusk: land `#f3e8da`, water `#c6d6e3`.
+- **Markers:** 26px, service icon 13px, 2px ring in the page colour; hollow when unconfirmed. Clusters are a severity-mix ring around the count. A blurred circle under each marker scales with customers affected.

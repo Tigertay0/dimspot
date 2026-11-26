@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { LocateFixed, Minus, Plus, Settings2 } from "lucide-react";
 import { DEFAULT_VIEW } from "@/lib/constants";
@@ -23,6 +23,7 @@ import { ReportSheet } from "@/components/report/report-sheet";
 import { SearchBar } from "@/components/search/search-bar";
 import { AccountButton, AuthSheet } from "@/components/auth/auth-sheet";
 import { DemoBanner } from "./demo-banner";
+import { NetworkAlerts } from "./network-alerts";
 import { SettingsSheet } from "./settings-sheet";
 import { useAppearance } from "@/lib/hooks/use-appearance";
 import { useHydrated } from "@/lib/hooks/use-hydrated";
@@ -94,6 +95,15 @@ export function MapShell() {
     isError: outagesFailed,
     refetch: refetchOutages,
   } = useOutages(bounds);
+  // Outages of a place go on the map; outages of a whole network have no place
+  // and are listed as alerts instead.
+  const { placed, networkAlerts } = useMemo(
+    () => ({
+      placed: outages.filter((o) => o.scope !== "national"),
+      networkAlerts: outages.filter((o) => o.scope === "national" && o.status === "active"),
+    }),
+    [outages],
+  );
   const showAdvisories = useFilters((s) => s.showAdvisories);
   const { data: advisories = [] } = useAdvisories(bounds, showAdvisories);
 
@@ -195,7 +205,7 @@ export function MapShell() {
     <main data-app-shell className="fixed inset-0 overflow-hidden">
       <h1 className="sr-only">Dimspot live outage map</h1>
       <OutageMap
-        outages={outages}
+        outages={placed}
         advisories={showAdvisories ? advisories : []}
         onSelectAdvisory={setSelectedAdvisory}
         selectedId={selectedId}
@@ -252,6 +262,13 @@ export function MapShell() {
           {/* Hidden while placing a report: the map is a picker then, and the
               chips would change what is under the crosshair mid-gesture. */}
           {!picking && <TypeChips />}
+          {!picking && (
+            <NetworkAlerts
+              alerts={networkAlerts}
+              onSelect={handleSelect}
+              onShowAll={() => setListExpanded(true)}
+            />
+          )}
         </div>
       </div>
 
@@ -259,7 +276,7 @@ export function MapShell() {
           action does not share a thumb zone with them. On a phone they clear
           the list bar and the attribution above it. */}
       {!picking && (
-        <div className="absolute bottom-[calc(6.25rem+env(safe-area-inset-bottom,0px))] left-3 z-10 flex flex-col items-start gap-2 sm:bottom-10">
+        <div className="absolute bottom-[calc(6.5rem+env(safe-area-inset-bottom,0px))] left-3 z-10 flex flex-col items-start gap-2 sm:bottom-12">
           <MapLegend className="hidden md:block" />
           <MapButton
             onClick={() => setSettingsOpen(true)}
@@ -319,7 +336,10 @@ export function MapShell() {
       {!picking && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
           <div className="mx-auto max-w-lg">
-            <div className="flex justify-end px-3 pb-3">
+            {/* Gone while the list is open: the list rises to 62% of the
+                screen and would push the button up into the search bar and
+                chips. The list has its own way to report when it is empty. */}
+            <div className={cn("flex justify-end px-3 pb-3", listExpanded && "hidden")}>
               {/* The landing's action button: a sodium pill with a dark chip. */}
               <button
                 type="button"
@@ -339,7 +359,8 @@ export function MapShell() {
             </div>
 
             <NearbyPanel
-              outages={outages}
+              outages={placed}
+              networkAlerts={networkAlerts}
               advisories={showAdvisories ? advisories : []}
               loading={isFetching}
               failed={outagesFailed}
