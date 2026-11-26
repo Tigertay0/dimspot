@@ -32,20 +32,20 @@ export function AdvisorySheet({
     <Sheet open={advisory !== null} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="flex max-h-[85vh] flex-col sm:mx-auto sm:max-w-lg sm:rounded-t-2xl"
+        
       >
         {advisory && (
           <>
-            <SheetHeader className="pr-12">
-              <div className="flex items-center gap-2">
+            <SheetHeader className="pr-14">
+              <div className="flex items-center gap-3">
                 <span
                   aria-hidden
                   style={{
                     backgroundColor: SEVERITY_META[advisory.severity].token,
                   }}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white"
+                  className="flex size-12 shrink-0 items-center justify-center rounded-2xl text-background"
                 >
-                  <CloudAlert className="h-4 w-4" />
+                  <CloudAlert className="size-[22px]" />
                 </span>
 
                 <div className="min-w-0 flex-1">
@@ -56,7 +56,7 @@ export function AdvisorySheet({
                 </div>
               </div>
 
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
                 <Badge variant="outline">
                   {advisory.sourceName === "nws"
                     ? "National Weather Service"
@@ -70,7 +70,7 @@ export function AdvisorySheet({
               </div>
             </SheetHeader>
 
-            <div className="flex-1 space-y-3 overflow-y-auto px-5 py-3">
+            <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 pb-4 pt-1">
               {advisory.headline && (
                 <p className="text-sm font-medium">{advisory.headline}</p>
               )}
@@ -94,7 +94,7 @@ export function AdvisorySheet({
                   href={advisory.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-sm underline underline-offset-4"
+                  className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium underline underline-offset-4"
                 >
                   Full alert
                   <ExternalLink className="h-3.5 w-3.5" />
@@ -103,7 +103,7 @@ export function AdvisorySheet({
             </div>
 
             <div className="border-t px-5 py-3">
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs leading-snug text-muted-foreground">
                 {advisory.startsAt
                   ? `In effect from ${dayAndTime(advisory.startsAt)}`
                   : "Currently in effect"}

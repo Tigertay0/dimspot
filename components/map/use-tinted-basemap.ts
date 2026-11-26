@@ -2,7 +2,7 @@
 
 import type { StyleSpecification } from "maplibre-gl";
 import { useEffect, useState } from "react";
-import { type Tint, type TintOverride, tintStyle } from "@/lib/map/tint-style";
+import { brandStyle } from "@/lib/map/brand-style";
 import { useHydrated } from "@/lib/hooks/use-hydrated";
 import { basemapUrl } from "./basemap";
 
@@ -10,21 +10,9 @@ type Theme = "light" | "dark";
 
 /**
  * The basemap in the app's palette (the same night navy and dusk cream as the
- * landing page). OpenFreeMap's greyscale styles are fetched once and every
- * colour is moved onto the palette's hue; roads, water and labels keep their
- * lightness, so the map reads exactly as before, just in the brand's light.
+ * landing page). OpenFreeMap's greyscale styles are fetched once and recoloured
+ * layer by layer; see lib/map/brand-style.ts for what each group is given.
  */
-const TINTS: Record<Theme, { tint: Tint; overrides: TintOverride[] }> = {
-  dark: {
-    tint: { hue: 224, saturation: 0.4, lightness: (l) => 4 + l * 1.05 },
-    overrides: [{ match: /water/, tint: { hue: 228, saturation: 0.45, lightness: (l) => 2 + l * 0.7 } }],
-  },
-  light: {
-    tint: { hue: 32, saturation: 0.35, lightness: (l) => l * 0.965 },
-    overrides: [{ match: /water/, tint: { hue: 212, saturation: 0.3, lightness: (l) => l * 0.97 } }],
-  },
-};
-
 const cache = new Map<Theme, StyleSpecification>();
 const OTHER: Record<Theme, Theme> = { dark: "light", light: "dark" };
 
@@ -35,8 +23,7 @@ function fetchTinted(theme: Theme, signal?: AbortSignal): Promise<StyleSpecifica
       return res.json() as Promise<StyleSpecification>;
     })
     .then((raw) => {
-      const { tint, overrides } = TINTS[theme];
-      const tinted = tintStyle(raw, tint, overrides);
+      const tinted = brandStyle(raw, theme);
       cache.set(theme, tinted);
       return tinted;
     });

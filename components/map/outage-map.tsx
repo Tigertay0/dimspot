@@ -1,12 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type Ref,
+} from "react";
+import type { GeolocateControl as GeolocateControlInstance } from "maplibre-gl";
 import Map, {
+  AttributionControl,
   GeolocateControl,
   Layer,
   Marker,
-  NavigationControl,
-  ScaleControl,
   Source,
   type MapRef,
   type ViewStateChangeEvent,
@@ -16,7 +24,7 @@ import { DEFAULT_VIEW, HOME_BOUNDS, MARKER_ZOOM } from "@/lib/constants";
 import { useNow } from "@/lib/hooks/use-now";
 import type { Advisory, BoundingBox, Outage } from "@/lib/types";
 import { FALLBACK_STYLE } from "./basemap";
-import { MARKERS_MIN_ZOOM, heatLayer, outagesToGeoJSON } from "./heat-layer";
+import { MARKERS_MIN_ZOOM, glowLayer, heatLayer, outagesToGeoJSON } from "./heat-layer";
 import { AdvisoryMarker, ClusterMarker, OutageMarker } from "./markers";
 import { useClusters, type ClusterProperties, type PointProperties } from "./use-clusters";
 import { useTintedBasemap } from "./use-tinted-basemap";
@@ -49,6 +57,17 @@ export interface MapView {
   zoom: number;
 }
 
+/**
+ * What the shell's own buttons can ask of the map. MapLibre's stock controls
+ * are not used: they are 29px squares styled for a light map, and they sat
+ * under the search bar on a phone. The shell draws its own and calls these.
+ */
+export interface MapControls {
+  zoomBy: (delta: number) => void;
+  /** Centre on the device's position and keep showing it. */
+  locate: () => void;
+}
+
 interface OutageMapProps {
   outages: Outage[];
   advisories: Advisory[];
@@ -62,6 +81,9 @@ interface OutageMapProps {
   picking: boolean;
   onPickMove?: (center: { latitude: number; longitude: number }) => void;
   theme: "light" | "dark";
+  controls?: Ref<MapControls>;
+  /** The device refused or failed to give a position. */
+  onLocateError?: (message: string) => void;
 }
 
 export function OutageMap({
@@ -75,8 +97,26 @@ export function OutageMap({
   picking,
   onPickMove,
   theme,
+  controls,
+  onLocateError,
 }: OutageMapProps) {
   const mapRef = useRef<MapRef | null>(null);
+  const geolocateRef = useRef<GeolocateControlInstance | null>(null);
+
+  useImperativeHandle(
+    controls,
+    () => ({
+      zoomBy: (delta) => {
+        const map = mapRef.current;
+        if (!map) return;
+        map.easeTo({ zoom: map.getZoom() + delta, duration: 250 });
+      },
+      locate: () => {
+        geolocateRef.current?.trigger();
+      },
+    }),
+    [],
+  );
   const [viewport, setViewport] = useState<{
     bounds: [number, number, number, number];
     zoom: number;
@@ -91,6 +131,7 @@ export function OutageMap({
   const showMarkers = (viewport?.zoom ?? DEFAULT_VIEW.zoom) >= MARKERS_MIN_ZOOM;
 
   const heatData = useMemo(() => outagesToGeoJSON(outages), [outages]);
+  const glow = useMemo(() => glowLayer(theme), [theme]);
 
   /**
    * Reveal a cluster's contents.
@@ -257,22 +298,36 @@ export function OutageMap({
         }
       }}
       reuseMaps
-      attributionControl={{ compact: true }}
+      attributionControl={false}
       style={{ position: "absolute", inset: 0 }}
     >
-      <NavigationControl position="top-right" showCompass={false} />
+      {/* Bottom-left, where globals.css lifts it clear of the list bar. */}
+      <AttributionControl compact position="bottom-left" />
+      {/* Kept for what it does (the position dot, accuracy ring, tracking), with
+          its own button hidden: the shell's locate button calls trigger(). */}
       <GeolocateControl
+        ref={geolocateRef}
         position="top-right"
+        style={{ display: "none" }}
         trackUserLocation
-        positionOptions={{ enableHighAccuracy: true }}
+        showAccuracyCircle
+        positionOptions={{ enableHighAccuracy: true, timeout: 10_000 }}
+        fitBoundsOptions={{ maxZoom: 13 }}
+        onError={(event) =>
+          onLocateError?.(
+            event.code === 1
+              ? "Location access is blocked for this site. Allow it in your browser settings, or search for an address."
+              : "Could not get your location. Try again, or search for an address.",
+          )
+        }
       />
-      <ScaleControl position="bottom-left" maxWidth={90} unit="imperial" />
 
       {/* Density first, underneath everything: at country zoom this is the whole
           picture, and by the time markers appear it has faded to nothing. */}
       {!picking && (
         <Source id="outage-heat-source" type="geojson" data={heatData}>
           <Layer {...heatLayer} />
+          <Layer {...glow} />
         </Source>
       )}
 

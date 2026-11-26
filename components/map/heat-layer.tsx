@@ -47,7 +47,10 @@ export function outagesToGeoJSON(outages: Outage[]) {
         type: "Point" as const,
         coordinates: [outage.longitude, outage.latitude],
       },
-      properties: { weight: weightFor(outage) },
+      properties: {
+        weight: weightFor(outage),
+        severity: outage.status === "resolved" ? "resolved" : outage.severity,
+      },
     })),
   };
 }
@@ -58,7 +61,7 @@ export function outagesToGeoJSON(outages: Outage[]) {
  * Fixed hex rather than the theme's CSS custom properties: MapLibre paint
  * expressions are evaluated by the GL renderer, which cannot resolve a CSS
  * variable. These are picked to hold up on both the light and dark basemap —
- * amber through red, the same vocabulary the severity colours use, starting
+ * sodium through red, the same vocabulary the severity colours use, starting
  * fully transparent so low density fades into the map instead of banding.
  */
 export const heatLayer: LayerProps = {
@@ -84,16 +87,16 @@ export const heatLayer: LayerProps = {
       ["heatmap-density"],
       0,
       "rgba(0,0,0,0)",
-      0.15,
-      "rgba(250, 204, 21, 0.45)",
+      0.12,
+      "rgba(255, 178, 26, 0.35)",
       0.35,
-      "rgba(251, 146, 60, 0.6)",
+      "rgba(255, 160, 40, 0.6)",
       0.6,
-      "rgba(249, 115, 22, 0.75)",
+      "rgba(249, 115, 22, 0.78)",
       0.85,
-      "rgba(239, 68, 68, 0.85)",
+      "rgba(239, 68, 68, 0.88)",
       1,
-      "rgba(220, 38, 38, 0.95)",
+      "rgba(225, 45, 45, 0.96)",
     ],
     "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 3, 16, 5, 30, 7, 48],
     // Fades out as the marker layer fades in, so the handover is a crossfade
@@ -111,3 +114,59 @@ export const heatLayer: LayerProps = {
     ],
   },
 };
+
+/**
+ * A pool of light under each outage once the heat map has handed over.
+ *
+ * Markers say what and how bad; this says how big. The radius follows the
+ * customer count (the same log weight the heat map uses), so a substation
+ * failure reads as a wide glow and a single street as a small one, without a
+ * number on the map. Fixed hex for the reason given above.
+ */
+const GLOW_COLORS: Record<"light" | "dark", Record<string, string>> = {
+  dark: { complete: "#f47272", degraded: "#f6924e", intermittent: "#f5c542", resolved: "#58c98a" },
+  light: { complete: "#c5221f", degraded: "#c2570a", intermittent: "#a1700a", resolved: "#257f4b" },
+};
+
+export function glowLayer(theme: "light" | "dark"): LayerProps {
+  const c = GLOW_COLORS[theme];
+  return {
+    id: "outage-glow",
+    type: "circle",
+    minzoom: MARKERS_MIN_ZOOM - 1,
+    paint: {
+      "circle-color": [
+        "match",
+        ["get", "severity"],
+        "complete",
+        c.complete,
+        "degraded",
+        c.degraded,
+        "resolved",
+        c.resolved,
+        c.intermittent,
+      ],
+      "circle-radius": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        5,
+        ["+", 6, ["*", 14, ["get", "weight"]]],
+        10,
+        ["+", 14, ["*", 46, ["get", "weight"]]],
+        14,
+        ["+", 22, ["*", 70, ["get", "weight"]]],
+      ],
+      "circle-blur": 0.9,
+      "circle-opacity": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        MARKERS_MIN_ZOOM - 1,
+        0,
+        MARKERS_MIN_ZOOM + 0.5,
+        theme === "dark" ? 0.38 : 0.26,
+      ],
+    },
+  };
+}

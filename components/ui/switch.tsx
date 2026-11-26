@@ -11,17 +11,19 @@ const Switch = React.forwardRef<
   <SwitchPrimitive.Root
     ref={ref}
     className={cn(
-      "peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors",
+      // 28 by 48 with a 22px thumb. tap-target brings the hit area to 44px
+      // without changing the drawn size.
+      "peer tap-target inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full p-[3px] transition-colors duration-200",
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
       "disabled:cursor-not-allowed disabled:opacity-50",
-      "data-[state=checked]:bg-primary data-[state=unchecked]:bg-input",
+      "data-[state=checked]:bg-primary data-[state=unchecked]:bg-muted-foreground/35",
       className,
     )}
     {...props}
   >
     <SwitchPrimitive.Thumb
       className={cn(
-        "pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform",
+        "pointer-events-none block size-[22px] rounded-full bg-white shadow-[0_1px_3px_rgb(0_0_0/0.35)] transition-transform duration-200",
         "data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0",
       )}
     />

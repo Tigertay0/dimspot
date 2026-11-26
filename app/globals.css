@@ -37,6 +37,8 @@
   --input: rgb(22 26 38 / 0.16);
   --ring: #161a26; /* sodium would vanish on cream */
   --radius: 1rem;
+  --shadow-float: 0 1px 2px rgb(22 26 38 / 0.06), 0 10px 28px -10px rgb(22 26 38 / 0.22);
+  --shadow-sheet: 0 -12px 40px -12px rgb(22 26 38 / 0.25);
 
   /* Severity scale. Darkened enough to hold 4.5:1 as text on the dusk surfaces. */
   --severity-complete: hsl(0 72% 45%);
@@ -65,6 +67,8 @@
   --border: rgb(255 246 229 / 0.1);
   --input: rgb(255 246 229 / 0.14);
   --ring: #ffb21a;
+  --shadow-float: 0 1px 0 rgb(255 246 229 / 0.04) inset, 0 12px 32px -10px rgb(0 0 0 / 0.6);
+  --shadow-sheet: 0 -16px 48px -12px rgb(0 0 0 / 0.65);
 
   /* The landing's severity tones: they glow like lamps on the night map. */
   --severity-complete: hsl(0 80% 68%);
@@ -119,30 +123,89 @@
     overscroll-behavior: none;
   }
 
-  /* Touch targets: the PRD asks for 44px minimum. */
+  /* Touch targets on the landing pages: 44px minimum, as the PRD asks.
+     The app shell is excluded. This rule used to apply everywhere, and it
+     stretched every small control that sets its own size: a 40px tab strip
+     got 44px tabs that spilled out of it, a 24px switch and a 20px checkbox
+     became 44px tall. Inside the app each control sizes itself and reaches
+     44px with the tap-target utility below, which grows the hit area without
+     touching the layout. */
   @media (pointer: coarse) {
-    button,
-    [role="button"],
-    a[href] {
+    body:not(:has([data-app-shell])) :is(button, [role="button"], a[href]) {
       min-height: 44px;
     }
   }
 }
 
-/* MapLibre's default controls are styled for a light basemap; nudge them so the
-   dark theme doesn't produce white-on-white buttons. */
-.dark .maplibregl-ctrl-group {
-  background: var(--card);
-}
-.dark .maplibregl-ctrl-group button + button {
-  border-top-color: var(--border);
-}
-.dark .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
-  filter: invert(1);
+/* A 44px hit area for a control that is drawn smaller. The pseudo-element is
+   part of the control, so a tap on it is a tap on the control, and it takes no
+   space in the layout. */
+@utility tap-target {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
 }
 
-.maplibregl-ctrl-attrib {
+/* Floating chrome over the map: search, chips, controls, the list bar. One
+   recipe so they read as the same material in both themes. */
+@utility glass {
+  background-color: color-mix(in oklab, var(--card) 86%, transparent);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-float);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  backdrop-filter: blur(18px) saturate(1.5);
+}
+
+/* The home indicator and browser toolbars: nothing tappable sits under them. */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* MapLibre's own chrome. The zoom and locate buttons are the shell's (see
+   map-shell.tsx), so only the attribution is left to style: a small glass pill
+   in the app's palette, lifted clear of the list bar that covers the bottom
+   edge on a phone. OpenStreetMap's licence needs it reachable at all times. */
+.maplibregl-ctrl-bottom-left {
+  bottom: calc(3.75rem + env(safe-area-inset-bottom, 0px));
+  left: 0.25rem;
+}
+@media (min-width: 640px) {
+  .maplibregl-ctrl-bottom-left {
+    bottom: 0.25rem;
+  }
+}
+.maplibregl-ctrl.maplibregl-ctrl-attrib {
+  background-color: color-mix(in oklab, var(--card) 86%, transparent);
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
   font-size: 10px;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.maplibregl-ctrl-attrib a {
+  color: inherit;
+}
+.maplibregl-ctrl-attrib.maplibregl-compact {
+  min-height: 24px;
+  border-radius: 12px;
+}
+.maplibregl-ctrl-attrib-button {
+  border-radius: 999px;
+  background-color: transparent !important;
+}
+.dark .maplibregl-ctrl-attrib-button {
+  filter: invert(1) opacity(0.7);
+}
+.maplibregl-user-location-dot,
+.maplibregl-user-location-dot::before {
+  background-color: #4c8dff;
 }
 
 @keyframes pulse-ring {

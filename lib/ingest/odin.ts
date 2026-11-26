@@ -57,11 +57,17 @@ interface OdinRecord {
   cause: string | null;
 }
 
-/** "MONONGAHELA POWER CO,12796" → "Monongahela Power Co". */
-function utilityName(raw: string | null): string | null {
+/**
+ * "MONONGAHELA POWER CO,12796" → "Monongahela Power Co".
+ *
+ * The feed appends an id to the name after a comma with no space: usually the
+ * numeric EIA id, sometimes a handle ("AVISTA CORP,avista"). Both are dropped.
+ * A comma followed by a space is part of the name ("... COOP, INC") and stays.
+ */
+export function utilityName(raw: string | null): string | null {
   if (!raw) return null;
 
-  const name = raw.replace(/,\s*\d+\s*$/, "").trim();
+  const name = raw.replace(/,[\w-]+\s*$/, "").trim();
   if (!name) return null;
 
   // Feed names are uppercase. Title-case each word, except ones that are plainly
@@ -75,6 +81,56 @@ function utilityName(raw: string | null): string | null {
         : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
     )
     .join("");
+}
+
+/**
+ * ODIN utilities that are also in the provider catalog, by the feed's own
+ * spelling. A match links the outage to that provider, so it shows under the
+ * name people know ("Met-Ed", not "Metropolitan Edison Co") and survives the
+ * provider filter. Most ODIN utilities are small co-ops with no catalog row;
+ * they keep the feed's name and no link, as before.
+ *
+ * PacifiCorp trades as Pacific Power on the coast and Rocky Mountain Power
+ * inland, so it is told apart by state.
+ */
+const CATALOG_MATCHES: Array<[RegExp, string | ((state: string | null) => string)]> = [
+  [/^pacificorp/i, (state) =>
+    state && /^(oregon|washington|california)$/i.test(state) ? "pacific-power" : "rocky-mountain-power"],
+  [/^national grid/i, "national-grid"],
+  [/^consumers energy/i, "consumers-energy"],
+  [/^monongahela power/i, "mon-power"],
+  [/^pennsylvania electric/i, "penelec"],
+  [/^pennsylvania power/i, "penn-power"],
+  [/^west penn power/i, "west-penn-power"],
+  [/^metropolitan edison/i, "met-ed"],
+  [/^ohio edison/i, "ohio-edison"],
+  [/toledo edison/i, "toledo-edison"],
+  [/^cleveland electric illum/i, "illuminating-company"],
+  [/potomac edison/i, "potomac-edison"],
+  [/^jersey central power/i, "jcpl"],
+  [/^southern california edison/i, "sce"],
+  [/^puget sound energy/i, "pse"],
+  [/^arizona public service/i, "aps"],
+  [/^centerpoint energy/i, "centerpoint"],
+  [/^central hudson/i, "central-hudson"],
+  [/^portland general electric/i, "portland-general"],
+  [/^duquesne light/i, "duquesne"],
+  [/^knoxville utilities board/i, "kub"],
+  [/^nashville electric service/i, "nes"],
+  [/^hawaiian electric/i, "heco"],
+  [/^city of seattle/i, "seattle-city-light"],
+  [/^pud 1 of snohomish/i, "snohomish-pud"],
+  [/^midamerican energy/i, "midamerican"],
+  [/^avista/i, "avista"],
+  [/^evergy/i, "evergy"],
+  [/^unitil/i, "unitil"],
+];
+
+export function providerSlugFor(name: string | null, state: string | null): string | null {
+  if (!name) return null;
+  const match = CATALOG_MATCHES.find(([pattern]) => pattern.test(name));
+  if (!match) return null;
+  return typeof match[1] === "function" ? match[1](state) : match[1];
 }
 
 /** The ETR field is JSON encoded as a string: '{"ert": "2026-09-22T20:30:00Z"}'. */
@@ -231,7 +287,7 @@ export class OdinSource implements OutageSource {
       .filter((group) => group.customers >= ODIN_MIN_CUSTOMERS)
       .map((group) => ({
         sourceId: `${group.utilityId}:${group.fips}`,
-        providerSlug: null,
+        providerSlug: providerSlugFor(group.name, group.state),
         utilityName: group.name,
         customersAffected: group.customers,
         serviceType: "power",

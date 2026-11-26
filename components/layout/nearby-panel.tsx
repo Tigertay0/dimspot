@@ -16,7 +16,7 @@ import { useFilters } from "@/lib/store/filters";
 import type { Advisory, Outage } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ServiceIcon } from "@/components/map/markers";
+import { ServiceBadge } from "@/components/map/markers";
 import { cn } from "@/lib/utils";
 
 /**
@@ -92,36 +92,62 @@ export function NearbyPanel({
   return (
     <div
       className={cn(
-        "pointer-events-auto overflow-hidden rounded-t-2xl border-t bg-background shadow-[0_-4px_20px_rgba(0,0,0,0.08)] transition-[max-height] duration-300",
-        expanded ? "max-h-[55vh]" : "max-h-14",
+        "pointer-events-auto overflow-hidden rounded-t-[24px] border border-b-0 bg-card pb-safe",
+        "shadow-[var(--shadow-sheet)] transition-[max-height] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+        expanded
+          ? "max-h-[62dvh]"
+          : "max-h-[calc(3.5rem+env(safe-area-inset-bottom,0px))]",
       )}
     >
       <button
         type="button"
         onClick={() => onExpandedChange(!expanded)}
         aria-expanded={expanded}
-        className="flex w-full items-center justify-between px-4 py-3 text-left"
+        className="flex h-14 w-full items-center gap-3 px-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
-        <span className="flex items-center gap-2 text-sm font-medium">
-          {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          {failed && !loading && (
-            <TriangleAlert className="h-3.5 w-3.5 text-muted-foreground" />
+        <span
+          aria-hidden
+          className={cn(
+            "flex size-7 shrink-0 items-center justify-center rounded-full",
+            failed
+              ? "bg-muted text-muted-foreground"
+              : active > 0
+                ? "bg-severity-complete/15 text-severity-complete"
+                : advisories.length > 0
+                  ? "bg-severity-intermittent/15 text-severity-intermittent"
+                  : "bg-severity-resolved/15 text-severity-resolved",
           )}
-          {!failed && active === 0 && advisories.length === 0 && !loading && (
-            <CheckCircle2 className="h-3.5 w-3.5 text-severity-resolved" />
+        >
+          {loading ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : failed ? (
+            <TriangleAlert className="size-3.5" />
+          ) : active > 0 ? (
+            <span className="size-2 rounded-full bg-current" />
+          ) : advisories.length > 0 ? (
+            <CloudAlert className="size-3.5" />
+          ) : (
+            <CheckCircle2 className="size-3.5" />
           )}
+        </span>
+
+        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-[-0.01em]">
           {summary}
         </span>
-        <ChevronUp
-          className={cn(
-            "h-4 w-4 text-muted-foreground transition-transform",
-            expanded && "rotate-180",
-          )}
-        />
+
+        <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
+          {expanded ? "Hide" : "List"}
+          <ChevronUp
+            className={cn(
+              "size-4 transition-transform duration-200",
+              expanded && "rotate-180",
+            )}
+          />
+        </span>
       </button>
 
       {expanded && (
-        <ul className="max-h-[calc(55vh-3.5rem)] divide-y overflow-y-auto overscroll-contain">
+        <ul className="max-h-[calc(62dvh-3.5rem)] divide-y overflow-y-auto overscroll-contain border-t">
           {visible.length === 0 && (
             <li>
               {failed ? (
@@ -144,56 +170,47 @@ export function NearbyPanel({
                 <button
                   type="button"
                   onClick={() => onSelect(outage)}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-accent"
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
                 >
-                  <span
-                    aria-hidden
-                    style={{
-                      backgroundColor: resolved
-                        ? "var(--severity-resolved)"
-                        : SEVERITY_META[outage.severity].token,
-                    }}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white"
-                  >
-                    <ServiceIcon
-                      type={outage.serviceType}
-                      className="h-3.5 w-3.5"
-                    />
-                  </span>
+                  <ServiceBadge
+                    type={outage.serviceType}
+                    severity={outage.severity}
+                    resolved={resolved}
+                  />
 
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5">
-                      <span className="truncate text-sm font-medium">
+                      <span className="truncate text-sm font-semibold">
                         {outage.providerName ?? "Unknown provider"}
                       </span>
                       {outage.origin === "official" ? (
-                        <Badge variant="outline" className="shrink-0 px-1.5 py-0">
+                        <Badge variant="muted" size="sm">
                           Official
                         </Badge>
                       ) : (
                         outage.isVerified && (
-                          <Badge variant="outline" className="shrink-0 px-1.5 py-0">
+                          <Badge variant="muted" size="sm">
                             Verified
                           </Badge>
                         )
                       )}
                     </span>
-                    <span className="block truncate text-xs text-muted-foreground">
+                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                       {locationLabel(outage)}
                       {center && ` · ${formatDistance(haversineMeters(center, outage))}`}
                     </span>
                   </span>
 
                   <span className="shrink-0 text-right">
-                    <span className="block text-xs text-muted-foreground">
-                      {timeAgo(outage.reportedAt)}
-                    </span>
-                    <span className="block text-xs tabular-nums text-muted-foreground">
+                    <span className="block text-xs font-medium tabular-nums">
                       {outage.origin === "official"
                         ? outage.customersAffected !== null
-                          ? `${outage.customersAffected.toLocaleString()} out · ${sourceLabel(outage.sourceName, "short")}`
+                          ? `${outage.customersAffected.toLocaleString()} out`
                           : sourceLabel(outage.sourceName, "short")
                         : `${outage.verificationCount} confirmed`}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      {timeAgo(outage.reportedAt)}
                     </span>
                   </span>
                 </button>
@@ -226,7 +243,7 @@ function FailedState({
       <div className="flex flex-col items-center text-center">
         <span
           aria-hidden
-          className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground"
+          className="mb-3 flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground"
         >
           <TriangleAlert className="h-5 w-5" />
         </span>
@@ -282,7 +299,7 @@ function EmptyState({
       <div className="flex flex-col items-center text-center">
         <span
           aria-hidden
-          className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-severity-resolved/10 text-severity-resolved"
+          className="mb-3 flex size-11 items-center justify-center rounded-full bg-severity-resolved/12 text-severity-resolved"
         >
           <CheckCircle2 className="h-5 w-5" />
         </span>
@@ -312,7 +329,7 @@ function EmptyState({
           <button
             type="button"
             onClick={() => setResolvedHours(6)}
-            className="mt-2 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            className="tap-target mt-3 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
           >
             Show outages resolved in the last 6 hours
           </button>
@@ -332,7 +349,7 @@ function EmptyState({
                 <button
                   type="button"
                   onClick={() => onSelectAdvisory(advisory)}
-                  className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-accent"
+                  className="flex min-h-11 w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-accent"
                 >
                   <span
                     aria-hidden

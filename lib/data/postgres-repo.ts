@@ -164,8 +164,9 @@ export class PostgresRepository implements Repository {
       service_type: ServiceType;
       logo_url: string | null;
       official_status_url: string | null;
+      regions: string[] | null;
     }>(
-      "SELECT slug, name, service_type, logo_url, official_status_url FROM providers ORDER BY name",
+      "SELECT slug, name, service_type, logo_url, official_status_url, regions FROM providers ORDER BY name",
     );
 
     return rows.map((r) => ({
@@ -174,6 +175,7 @@ export class PostgresRepository implements Repository {
       serviceType: r.service_type,
       logoUrl: r.logo_url,
       officialStatusUrl: r.official_status_url,
+      regions: r.regions ?? [],
     }));
   }
 

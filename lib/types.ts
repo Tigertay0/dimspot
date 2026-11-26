@@ -23,6 +23,8 @@ export interface Provider {
   serviceType: ServiceType;
   logoUrl: string | null;
   officialStatusUrl: string | null;
+  /** Two-letter state codes where it operates; empty means nationwide. */
+  regions: string[];
 }
 
 export interface Outage {

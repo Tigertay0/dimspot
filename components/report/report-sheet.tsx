@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Check, Loader2, MapPin } from "lucide-react";
+import { stateCode } from "@/lib/us-states";
+import { cn } from "@/lib/utils";
 import { SERVICE_META, SEVERITY_META } from "@/lib/constants";
 import { useCreateOutage, useProviders } from "@/lib/hooks/use-outages";
 import { useToast } from "@/components/ui/use-toast";
@@ -19,6 +21,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { ServiceIcon } from "@/components/map/markers";
+import { ProviderPicker } from "./provider-picker";
 
 /**
  * Report flow (PRD section 4.5): three steps, each one screen, no typing
@@ -82,9 +85,12 @@ export function ReportSheet({
   }, [open, step, onRequestPicking]);
 
   // Reverse-geocode once the pin settles, so the confirmation screen can name a
-  // street rather than showing raw coordinates.
+  // street rather than showing raw coordinates. It starts on the first step,
+  // not the second: the state it returns is what lets the provider list lead
+  // with the companies that serve this spot.
+  const locating = open && step !== "severity";
   useEffect(() => {
-    if (step !== "location" || !pickedLocation) return;
+    if (!locating || !pickedLocation) return;
 
     // Dragging the pin again supersedes this lookup. Clearing the timer alone
     // left an in-flight request running, and whichever reply landed last won —
@@ -115,7 +121,7 @@ export function ReportSheet({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [step, pickedLocation]);
+  }, [locating, pickedLocation]);
 
   const stepIndex = STEP_ORDER.indexOf(step);
 
@@ -162,24 +168,21 @@ export function ReportSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        // Content-sized, capped at 85vh. The location step's content is short,
-        // so the sheet stays out of the way of the crosshair at the map centre
-        // without needing a separate height rule that squeezes it into a
-        // scrollbar.
-        className="flex max-h-[85vh] flex-col sm:mx-auto sm:max-w-lg sm:rounded-t-2xl"
+        // Content-sized. The location step's content is short, so the sheet
+        // stays out of the way of the crosshair at the map centre.
       >
         <SheetHeader>
-          <SheetTitle>
-            {step === "service" && "What is out?"}
-            {step === "location" && "Where?"}
-            {step === "severity" && "How bad is it?"}
-          </SheetTitle>
-          <SheetDescription>
+          <SheetDescription className="pr-12 text-xs font-medium">
             Step {stepIndex + 1} of {STEP_ORDER.length}
           </SheetDescription>
+          <SheetTitle>
+            {step === "service" && "What is out?"}
+            {step === "location" && "Where is it out?"}
+            {step === "severity" && "How bad is it?"}
+          </SheetTitle>
 
           <div
-            className="mt-2 flex gap-1.5"
+            className="mt-2.5 flex gap-1.5"
             role="progressbar"
             aria-valuenow={stepIndex + 1}
             aria-valuemin={1}
@@ -188,39 +191,50 @@ export function ReportSheet({
             {STEP_ORDER.map((s, index) => (
               <span
                 key={s}
-                className={`h-1 flex-1 rounded-full ${
-                  index <= stepIndex ? "bg-primary" : "bg-muted"
-                }`}
+                className={cn(
+                  "h-1 flex-1 rounded-full transition-colors duration-300",
+                  index <= stepIndex ? "bg-primary" : "bg-muted",
+                )}
               />
             ))}
           </div>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-5 py-2">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-5 pb-4 pt-1">
           {step === "service" && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-2">
-                {SERVICE_TYPES.map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => {
-                      setServiceType(type);
-                      setProviderId(null);
-                    }}
-                    aria-pressed={serviceType === type}
-                    className={`flex flex-col items-center gap-2 rounded-xl border p-4 transition-colors ${
-                      serviceType === type
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-input hover:bg-accent"
-                    }`}
-                  >
-                    <ServiceIcon type={type} className="h-6 w-6" />
-                    <span className="text-sm font-medium">
-                      {SERVICE_META[type].shortLabel}
-                    </span>
-                  </button>
-                ))}
+            <div className="space-y-5">
+              <div className="grid grid-cols-4 gap-2">
+                {SERVICE_TYPES.map((type) => {
+                  const selected = serviceType === type;
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => {
+                        setServiceType(type);
+                        setProviderId(null);
+                      }}
+                      aria-pressed={selected}
+                      className={cn(
+                        "flex h-[76px] flex-col items-center justify-center gap-2 rounded-2xl border transition-[background-color,border-color,transform] duration-150 active:scale-[0.97]",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
+                        // A sodium outline and wash, not a sodium fill: the
+                        // Next button below is the one solid sodium on screen.
+                        selected
+                          ? "border-primary bg-primary/14 text-foreground"
+                          : "border-input text-muted-foreground hover:bg-accent hover:text-foreground",
+                      )}
+                    >
+                      <ServiceIcon
+                        type={type}
+                        className={cn("size-[22px]", selected && "text-primary")}
+                      />
+                      <span className="text-[13px] font-medium leading-none">
+                        {SERVICE_META[type].shortLabel}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
               {/* The field is optional, so a failed list does not block the
@@ -233,32 +247,15 @@ export function ReportSheet({
               )}
 
               {serviceType && providerOptions.length > 0 && (
-                <div>
-                  <Label className="mb-2 block text-[13px] text-muted-foreground">
-                    Provider (optional)
-                  </Label>
-                  <div className="flex flex-wrap gap-2">
-                    {providerOptions.map((provider) => (
-                      <button
-                        key={provider.id}
-                        type="button"
-                        onClick={() =>
-                          setProviderId((current) =>
-                            current === provider.id ? null : provider.id,
-                          )
-                        }
-                        aria-pressed={providerId === provider.id}
-                        className={`rounded-full border px-3 py-2 text-sm transition-colors ${
-                          providerId === provider.id
-                            ? "border-primary bg-secondary"
-                            : "border-input hover:bg-accent"
-                        }`}
-                      >
-                        {provider.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <ProviderPicker
+                  // Remounted per service type so a search for "pepco" does
+                  // not carry over into the cellular list.
+                  key={serviceType}
+                  providers={providerOptions}
+                  stateCode={stateCode(place?.state)}
+                  value={providerId}
+                  onChange={setProviderId}
+                />
               )}
             </div>
           )}
@@ -266,11 +263,16 @@ export function ReportSheet({
           {step === "location" && (
             <div className="space-y-3 text-sm">
               <p className="text-muted-foreground">
-                Drag the map to move the pin.
+                Drag the map until the pin sits on the spot.
               </p>
-              <div className="flex items-start gap-2 rounded-lg border bg-muted/40 p-3">
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                <div className="min-w-0">
+              <div className="flex items-start gap-3 rounded-2xl bg-muted/60 p-3.5">
+                <span
+                  aria-hidden
+                  className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"
+                >
+                  <MapPin className="size-4" />
+                </span>
+                <div className="min-w-0 flex-1 self-center leading-snug">
                   {resolvingPlace ? (
                     <span className="text-muted-foreground">
                       Finding address…
@@ -278,7 +280,7 @@ export function ReportSheet({
                   ) : place ? (
                     <span className="break-words">{place.label}</span>
                   ) : pickedLocation ? (
-                    <span className="text-muted-foreground">
+                    <span className="tabular-nums text-muted-foreground">
                       {pickedLocation.latitude.toFixed(4)},{" "}
                       {pickedLocation.longitude.toFixed(4)}
                     </span>
@@ -293,41 +295,59 @@ export function ReportSheet({
           )}
 
           {step === "severity" && (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div className="space-y-2">
-                {SEVERITIES.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => setSeverity(option)}
-                    aria-pressed={severity === option}
-                    className={`flex w-full items-center gap-3 rounded-xl border p-3.5 text-left transition-colors ${
-                      severity === option
-                        ? "border-primary bg-accent"
-                        : "border-input hover:bg-accent"
-                    }`}
-                  >
-                    <span
-                      aria-hidden
-                      style={{ backgroundColor: SEVERITY_META[option].token }}
-                      className="h-3.5 w-3.5 shrink-0 rounded-full"
-                    />
-                    <span className="flex-1">
-                      <span className="block text-sm font-medium">
-                        {SEVERITY_META[option].label}
+                {SEVERITIES.map((option) => {
+                  const selected = severity === option;
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setSeverity(option)}
+                      aria-pressed={selected}
+                      className={cn(
+                        "flex min-h-[60px] w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-[background-color,border-color] duration-150",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
+                        selected
+                          ? "border-primary bg-primary/14"
+                          : "border-input hover:bg-accent",
+                      )}
+                    >
+                      <span
+                        aria-hidden
+                        style={{ backgroundColor: SEVERITY_META[option].token }}
+                        className="size-3 shrink-0 rounded-full"
+                      />
+                      <span className="flex-1">
+                        <span className="block text-sm font-semibold">
+                          {SEVERITY_META[option].label}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          {SEVERITY_META[option].description}
+                        </span>
                       </span>
-                      <span className="block text-xs text-muted-foreground">
-                        {SEVERITY_META[option].description}
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "flex size-5 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors",
+                          selected
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-input",
+                        )}
+                      >
+                        {selected && <Check className="size-3" strokeWidth={3} />}
                       </span>
-                    </span>
-                    {severity === option && <Check className="h-4 w-4" />}
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
 
               <div>
-                <Label htmlFor="report-description" className="mb-1.5 block">
-                  Anything else? (optional)
+                <Label
+                  htmlFor="report-description"
+                  className="mb-2 block text-[13px] text-muted-foreground"
+                >
+                  Anything else? <span className="font-normal">(optional)</span>
                 </Label>
                 <Textarea
                   id="report-description"

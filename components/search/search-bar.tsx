@@ -2,11 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, LocateFixed, Search, SlidersHorizontal, X } from "lucide-react";
-import { useGeolocation } from "@/lib/hooks/use-geolocation";
+import { Loader2, MapPin, Search, SlidersHorizontal, X } from "lucide-react";
 import type { GeocodeResult } from "@/lib/types";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 /**
@@ -20,13 +17,11 @@ const DEBOUNCE_MS = 350;
 
 export function SearchBar({
   onPick,
-  onUseMyLocation,
   onOpenFilters,
   activeFilterCount,
   className,
 }: {
   onPick: (result: GeocodeResult) => void;
-  onUseMyLocation: (coords: { latitude: number; longitude: number }) => void;
   onOpenFilters: () => void;
   activeFilterCount: number;
   className?: string;
@@ -35,8 +30,6 @@ export function SearchBar({
   const [debounced, setDebounced] = useState("");
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-
-  const { locate, loading: locating, error: locationError } = useGeolocation();
 
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(value.trim()), DEBOUNCE_MS);
@@ -79,14 +72,7 @@ export function SearchBar({
     setOpen(false);
   }
 
-  async function handleLocate() {
-    const coords = await locate();
-    if (coords) {
-      onUseMyLocation(coords);
-      setValue("");
-      setOpen(false);
-    }
-  }
+  const searching = isFetching && debounced.length >= 2;
 
   return (
     <div ref={containerRef} className={cn("relative", className)}>
@@ -97,129 +83,123 @@ export function SearchBar({
           event.preventDefault();
           if (results[0]) choose(results[0]);
         }}
-        className="flex items-center gap-2 rounded-xl border bg-background/95 p-1.5 shadow-lg backdrop-blur"
+        className={cn(
+          "glass flex h-[52px] items-center gap-1 rounded-[18px] pr-1.5 pl-4",
+          "transition-[border-color] duration-150 focus-within:border-foreground/25",
+        )}
       >
-        <div className="relative flex-1">
-          <Search
-            aria-hidden
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            value={value}
-            onChange={(event) => {
-              setValue(event.target.value);
-              setOpen(true);
-            }}
-            onFocus={() => setOpen(true)}
-            onKeyDown={(event) => {
-              // The form has no submit button (both icons are type="button"),
-              // so implicit submission is not guaranteed — handle Enter here
-              // as well and let the form's onSubmit be the fallback.
-              if (event.key === "Enter") {
-                event.preventDefault();
-                if (results[0]) choose(results[0]);
-              }
-              if (event.key === "Escape") setOpen(false);
-            }}
-            placeholder="Address, city or ZIP"
-            aria-label="Search for a location"
-            autoComplete="off"
-            enterKeyHint="search"
-            className="border-0 pl-9 pr-9 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-          />
-          {value.length > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                setValue("");
-                setOpen(false);
-              }}
-              aria-label="Clear search"
-              className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full p-2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
+        {searching ? (
+          <Loader2 aria-hidden className="size-[18px] shrink-0 animate-spin text-muted-foreground" />
+        ) : (
+          <Search aria-hidden className="size-[18px] shrink-0 text-muted-foreground" />
+        )}
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={handleLocate}
-          disabled={locating}
-          aria-label="Use my location"
-          title="Use my location"
-          className="shrink-0"
-        >
-          {locating ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <LocateFixed className="h-4 w-4" />
-          )}
-        </Button>
+        <input
+          value={value}
+          onChange={(event) => {
+            setValue(event.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(event) => {
+            // The form has no submit button, so implicit submission is not
+            // guaranteed — handle Enter here as well and let the form's
+            // onSubmit be the fallback.
+            if (event.key === "Enter") {
+              event.preventDefault();
+              if (results[0]) choose(results[0]);
+            }
+            if (event.key === "Escape") setOpen(false);
+          }}
+          placeholder="Search an address, city or ZIP"
+          aria-label="Search for a location"
+          autoComplete="off"
+          enterKeyHint="search"
+          // 16px: anything smaller and iOS Safari zooms the page on focus.
+          className="h-full min-w-0 flex-1 bg-transparent px-2.5 text-base text-foreground outline-none placeholder:text-muted-foreground"
+        />
 
-        <Button
+        {value.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              setValue("");
+              setOpen(false);
+            }}
+            aria-label="Clear search"
+            className="tap-target flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <X className="size-4" />
+          </button>
+        )}
+
+        <span aria-hidden className="mx-1 h-6 w-px shrink-0 bg-border" />
+
+        <button
           type="button"
-          variant="ghost"
-          size="icon"
           onClick={onOpenFilters}
           aria-label={
             activeFilterCount > 0
               ? `Filters, ${activeFilterCount} active`
               : "Filters"
           }
-          className="relative shrink-0"
+          className={cn(
+            "relative flex size-10 shrink-0 items-center justify-center rounded-[13px] transition-colors",
+            "hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            activeFilterCount > 0 ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+          )}
         >
-          <SlidersHorizontal className="h-4 w-4" />
+          <SlidersHorizontal className="size-[18px]" />
           {activeFilterCount > 0 && (
-            <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+            <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground tabular-nums">
               {activeFilterCount}
             </span>
           )}
-        </Button>
+        </button>
       </form>
 
-      {open && (debounced.length >= 2 || locationError) && (
-        <div className="absolute inset-x-0 top-full z-20 mt-2 overflow-hidden rounded-xl border bg-popover shadow-xl">
-          {locationError && (
-            <p className="px-4 py-3 text-sm text-muted-foreground">
-              {locationError}
-            </p>
-          )}
-
+      {open && debounced.length >= 2 && (
+        <div className="glass absolute inset-x-0 top-full z-20 mt-2 overflow-hidden rounded-[18px] !bg-popover">
           {isFetching && results.length === 0 && (
-            <p className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <p className="flex items-center gap-2 px-4 py-3.5 text-sm text-muted-foreground">
+              <Loader2 className="size-3.5 animate-spin" />
               Searching…
             </p>
           )}
 
           {!isFetching && isError && (
-            <p className="px-4 py-3 text-sm text-muted-foreground">
+            <p className="px-4 py-3.5 text-sm text-muted-foreground">
               Search is unavailable right now. Try again shortly.
             </p>
           )}
 
-          {!isFetching && !isError && debounced.length >= 2 && results.length === 0 && (
-            <p className="px-4 py-3 text-sm text-muted-foreground">
+          {!isFetching && !isError && results.length === 0 && (
+            <p className="px-4 py-3.5 text-sm text-muted-foreground">
               No places matched “{debounced}”.
             </p>
           )}
 
-          <ul>
+          <ul className="max-h-[50dvh] divide-y overflow-y-auto overscroll-contain">
             {results.map((result) => (
               <li key={result.id}>
                 <button
                   type="button"
                   onClick={() => choose(result)}
-                  className="block w-full px-4 py-3 text-left text-sm hover:bg-accent"
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
                 >
-                  <span className="block font-medium">
-                    {result.label.split(",")[0]}
+                  <span
+                    aria-hidden
+                    className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
+                  >
+                    <MapPin className="size-4" />
                   </span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {result.label.split(",").slice(1).join(",").trim()}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">
+                      {result.label.split(",")[0]}
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {result.label.split(",").slice(1).join(",").trim()}
+                    </span>
                   </span>
                 </button>
               </li>

@@ -12,6 +12,7 @@ import {
 } from "@/lib/hooks/use-auth";
 import type { SessionInfo } from "@/lib/hooks/use-outages";
 import { Button } from "@/components/ui/button";
+import { MapButton } from "@/components/map/map-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -56,7 +57,7 @@ export function AuthSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="flex max-h-[85vh] flex-col sm:mx-auto sm:max-w-lg sm:rounded-t-2xl"
+        
       >
         {resetToken ? (
           <NewPassword
@@ -516,21 +517,18 @@ export function AccountButton({
   const email = session?.identity.email;
 
   return (
-    <Button
-      variant="secondary"
-      size="icon"
+    <MapButton
       onClick={onClick}
       aria-label={email ? `Account: ${email}` : "Sign in or create an account"}
       title={email ?? "Account"}
-      className="relative h-11 w-11 rounded-full shadow-lg"
     >
-      <UserRound className="h-4 w-4" />
+      <UserRound />
       {email && (
         <span
           aria-hidden
-          className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-background bg-severity-resolved"
+          className="absolute right-0 top-0 size-3 rounded-full border-2 border-background bg-severity-resolved"
         />
       )}
-    </Button>
+    </MapButton>
   );
 }

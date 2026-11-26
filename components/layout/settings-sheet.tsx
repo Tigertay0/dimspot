@@ -22,6 +22,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { Chip } from "@/components/ui/chip";
 
 const RADIUS_OPTIONS = [1, 5, 10, 25];
 
@@ -64,7 +65,7 @@ export function SettingsSheet({
           onGoToPlace={onGoToPlace}
         />
       ) : (
-        <SheetContent side="bottom" className="sm:mx-auto sm:max-w-lg">
+        <SheetContent side="bottom">
           <SheetHeader>
             <SheetTitle>Settings</SheetTitle>
             <SheetDescription>
@@ -184,7 +185,7 @@ function SettingsForm({
   return (
     <SheetContent
       side="bottom"
-      className="flex max-h-[85vh] flex-col sm:mx-auto sm:max-w-lg sm:rounded-t-2xl"
+      
     >
         <SheetHeader>
           <SheetTitle>Settings</SheetTitle>
@@ -199,12 +200,12 @@ function SettingsForm({
           <AppearancePicker />
 
           <section>
-            <h3 className="mb-2 text-[13px] font-semibold text-muted-foreground">
+            <h3 className="mb-2 text-[13px] font-medium text-muted-foreground">
               Alerts
             </h3>
 
             {!push.available ? (
-              <p className="flex items-start gap-2 rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
+              <p className="flex items-start gap-2.5 rounded-2xl bg-muted/60 p-3.5 text-sm leading-snug text-muted-foreground">
                 <BellOff className="mt-0.5 h-4 w-4 shrink-0" />
                 Push alerts are not available here. They need a browser that
                 supports Web Push and VAPID keys configured on the server — see
@@ -241,25 +242,17 @@ function SettingsForm({
                       </Label>
                       <div className="flex flex-wrap gap-2">
                         {SEVERITIES.map((severity) => (
-                          <button
+                          <Chip
                             key={severity}
-                            type="button"
+                            active={notifications.severityThreshold === severity}
                             onClick={() =>
                               updateNotifications({
                                 severityThreshold: severity as Severity,
                               })
                             }
-                            aria-pressed={
-                              notifications.severityThreshold === severity
-                            }
-                            className={`rounded-full border px-3 py-2 text-sm ${
-                              notifications.severityThreshold === severity
-                                ? "border-primary bg-secondary"
-                                : "border-input text-muted-foreground"
-                            }`}
                           >
                             {SEVERITY_META[severity].label} and worse
-                          </button>
+                          </Chip>
                         ))}
                       </div>
                     </div>
@@ -270,21 +263,14 @@ function SettingsForm({
                       </Label>
                       <div className="flex gap-2">
                         {RADIUS_OPTIONS.map((miles) => (
-                          <button
+                          <Chip
                             key={miles}
-                            type="button"
-                            onClick={() =>
-                              updateNotifications({ radiusMiles: miles })
-                            }
-                            aria-pressed={notifications.radiusMiles === miles}
-                            className={`flex-1 rounded-lg border py-2 text-sm ${
-                              notifications.radiusMiles === miles
-                                ? "border-primary bg-secondary"
-                                : "border-input text-muted-foreground"
-                            }`}
+                            active={notifications.radiusMiles === miles}
+                            onClick={() => updateNotifications({ radiusMiles: miles })}
+                            className="flex-1"
                           >
                             {miles} mi
-                          </button>
+                          </Chip>
                         ))}
                       </div>
                     </div>
@@ -334,7 +320,7 @@ function SettingsForm({
           </section>
 
           <section className="border-t pt-4">
-            <h3 className="mb-2 text-[13px] font-semibold text-muted-foreground">
+            <h3 className="mb-2 text-[13px] font-medium text-muted-foreground">
               Saved places
             </h3>
 
@@ -343,7 +329,7 @@ function SettingsForm({
                 {draft.savedLocations.map((location) => (
                   <li
                     key={location.id}
-                    className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-accent"
+                    className="flex min-h-12 items-center gap-2 rounded-xl border pr-2 pl-3.5 text-sm transition-colors hover:bg-accent"
                   >
                     <button
                       type="button"
@@ -351,7 +337,7 @@ function SettingsForm({
                         onGoToPlace(location);
                         onOpenChange(false);
                       }}
-                      className="flex min-h-0 flex-1 items-center gap-2 truncate text-left"
+                      className="flex h-12 min-w-0 flex-1 items-center gap-2 truncate text-left"
                     >
                       <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       <span className="truncate">{location.name}</span>
@@ -366,7 +352,7 @@ function SettingsForm({
                         })
                       }
                       aria-label={`Remove ${location.name}`}
-                      className="min-h-0 rounded p-1 text-muted-foreground hover:text-destructive"
+                      className="tap-target flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -432,7 +418,7 @@ function AppearancePicker() {
   const { appearance, setAppearance } = useAppearance();
   return (
     <section>
-      <h3 id="appearance-label" className="mb-2 text-[13px] font-semibold text-muted-foreground">
+      <h3 id="appearance-label" className="mb-2 text-[13px] font-medium text-muted-foreground">
         Appearance
       </h3>
       <div role="group" aria-labelledby="appearance-label" className="grid grid-cols-3 gap-2">
@@ -445,13 +431,13 @@ function AppearancePicker() {
               aria-pressed={selected}
               onClick={() => setAppearance(option.value)}
               className={cn(
-                "flex flex-col items-start rounded-xl border px-3 py-2.5 text-left transition-colors duration-150",
+                "flex min-h-[60px] flex-col items-start justify-center gap-1 rounded-2xl border px-3 py-2.5 text-left transition-colors duration-150",
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-                selected ? "border-primary bg-primary/10" : "hover:bg-muted/60",
+                selected ? "border-primary bg-primary/14" : "border-input hover:bg-accent",
               )}
             >
-              <span className="text-sm font-semibold">{option.label}</span>
-              <span className="text-xs text-muted-foreground">{option.hint}</span>
+              <span className="text-sm font-semibold leading-none">{option.label}</span>
+              <span className="text-[11px] leading-tight text-muted-foreground">{option.hint}</span>
             </button>
           );
         })}

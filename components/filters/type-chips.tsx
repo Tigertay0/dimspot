@@ -6,6 +6,7 @@ import { useFilters } from "@/lib/store/filters";
 import { SERVICE_TYPES } from "@/lib/types";
 import type { ServiceType } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { Chip } from "@/components/ui/chip";
 import { ServiceIcon } from "@/components/map/markers";
 
 /**
@@ -45,14 +46,42 @@ export function TypeChips({ className }: { className?: string }) {
   const lone = serviceTypes.length === 1 ? serviceTypes[0] : null;
 
   return (
-    <div className={cn("space-y-1.5", className)}>
-      <ChipRow
-        allSelected={allSelected}
-        noneSelected={noneSelected}
-        serviceTypes={serviceTypes}
-        onPick={pick}
-        onShowAll={() => setServiceTypes([...SERVICE_TYPES])}
-      />
+    <div className={cn("space-y-2", className)}>
+      <div
+        className={cn(
+          // Bleeds to the screen edge so a row that scrolls does so under the
+          // edge, not under an invisible wall 12px in from it.
+          "-mx-3 flex items-center gap-1.5 overflow-x-auto px-3 py-1",
+          "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        )}
+        role="group"
+        aria-label="Filter by service type"
+      >
+        <Chip
+          floating
+          tone="solid"
+          active={allSelected}
+          onClick={() => setServiceTypes([...SERVICE_TYPES])}
+          className={cn(
+            noneSelected && "border-primary/70 text-foreground ring-2 ring-primary/30",
+          )}
+        >
+          {noneSelected ? "Show all" : "All"}
+        </Chip>
+
+        {SERVICE_TYPES.map((type) => (
+          <Chip
+            key={type}
+            floating
+            tone="solid"
+            active={!allSelected && serviceTypes.includes(type)}
+            onClick={() => pick(type)}
+          >
+            <ServiceIcon type={type} />
+            {SERVICE_META[type].shortLabel}
+          </Chip>
+        ))}
+      </div>
 
       {lone && <CoverageNote type={lone} />}
     </div>
@@ -62,105 +91,17 @@ export function TypeChips({ className }: { className?: string }) {
 /**
  * What this layer can and cannot see.
  *
- * Without it, filtering to Cellular shows an empty map that looks identical to
- * a broken one. The honest answer is that nothing free reports cellular, and
- * that is worth one line of text rather than leaving someone to guess.
+ * Without it, filtering to a thinly covered type shows an empty map that looks
+ * identical to a broken one. Saying what feeds exist is worth one line of text
+ * rather than leaving someone to guess.
  */
 function CoverageNote({ type }: { type: ServiceType }) {
   const coverage = SERVICE_COVERAGE[type];
 
   return (
-    <p
-      className={cn(
-        "flex items-start gap-1.5 rounded-lg border border-border/60 bg-background/85",
-        "px-2.5 py-1.5 text-[11px] leading-snug text-muted-foreground shadow-sm backdrop-blur",
-      )}
-    >
-      <Info className="mt-px h-3 w-3 shrink-0" aria-hidden />
+    <p className="glass flex items-start gap-2 rounded-[14px] px-3 py-2 text-xs leading-snug text-muted-foreground">
+      <Info className="mt-px size-3.5 shrink-0" aria-hidden />
       <span>{coverage.note}</span>
     </p>
-  );
-}
-
-function ChipRow({
-  allSelected,
-  noneSelected,
-  serviceTypes,
-  onPick,
-  onShowAll,
-}: {
-  allSelected: boolean;
-  noneSelected: boolean;
-  serviceTypes: ServiceType[];
-  onPick: (type: ServiceType) => void;
-  onShowAll: () => void;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-1.5 overflow-x-auto pb-0.5",
-        // The scrollbar would sit across the map on desktop; the row fits
-        // without one at every width we support.
-        "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-      )}
-      role="group"
-      aria-label="Filter by service type"
-    >
-      <Chip
-        label={noneSelected ? "Show all" : "All"}
-        active={allSelected}
-        highlighted={noneSelected}
-        onClick={onShowAll}
-      />
-
-      {SERVICE_TYPES.map((type) => (
-        <Chip
-          key={type}
-          label={SERVICE_META[type].shortLabel}
-          icon={<ServiceIcon type={type} className="h-3.5 w-3.5" />}
-          active={!allSelected && serviceTypes.includes(type)}
-          onClick={() => onPick(type)}
-        />
-      ))}
-    </div>
-  );
-}
-
-function Chip({
-  label,
-  icon,
-  active,
-  highlighted = false,
-  onClick,
-}: {
-  label: string;
-  icon?: React.ReactNode;
-  active: boolean;
-  /** Draws attention to this chip as the way out of an empty selection. */
-  highlighted?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        // py-2 keeps the row a 36px target: not the 44px a primary button gets,
-        // but this sits directly under the search field and cannot grow without
-        // eating the map on a phone.
-        "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2",
-        "text-xs font-medium whitespace-nowrap shadow-sm backdrop-blur",
-        "transition-colors duration-150",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        active
-          ? "border-transparent bg-foreground text-background"
-          : "border-border/60 bg-background/85 text-muted-foreground hover:text-foreground",
-        highlighted && "border-primary/70 text-foreground ring-2 ring-primary/30",
-      )}
-    >
-      {icon}
-      {label}
-    </button>
   );
 }

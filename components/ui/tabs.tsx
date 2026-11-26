@@ -6,6 +6,11 @@ import { cn } from "@/lib/utils";
 
 const Tabs = TabsPrimitive.Root;
 
+/**
+ * A segmented control. The strip is a grid of equal columns and each tab fills
+ * its cell, so the selected pill can never be taller or wider than the strip
+ * it sits in.
+ */
 const TabsList = React.forwardRef<
   React.ComponentRef<typeof TabsPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
@@ -13,7 +18,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex h-10 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground",
+      "grid h-11 auto-cols-fr grid-flow-col gap-1 rounded-[14px] bg-muted p-1 text-muted-foreground",
       className,
     )}
     {...props}
@@ -28,10 +33,13 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all",
-      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+      "inline-flex h-full min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[10px] px-3 text-sm font-medium leading-none",
+      "transition-[background-color,color,box-shadow] duration-150",
+      "hover:text-foreground",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
       "disabled:pointer-events-none disabled:opacity-50",
-      "data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
+      "data-[state=active]:bg-card data-[state=active]:text-foreground",
+      "data-[state=active]:shadow-[0_1px_2px_rgb(0_0_0/0.18),inset_0_0_0_1px_var(--border)]",
       className,
     )}
     {...props}

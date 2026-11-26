@@ -53,14 +53,14 @@ export function OutageTimeline({ events }: { events: TimelineEvent[] }) {
               <span
                 aria-hidden
                 style={{ color: ACCENT[event.kind] }}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-background"
+                className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted"
               >
                 <Icon className="h-3.5 w-3.5" />
               </span>
               {!isLast && <span className="w-px flex-1 bg-border" />}
             </div>
 
-            <div className={isLast ? "pb-1" : "pb-5"}>
+            <div className={isLast ? "pb-1 pt-1" : "pb-5 pt-1"}>
               <div className="flex flex-wrap items-baseline gap-x-2">
                 <span className="text-sm font-medium">{event.title}</span>
                 <time className="text-xs text-muted-foreground">

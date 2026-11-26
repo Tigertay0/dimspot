@@ -1,3 +1,4 @@
+import { PROVIDER_CATALOG } from "./data/provider-catalog";
 import type { ServiceType, Severity } from "./types";
 
 /** Confirmations required before an outage is badged as verified. */
@@ -37,8 +38,8 @@ export const SERVICE_META: Record<
  *
  * An empty map has two very different meanings — "nothing is broken" and
  * "nothing is watching" — and the app cannot tell them apart unless it says
- * which feeds it has. Power is well covered, internet is covered coarsely and
- * is quiet most days, and nothing free reports cellular at all.
+ * which feeds it has. Power is well covered. Internet and cellular are covered
+ * at the scale of a whole network or a whole state, never a street.
  */
 export const SERVICE_COVERAGE: Record<
   ServiceType,
@@ -46,7 +47,7 @@ export const SERVICE_COVERAGE: Record<
 > = {
   power: {
     live: true,
-    note: "Live utility data covers roughly 90 utilities across 30 states, plus anything people report.",
+    note: "Live data from about 110 utilities, including Pepco, BGE, ComEd, Dominion, DTE and Oncor, plus anything people report. Some large utilities are not covered yet.",
   },
   internet: {
     live: true,
@@ -138,13 +139,34 @@ export const SOURCE_LABELS: Record<string, SourceMeta> = {
   },
 };
 
+/** Sources named "kubra-<provider slug>" are one utility's own outage map. */
+const UTILITY_MAP_PREFIX = "kubra-";
+
+function utilityMapName(sourceName: string | null): string | null {
+  if (!sourceName?.startsWith(UTILITY_MAP_PREFIX)) return null;
+  const slug = sourceName.slice(UTILITY_MAP_PREFIX.length);
+  return PROVIDER_CATALOG.find((p) => p.slug === slug)?.name ?? null;
+}
+
 export function sourceLabel(sourceName: string | null, form: "name" | "short" = "name"): string {
   if (!sourceName) return form === "short" ? "feed" : "an official feed";
+
+  const utility = utilityMapName(sourceName);
+  if (utility) return form === "short" ? "Utility map" : `${utility}'s outage map`;
+
   return SOURCE_LABELS[sourceName]?.[form] ?? sourceName;
 }
 
 /** One sentence saying where an ingested row came from, and how sure it is. */
 export function sourceAttribution(sourceName: string | null): string {
+  const utility = utilityMapName(sourceName);
+  if (utility) {
+    return (
+      `Reported by ${utility} on its own outage map, not by a person. ` +
+      `The marker is the centre of the area it reports, not one address. Confirmations do not apply.`
+    );
+  }
+
   const meta = sourceName ? SOURCE_LABELS[sourceName] : undefined;
   const label = sourceLabel(sourceName);
 

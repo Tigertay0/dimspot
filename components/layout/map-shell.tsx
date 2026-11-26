@@ -1,21 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Settings2 } from "lucide-react";
+import { LocateFixed, Minus, Plus, Settings2 } from "lucide-react";
 import { DEFAULT_VIEW } from "@/lib/constants";
 import { useAdvisories, useOutages, useSession } from "@/lib/hooks/use-outages";
 import { activeFilterCount, useFilters } from "@/lib/store/filters";
 import type { Advisory, BoundingBox, GeocodeResult, Outage } from "@/lib/types";
 import Link from "next/link";
 import { BrandMark } from "@/components/brand-mark";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { FilterSheet } from "@/components/filters/filter-sheet";
 import { TypeChips } from "@/components/filters/type-chips";
+import { MapButton } from "@/components/map/map-button";
 import { MapLegend } from "@/components/map/markers";
-import { OutageMap, type MapView } from "@/components/map/outage-map";
+import { OutageMap, type MapControls, type MapView } from "@/components/map/outage-map";
 import { NearbyPanel } from "@/components/layout/nearby-panel";
 import { AdvisorySheet } from "@/components/outage/advisory-sheet";
 import { OutageDetailSheet } from "@/components/outage/outage-detail-sheet";
@@ -44,6 +44,7 @@ export function MapShell() {
   });
   const [zoom, setZoom] = useState(DEFAULT_VIEW.zoom);
   const [flyTo, setFlyTo] = useState<MapView | null>(null);
+  const mapControls = useRef<MapControls | null>(null);
 
   // Deep links are read once, when state is created, rather than in an effect:
   // /map?outage=<id> comes from a push notification, /map?action=report from the
@@ -177,11 +178,10 @@ export function MapShell() {
     });
   }, []);
 
-  const handleUseMyLocation = useCallback(
-    (coords: { latitude: number; longitude: number }) => {
-      setFlyTo({ ...coords, zoom: 13 });
-    },
-    [],
+  const handleLocateError = useCallback(
+    (message: string) =>
+      toast({ variant: "destructive", title: "Location unavailable", description: message }),
+    [toast],
   );
 
   const handleSelect = useCallback((outage: Outage) => {
@@ -190,7 +190,9 @@ export function MapShell() {
   }, []);
 
   return (
-    <main className="fixed inset-0 overflow-hidden">
+    // data-app-shell: globals.css keeps the landing's blanket 44px touch rule
+    // out of the app, where every control sizes itself.
+    <main data-app-shell className="fixed inset-0 overflow-hidden">
       <h1 className="sr-only">Dimspot live outage map</h1>
       <OutageMap
         outages={outages}
@@ -203,6 +205,8 @@ export function MapShell() {
         picking={picking}
         onPickMove={setCenter}
         theme={theme}
+        controls={mapControls}
+        onLocateError={handleLocateError}
       />
 
       {/* Crosshair for report mode. Fixed to the map centre so the user aims by
@@ -210,16 +214,16 @@ export function MapShell() {
       {picking && (
         <div
           aria-hidden
-          className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-full"
+          className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-full drop-shadow-[0_6px_10px_rgba(0,0,0,0.45)]"
         >
-          <svg width="34" height="42" viewBox="0 0 34 42" fill="none">
+          <svg width="36" height="44" viewBox="0 0 36 44" fill="none">
             <path
-              d="M17 41C17 41 32 25.5 32 16.5C32 8.2 25.3 1.5 17 1.5S2 8.2 2 16.5C2 25.5 17 41 17 41Z"
-              fill="var(--severity-complete)"
-              stroke="white"
+              d="M18 42.5C18 42.5 33.5 26.6 33.5 17C33.5 8.4 26.6 1.5 18 1.5S2.5 8.4 2.5 17C2.5 26.6 18 42.5 18 42.5Z"
+              fill="var(--primary)"
+              stroke="var(--background)"
               strokeWidth="2.5"
             />
-            <circle cx="17" cy="16.5" r="5" fill="white" />
+            <circle cx="18" cy="17" r="5.5" fill="var(--background)" />
           </svg>
         </div>
       )}
@@ -228,20 +232,20 @@ export function MapShell() {
           search bar needs the whole width. */}
       <Link
         href="/"
-        className="absolute top-3 left-3 z-30 hidden h-12 items-center gap-2 rounded-2xl border bg-background/85 px-4 text-[15px] font-semibold tracking-[-0.025em] shadow-lg backdrop-blur-xl xl:flex focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="glass absolute top-3 left-3 z-30 hidden h-[52px] items-center gap-2 rounded-[18px] px-4 text-[15px] font-semibold tracking-[-0.025em] xl:flex focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <BrandMark />
         Dimspot
       </Link>
 
       {/* Above the bottom bar: the search suggestions drop down over the map
-          and must not be painted on by the report button below them. */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-30 p-3">
+          and must not be painted on by the report button below them. The top
+          inset keeps the bar under the status bar when installed as an app. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-30 px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <div className="pointer-events-auto mx-auto max-w-lg space-y-2">
           {session?.capabilities.demoData && <DemoBanner />}
           <SearchBar
             onPick={handlePick}
-            onUseMyLocation={handleUseMyLocation}
             onOpenFilters={() => setFiltersOpen(true)}
             activeFilterCount={filterCount}
           />
@@ -251,20 +255,19 @@ export function MapShell() {
         </div>
       </div>
 
-      {/* Settings sits opposite the report button so the two primary actions
-          do not crowd the same thumb zone. */}
+      {/* Settings and account sit opposite the report button so the primary
+          action does not share a thumb zone with them. On a phone they clear
+          the list bar and the attribution above it. */}
       {!picking && (
-        <div className="absolute bottom-20 left-3 z-10 flex flex-col items-start gap-2">
-          <MapLegend className="hidden sm:block" />
-          <Button
-            variant="secondary"
-            size="icon"
+        <div className="absolute bottom-[calc(6.25rem+env(safe-area-inset-bottom,0px))] left-3 z-10 flex flex-col items-start gap-2 sm:bottom-10">
+          <MapLegend className="hidden md:block" />
+          <MapButton
             onClick={() => setSettingsOpen(true)}
             aria-label="Alerts and saved places"
-            className="h-11 w-11 rounded-full shadow-lg"
+            title="Alerts and saved places"
           >
-            <Settings2 className="h-4 w-4" />
-          </Button>
+            <Settings2 />
+          </MapButton>
 
           {/* Only offered where accounts exist at all: the local backend has no
               auth, and a button that cannot work is worse than no button. */}
@@ -274,18 +277,57 @@ export function MapShell() {
         </div>
       )}
 
+      {/* Map controls. Locate is always there; zoom buttons only where there
+          is a pointer, since a touch screen has pinch. Shown while picking a
+          report location too: "where am I" is most of that step. */}
+      <div
+        className={cn(
+          "absolute right-3 z-10 flex flex-col items-end gap-2 sm:bottom-6",
+          picking
+            ? "top-[calc(5.5rem+env(safe-area-inset-top,0px))] sm:top-auto"
+            : "bottom-[calc(8.75rem+env(safe-area-inset-bottom,0px))]",
+        )}
+      >
+        <div className="glass hidden flex-col overflow-hidden rounded-full [@media(pointer:fine)]:flex">
+          <button
+            type="button"
+            onClick={() => mapControls.current?.zoomBy(1)}
+            aria-label="Zoom in"
+            className="flex size-11 items-center justify-center transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+          >
+            <Plus className="size-[18px]" />
+          </button>
+          <span aria-hidden className="mx-2.5 h-px bg-border" />
+          <button
+            type="button"
+            onClick={() => mapControls.current?.zoomBy(-1)}
+            aria-label="Zoom out"
+            className="flex size-11 items-center justify-center transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+          >
+            <Minus className="size-[18px]" />
+          </button>
+        </div>
+        <MapButton
+          onClick={() => mapControls.current?.locate()}
+          aria-label="Show my location"
+          title="Show my location"
+        >
+          <LocateFixed />
+        </MapButton>
+      </div>
+
       {!picking && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
-          <div className="pointer-events-auto mx-auto max-w-lg">
+          <div className="mx-auto max-w-lg">
             <div className="flex justify-end px-3 pb-3">
               {/* The landing's action button: a sodium pill with a dark chip. */}
               <button
                 type="button"
                 onClick={() => setReportOpen(true)}
                 className={cn(
-                  "group/report inline-flex h-14 items-center gap-3 rounded-full bg-primary pr-2 pl-6 text-[16px] font-semibold tracking-[-0.01em] text-[#0c1222]",
+                  "group/report pointer-events-auto inline-flex h-14 items-center gap-3 rounded-full bg-primary pr-2 pl-6 text-[16px] font-semibold tracking-[-0.01em] text-[#0c1222]",
                   "shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_14px_32px_-12px_rgba(255,178,26,0.75)]",
-                  "transition-[background-color,transform] duration-200 hover:bg-[#ffc24d] active:scale-[0.98]",
+                  "transition-[background-color,transform] duration-200 hover:bg-[#ffc24d] active:scale-[0.97]",
                   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                 )}
               >
