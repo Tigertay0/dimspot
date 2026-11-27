@@ -1,4 +1,5 @@
 import "server-only";
+import { US_STATE_NAMES, stateCode } from "@/lib/us-states";
 import { FETCH_TIMEOUT_MS } from "./source";
 import type { IngestedOutage, OutageSource, SourceResult } from "./source";
 
@@ -49,8 +50,12 @@ export interface KubraUtility {
   viewId: string;
   /** The state every area is in, when the utility serves only one. */
   state?: string;
-  /** For utilities spanning states: the state of one area, when it can be told. */
-  stateFor?: (area: { name: string; type: string }) => string | null;
+  /**
+   * For utilities spanning states: the state of one area, when it can be told
+   * from its name or id. Most multi-state maps also label each area with its
+   * state, which is used when this is absent or returns null.
+   */
+  stateFor?: (area: { id: string; name: string; type: string }) => string | null;
 }
 
 /**
@@ -79,7 +84,15 @@ export const KUBRA_UTILITIES: KubraUtility[] = [
   { slug: "atlantic-city-electric", name: "Atlantic City Electric", stormcenterId: "4b4c1b8f-d2fe-4d2a-877d-a704f764db98", viewId: "f9accd4d-75d9-4e7a-ad5b-d81abd62b2ed", state: "New Jersey" },
   { slug: "comed", name: "ComEd", stormcenterId: "0f46457f-e3ee-473c-8040-d7da9e776ccb", viewId: "a7f6692c-38f6-4bef-8681-989b2bcba5da", state: "Illinois" },
   { slug: "peco", name: "PECO", stormcenterId: "39e6d9f3-fdea-4539-848f-b8631945da6f", viewId: "74de8a50-3f45-4f6a-9483-fd618bb9165d", state: "Pennsylvania" },
-  { slug: "dominion", name: "Dominion Energy", stormcenterId: "9c691bb6-767e-4532-b00e-286ac9adc223", viewId: "38b5394c-8bca-4dfd-ac59-b321615446bd" },
+  {
+    slug: "dominion",
+    name: "Dominion Energy",
+    stormcenterId: "9c691bb6-767e-4532-b00e-286ac9adc223",
+    viewId: "38b5394c-8bca-4dfd-ac59-b321615446bd",
+    // Areas carry no state, but their id names the region they sit in
+    // ("BOUN|Northern Virginia|Fairfax|county"), and one region is all of NC.
+    stateFor: ({ id }) => (id.split("|")[1] === "North Carolina" ? "North Carolina" : "Virginia"),
+  },
   { slug: "pseg-li", name: "PSEG Long Island", stormcenterId: "48006d55-45bb-40a4-99a6-1289326f0d0d", viewId: "fb50e444-70e5-4b69-b868-28463b5dbd19", state: "New York" },
   { slug: "pseg", name: "PSE&G", stormcenterId: "79d82478-c10a-4956-a045-89de3cda618c", viewId: "bdb7f5be-1c1a-46fa-862e-ebdf21851d2e", state: "New Jersey" },
   { slug: "aep-ohio", name: "AEP Ohio", stormcenterId: "9c0735d8-b721-4dce-b80b-558e98ce1083", viewId: "9b2feb80-69f8-4035-925e-f2acbcf1728e", state: "Ohio" },
@@ -145,6 +158,8 @@ interface ThematicArea {
     cust_a?: Counted;
     etr?: string | null;
     start_time?: string | null;
+    /** Multi-state maps label the area's state: "MD" on some, "Missouri" on others. */
+    hierarchy?: { state?: string };
   };
   geom?: { p?: string[] };
 }
@@ -234,6 +249,12 @@ function isoOrNull(value: string | null | undefined): string | null {
   if (!value || value === "ETR-NULL") return null;
   const time = Date.parse(value);
   return Number.isFinite(time) ? new Date(time).toISOString() : null;
+}
+
+/** "MD" or "Missouri" to the full state name the rest of the app stores. */
+function stateName(label: string | undefined): string | null {
+  const code = stateCode(label);
+  return code ? (US_STATE_NAMES[code] ?? null) : null;
 }
 
 /** Some maps shout ("CHESTER", "HUNTINGTON"); mixed-case names are left alone. */
@@ -347,8 +368,8 @@ export class KubraSource implements OutageSource {
         city: placeName(areaName, layer.areaType),
         state:
           this.utility.state ??
-          this.utility.stateFor?.({ name: areaName, type: layer.areaType }) ??
-          null,
+          this.utility.stateFor?.({ id: area.id, name: areaName, type: layer.areaType }) ??
+          stateName(area.desc?.hierarchy?.state),
         estimatedRestoration: isoOrNull(area.desc?.etr),
         active: true,
       });
@@ -357,7 +378,11 @@ export class KubraSource implements OutageSource {
     return { outages };
   }
 
-  /** Whether the utility's own summary says zero customers are out. */
+  /**
+   * Whether the utility's own summary says zero customers are out. A map that
+   * covers two companies (Ameren's Missouri and Illinois) has one total each,
+   * and every one of them has to be zero.
+   */
   private async nothingIsOut(interval: string, layer: LayerChoice): Promise<boolean> {
     if (!layer.summarySource || !/^public\/[\w./-]+\.json$/.test(layer.summarySource)) {
       return false;
@@ -365,7 +390,8 @@ export class KubraSource implements OutageSource {
     const summary = await getJson<{
       summaryFileData?: { totals?: Array<{ total_cust_a?: Counted }> };
     }>(`${ORIGIN}/${interval}/${layer.summarySource}`);
-    return summary.body?.summaryFileData?.totals?.[0]?.total_cust_a?.val === 0;
+    const totals = summary.body?.summaryFileData?.totals ?? [];
+    return totals.length > 0 && totals.every((total) => total.total_cust_a?.val === 0);
   }
 }
 

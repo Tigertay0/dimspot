@@ -181,6 +181,59 @@ describe("KubraSource", () => {
     await expect(new KubraSource(pepco).fetch()).rejects.toThrow(/no usable data/);
   });
 
+  it("does not read a two-company map as empty while one company still has customers out", async () => {
+    // Ameren's map has one total for Missouri and one for Illinois.
+    serve({
+      "/currentState": () => json(currentState),
+      "/configuration/": () => json(configuration),
+      "summary-1/data.json": () =>
+        json({
+          summaryFileData: {
+            totals: [{ total_cust_a: { val: 0 } }, { total_cust_a: { val: 79273 } }],
+          },
+        }),
+    });
+    await expect(new KubraSource(pepco).fetch()).rejects.toThrow(/no usable data/);
+  });
+
+  it("takes the state of a multi-state map's area from the map's own label", async () => {
+    const delmarva = KUBRA_UTILITIES.find((u) => u.slug === "delmarva")!;
+    serve({
+      "/currentState": () => json(currentState),
+      "/configuration/": () => json(configuration),
+      "thematic-3/thematic_areas.json": () =>
+        json({
+          file_data: [
+            area("19901", { val: 400 }, { hierarchy: { state: "DE" } }),
+            area("21804", { val: 300 }, { hierarchy: { state: "Maryland" } }),
+            area("99999", { val: 200 }),
+          ],
+        }),
+    });
+
+    const { outages = [] } = await new KubraSource(delmarva).fetch();
+    expect(outages.map((o) => o.state)).toEqual(["Delaware", "Maryland", null]);
+  });
+
+  it("places Dominion's areas by the region in their id", async () => {
+    const dominion = KUBRA_UTILITIES.find((u) => u.slug === "dominion")!;
+    const county = (region: string, name: string) => ({
+      ...area(name, { val: 500 }),
+      id: `BOUN|${region}|${name}|county`,
+    });
+    serve({
+      "/currentState": () => json(currentState),
+      "/configuration/": () => json(configuration),
+      "thematic-3/thematic_areas.json": () =>
+        json({
+          file_data: [county("Northern Virginia", "Fairfax"), county("North Carolina", "Dare")],
+        }),
+    });
+
+    const { outages = [] } = await new KubraSource(dominion).fetch();
+    expect(outages.map((o) => o.state)).toEqual(["Virginia", "North Carolina"]);
+  });
+
   it("fails rather than follow a data path that is not the usual shape", async () => {
     serve({
       "/currentState": () =>
