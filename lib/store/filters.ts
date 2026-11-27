@@ -105,7 +105,7 @@ export const useFilters = create<FilterState>()(
        * loads empty with no indication that a saved filter is the reason. It
        * is cleared on rehydrate, so a stored blank selection cannot outlive the
        * session that made it. Within a session the state is still allowed, and
-       * the map says so — see TypeChips.
+       * the map says so — see TypeTabs.
        */
       onRehydrateStorage: () => (state) => {
         if (!state) return;

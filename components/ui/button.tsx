@@ -10,11 +10,11 @@ import { cn } from "@/lib/utils"
  * stretching buttons on touch screens: that is what used to distort them.
  */
 const buttonVariants = cva(
-  "inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium leading-none transition-[background-color,border-color,color,opacity,transform] duration-150 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-xl text-[15px] font-semibold leading-none tracking-[-0.01em] transition-[background-color,border-color,color,opacity,transform] duration-150 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        // Ink, as on the homepage: the page's text colour as a fill.
+        // Ink: one black button per screen, as in the reference apps.
         default: "bg-primary text-primary-foreground hover:bg-primary/85",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
@@ -25,11 +25,11 @@ const buttonVariants = cva(
         link: "text-foreground underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-10 px-4",
-        sm: "tap-target h-8 rounded-md px-3 text-[13px]",
-        lg: "h-11 px-5",
-        icon: "size-10",
-        "icon-sm": "tap-target size-8 rounded-md",
+        default: "h-12 px-5",
+        sm: "tap-target h-9 rounded-lg px-3.5 text-sm",
+        lg: "h-14 px-6 text-base",
+        icon: "size-12",
+        "icon-sm": "tap-target size-9 rounded-lg",
       },
     },
     defaultVariants: {

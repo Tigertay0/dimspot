@@ -68,3 +68,18 @@ export function locationLabel(outage: Outage): string {
 export function pluralize(count: number, singular: string, plural?: string) {
   return count === 1 ? singular : (plural ?? `${singular}s`);
 }
+
+/**
+ * A geocoder's full label cut down to what a person would say:
+ * "6700, Bradley Boulevard, Bethesda, Montgomery County, Maryland, 20817,
+ * United States" becomes "6700 Bradley Boulevard, Bethesda".
+ */
+export function shortAddress(label: string): string {
+  const parts = label.split(",").map((part) => part.trim()).filter(Boolean);
+  // A house number arrives as its own part; it belongs with the street.
+  if (parts.length > 1 && /^\d+[A-Za-z]?$/.test(parts[0])) {
+    parts.splice(0, 2, `${parts[0]} ${parts[1]}`);
+  }
+  return parts.slice(0, 2).join(", ");
+}
+

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { House, LocateFixed, Minus, Plus } from "lucide-react";
+import { House, Minus, Navigation, Plus } from "lucide-react";
 import { DEFAULT_VIEW } from "@/lib/constants";
 import { useAdvisories, useOutages, useSession } from "@/lib/hooks/use-outages";
 import { activeFilterCount, useFilters } from "@/lib/store/filters";
@@ -12,13 +12,13 @@ import { BrandMark } from "@/components/brand-mark";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { FilterSheet } from "@/components/filters/filter-sheet";
-import { TypeChips } from "@/components/filters/type-chips";
+import { CoverageNote, TypeTabs } from "@/components/filters/type-chips";
 import { Button } from "@/components/ui/button";
-import { MapLegend } from "@/components/map/markers";
 import { OutageMap, type MapControls, type MapView } from "@/components/map/outage-map";
 import { NearbyPanel } from "@/components/layout/nearby-panel";
 import { AdvisorySheet } from "@/components/outage/advisory-sheet";
 import { OutageDetailSheet } from "@/components/outage/outage-detail-sheet";
+import { OutagePreview } from "@/components/outage/outage-preview";
 import { ReportSheet } from "@/components/report/report-sheet";
 import { SearchBar } from "@/components/search/search-bar";
 import { AuthSheet } from "@/components/auth/auth-sheet";
@@ -214,22 +214,34 @@ export function MapShell() {
     [toast],
   );
 
+  // A marker opens the preview card; the card, a list row or a network alert
+  // opens the full sheet.
+  const [previewId, setPreviewId] = useState<string | null>(null);
+
+  const handleMarker = useCallback((outage: Outage) => {
+    setPreviewId(outage.id);
+    setListExpanded(false);
+  }, []);
+
   const handleSelect = useCallback((outage: Outage) => {
     setSelectedId(outage.id);
     setListExpanded(false);
   }, []);
 
+  const preview = previewId ? (placed.find((o) => o.id === previewId) ?? null) : null;
+
   return (
     // data-app-shell: globals.css keeps the landing's blanket 44px touch rule
     // out of the app, where every control sizes itself.
-    <main data-app-shell className="fixed inset-0 overflow-hidden">
+    <main data-app-shell className="fixed inset-0 overflow-hidden bg-background">
       <h1 className="sr-only">Dimspot live outage map</h1>
       <OutageMap
         outages={placed}
         advisories={showAdvisories ? advisories : []}
         onSelectAdvisory={setSelectedAdvisory}
-        selectedId={selectedId}
-        onSelect={handleSelect}
+        selectedId={previewId ?? selectedId}
+        onSelect={handleMarker}
+        onBackgroundClick={() => setPreviewId(null)}
         onBoundsChange={handleBoundsChange}
         flyTo={flyTo}
         picking={picking}
@@ -239,125 +251,131 @@ export function MapShell() {
         onLocateError={handleLocateError}
       />
 
-      {/* Crosshair for report mode. Fixed to the map centre so the user aims by
-          moving the map, which is far steadier one-handed than dragging a pin. */}
+      {/* The pin for report mode, fixed over the map's centre so the user aims
+          by moving the map. While picking, the map is padded by the sheet's
+          height (outage-map.tsx), so its centre is the middle of the part
+          still showing; the pin is raised by half of that to sit on it. */}
       {picking && (
         <div
           aria-hidden
-          className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-full drop-shadow-[0_6px_10px_rgba(0,0,0,0.45)]"
+          className="pointer-events-none absolute left-1/2 top-[calc(50%-min(150px,19dvh))] z-10 -translate-x-1/2 -translate-y-full drop-shadow-[0_4px_6px_rgba(0,0,0,0.3)]"
         >
           <svg width="36" height="44" viewBox="0 0 36 44" fill="none">
             <path
               d="M18 42.5C18 42.5 33.5 26.6 33.5 17C33.5 8.4 26.6 1.5 18 1.5S2.5 8.4 2.5 17C2.5 26.6 18 42.5 18 42.5Z"
-              fill="var(--brand)"
-              stroke="#111111"
-              strokeWidth="2.5"
+              fill="#111111"
+              stroke="#ffffff"
+              strokeWidth="2"
             />
-            <circle cx="18" cy="17" r="5.5" fill="#111111" />
+            <circle cx="18" cy="17" r="5.5" fill="#ffffff" />
           </svg>
         </div>
       )}
 
-      {/* The brand, back to the landing page. Wide screens only: on a phone the
-          search bar needs the whole width. */}
-      <Link
-        href="/"
-        className="panel absolute top-3 left-3 z-30 hidden h-11 items-center gap-2 rounded-xl px-3.5 text-sm font-semibold tracking-[-0.02em] xl:flex focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      >
-        <BrandMark />
-        Dimspot
-      </Link>
-
-      {/* Above the bottom bar: the search suggestions drop down over the map
-          and must not be painted on by the report button below them. The top
-          inset keeps the bar under the status bar when installed as an app. */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-30 px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <div className="pointer-events-auto mx-auto max-w-lg space-y-2">
-          {session?.capabilities.demoData && <DemoBanner />}
-          <SearchBar
-            onPick={handlePick}
-            onOpenFilters={() => setFiltersOpen(true)}
-            onOpenSettings={() => setSettingsOpen(true)}
-            activeFilterCount={filterCount}
-            signedIn={Boolean(session?.identity.email)}
-          />
-          {/* Hidden while placing a report: the map is a picker then, and the
-              chips would change what is under the crosshair mid-gesture. */}
-          {!picking && <TypeChips />}
-          {!picking && (
-            <NetworkAlerts
-              alerts={networkAlerts}
-              onSelect={handleSelect}
-              onShowAll={() => setListExpanded(true)}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* The legend, where there is room for it. */}
-      {!picking && (
-        <MapLegend className="absolute bottom-6 left-3 z-10 hidden lg:block" />
-      )}
-
-      {/* Map controls, one stack: home (once saved), locate, and zoom where
-          there is a pointer, since a touch screen has pinch. Shown while
-          picking a report location too: "where am I" is most of that step. */}
-      <div
-        className={cn(
-          "panel absolute right-3 z-10 flex flex-col overflow-hidden rounded-lg sm:bottom-6",
-          "[&>button+button]:border-t",
-          picking
-            ? "top-[calc(5rem+env(safe-area-inset-top,0px))] sm:top-auto"
-            : "bottom-[calc(8rem+env(safe-area-inset-bottom,0px))]",
-        )}
-      >
-        {home && (
-          <ControlButton
-            label="Go to my home"
-            onClick={() =>
-              // A new object each time, so pressing it again after panning
-              // away flies back.
-              setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: 13 })
-            }
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-30">
+        {/* One solid header, as in the reference apps: search, then the
+            service tabs. Nothing in it floats over the map, so no label can
+            show through it. The top inset keeps it under the status bar when
+            installed as an app. */}
+        <header className="pointer-events-auto relative bg-card pt-[max(0.75rem,env(safe-area-inset-top))] shadow-[0_1px_0_var(--border),0_2px_10px_rgb(0_0_0/0.05)]">
+          <Link
+            href="/"
+            className="absolute left-5 top-[max(0.75rem,env(safe-area-inset-top))] hidden h-14 items-center gap-2 text-base font-semibold tracking-[-0.02em] xl:flex focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
-            <House />
-          </ControlButton>
-        )}
-        <ControlButton label="Show my location" onClick={() => mapControls.current?.locate()}>
-          <LocateFixed />
-        </ControlButton>
-        <ControlButton
-          label="Zoom in"
-          onClick={() => mapControls.current?.zoomBy(1)}
-          className="hidden [@media(pointer:fine)]:flex"
-        >
-          <Plus />
-        </ControlButton>
-        <ControlButton
-          label="Zoom out"
-          onClick={() => mapControls.current?.zoomBy(-1)}
-          className="hidden [@media(pointer:fine)]:flex"
-        >
-          <Minus />
-        </ControlButton>
+            <BrandMark />
+            Dimspot
+          </Link>
+
+          <div className="mx-auto max-w-lg px-4">
+            {session?.capabilities.demoData && <DemoBanner />}
+            <SearchBar
+              onPick={handlePick}
+              onOpenFilters={() => setFiltersOpen(true)}
+              onOpenSettings={() => setSettingsOpen(true)}
+              activeFilterCount={filterCount}
+              signedIn={Boolean(session?.identity.email)}
+            />
+            {/* Gone while placing a report: the map is a picker then, and the
+                tabs would change what is under the pin mid-gesture. */}
+            {picking ? <div className="h-3" /> : <TypeTabs className="mt-1" />}
+          </div>
+        </header>
+
+        {/* Under the header: the map controls on the right, and anything the
+            map has to say (a network alert, what a layer can see) beside them. */}
+        <div className="mx-auto flex max-w-lg items-start gap-2 px-3 pt-3 xl:max-w-none">
+          <div className="min-w-0 flex-1 space-y-2 xl:mx-auto xl:max-w-lg">
+            {!picking && (
+              <NetworkAlerts
+                alerts={networkAlerts}
+                onSelect={handleSelect}
+                onShowAll={() => setListExpanded(true)}
+              />
+            )}
+            {!picking && <CoverageNote />}
+          </div>
+
+          <div className="panel pointer-events-auto flex shrink-0 flex-col overflow-hidden rounded-xl [&>button+button]:border-t">
+            {home && (
+              <ControlButton
+                label="Go to my home"
+                onClick={() =>
+                  // A new object each time, so pressing it again after panning
+                  // away flies back.
+                  setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: 13 })
+                }
+              >
+                <House />
+              </ControlButton>
+            )}
+            <ControlButton label="Show my location" onClick={() => mapControls.current?.locate()}>
+              <Navigation />
+            </ControlButton>
+            <ControlButton
+              label="Zoom in"
+              onClick={() => mapControls.current?.zoomBy(1)}
+              className="hidden [@media(pointer:fine)]:flex"
+            >
+              <Plus />
+            </ControlButton>
+            <ControlButton
+              label="Zoom out"
+              onClick={() => mapControls.current?.zoomBy(-1)}
+              className="hidden [@media(pointer:fine)]:flex"
+            >
+              <Minus />
+            </ControlButton>
+          </div>
+        </div>
       </div>
 
       {!picking && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
           <div className="mx-auto max-w-lg">
-            {/* Gone while the list is open: the list rises to 62% of the
-                screen and would push the button up into the search bar and
-                chips. The list has its own way to report when it is empty. */}
-            <div className={cn("flex justify-end px-3 pb-3", listExpanded && "hidden")}>
-              <Button
-                size="lg"
-                onClick={() => setReportOpen(true)}
-                className="pointer-events-auto h-12 gap-2 rounded-xl pr-5 pl-4 text-[15px] shadow-[var(--shadow-float)]"
-              >
-                <Plus className="size-[18px]" strokeWidth={2.25} />
-                Report outage
-              </Button>
-            </div>
+            {/* Above the sheet: the preview of the tapped marker, or else the
+                report button. Neither shows while the list is open, which
+                rises to 62% of the screen. */}
+            {!listExpanded && (
+              <div className="px-3 pb-3">
+                {preview ? (
+                  <OutagePreview
+                    outage={preview}
+                    onOpen={() => setSelectedId(preview.id)}
+                    onClose={() => setPreviewId(null)}
+                  />
+                ) : (
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={() => setReportOpen(true)}
+                      className="pointer-events-auto gap-2 rounded-full pr-5 pl-4 shadow-[var(--shadow-float)]"
+                    >
+                      <Plus className="size-[18px]" strokeWidth={2.5} />
+                      Report outage
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <NearbyPanel
               outages={placed}
@@ -439,7 +457,7 @@ export function MapShell() {
   );
 }
 
-/** One cell of the map-control stack. 40px drawn, 44px to the finger. */
+/** One cell of the map-control stack. */
 function ControlButton({
   label,
   onClick,
@@ -458,7 +476,7 @@ function ControlButton({
       aria-label={label}
       title={label}
       className={cn(
-        "tap-target flex size-10 items-center justify-center text-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none [&_svg]:size-4",
+        "flex size-11 items-center justify-center text-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none [&_svg]:size-[18px]",
         className,
       )}
     >

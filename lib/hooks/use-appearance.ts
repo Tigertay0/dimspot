@@ -2,11 +2,14 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 
-/** Night is Dimspot's own look; dusk is the light mode; system follows the OS. */
+/**
+ * "dusk" is light (the default), "night" is dark, "system" follows the OS. The
+ * stored names predate the current design and are kept so saved choices hold.
+ */
 export type Appearance = "night" | "dusk" | "system";
 
 const KEY = "dimspot-appearance";
-const DEFAULT: Appearance = "night";
+const DEFAULT: Appearance = "dusk";
 const QUERY = "(prefers-color-scheme: dark)";
 const listeners = new Set<() => void>();
 
@@ -38,9 +41,9 @@ function resolve(appearance: Appearance, systemDark: boolean): "dark" | "light" 
 }
 
 /**
- * The chosen appearance and the theme it resolves to. The server renders night
- * (matching `class="dark"` on <html>), so the first paint is never a flash of
- * the wrong palette for the default.
+ * The chosen appearance and the theme it resolves to. The server renders the
+ * default (light); the pre-paint script in the root layout sets the class on
+ * <html> before anything is drawn, so there is no flash of the other palette.
  */
 export function useAppearance(): {
   appearance: Appearance;
@@ -51,7 +54,7 @@ export function useAppearance(): {
   const systemDark = useSyncExternalStore(
     subscribe,
     () => window.matchMedia(QUERY).matches,
-    () => true,
+    () => false,
   );
 
   const setAppearance = useCallback((next: Appearance) => {

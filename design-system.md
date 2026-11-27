@@ -65,14 +65,18 @@ Severity tokens (`--severity-*`) stay as they are, plus lightened night variants
 | Wave Lines | https://21st.dev/@balick/components/wave-lines | |
 
 ## App (/map)
-The app follows the homepage's minimal system, not Lights Out (brief section 12). Tokens live in `app/globals.css`.
-- **Colour:** dark #111111 / #1a1a1a / #242424 with a #2a2a2a hairline, ink #ededed, secondary #a1a1a1. Light #fafafa / #ffffff / #f2f2f2 with a #e6e6e6 hairline, ink #171717, secondary #666666. The primary action is ink. Amber (`--brand`) is the mark and the report pin only. Severity tokens are the only other colour.
-- **Type:** Geist 14 / 13 / 12; 500 for emphasis, 600 for sheet titles. Geist Mono (`font-mono`) for every figure.
-- **Shape:** 6 chips and badges, 8 buttons, inputs and tiles, 12 search bar and dock, 16 sheets. No pills except dots and the switch.
-- **Depth:** the `panel` utility for anything over the map: solid card colour, hairline, `--shadow-float`. No blur, no glow. Hairlines separate inside sheets.
+The app follows the Airbnb and Uber map screens the user chose as references (brief section 12), not Lights Out. Tokens live in `app/globals.css`.
+- **Theme:** light by default (`dimspot-appearance` "dusk"); dark ("night") is the same system inverted.
+- **Colour:** light: white surfaces, ink #1a1a1a, secondary #6a6a6a, hairline #ebebeb, primary #111111. Dark: #111111 / #1a1a1a / #242424, hairline #2a2a2a, ink #ededed, secondary #a1a1a1. Amber (`--brand`) is the mark only. Severity tokens are the only other colour.
+- **Type:** Geist. Sheet titles 22 / 600; row titles 15 to 17 / 600; body 15; secondary 14. Figures use `tabular-nums`, not the mono face.
+- **Shape:** pills for the search bar, markers, chips and the report button; `rounded-xl` (12) for buttons, inputs and tiles; `rounded-2xl` (16) for cards over the map; `rounded-3xl` (24) for sheets.
+- **Depth:** the `panel` utility for anything over the map: solid card colour and `--shadow-float`, plus a hairline in the dark theme. No blur, no glow.
+- **Header:** solid, with the pill search bar (filters and account buttons inside it) and `TypeTabs`, icon tabs with an underline for the selected one.
+- **Markers:** white pills (`--shadow-marker`) with the service icon in the severity colour and a short figure: customers out, or confirmations. Selected is ink. Unconfirmed has a dashed edge. Clusters are a white disc with a thin severity-mix ring.
+- **Marker to detail:** marker tap opens `OutagePreview` above the bottom sheet; the card or a list row opens the detail sheet.
+- **Bottom sheet:** a handle and one centred line; tap to open the list.
+- **Selection:** a 2px ink outline (tiles, severity rows, `Chip` tone `tint`); `Chip` tone `solid` fills with ink.
 - **Touch targets:** every control sets its own size. A control drawn under 44px adds the `tap-target` utility, which grows the hit area with a pseudo-element and leaves layout alone. The blanket `min-height: 44px` rule applies to the landing pages only; in the app it stretched tabs, switches and checkboxes out of shape.
-- **Sheets:** `max-h-[88dvh]` (dvh, not vh, so iOS toolbars do not cover the footer) and `pb-safe` for the home indicator.
-- **Selection:** `Chip` tone `solid` fills with ink (over the map); tone `tint` is an ink outline on the secondary fill (in sheets, beside an ink primary button).
-- **Sizes:** buttons 40 / 32 (`sm`) / 44 (`lg`); inputs 40; chips 32; badges 22; text tabs 40; map controls 40.
-- **Basemap:** OpenFreeMap recoloured per layer in `lib/map/brand-style.ts`, neutral greys in both themes.
-- **Markers:** flat 24px discs, service icon 12px, 2px ring in the page colour; hollow when unconfirmed. Clusters are a severity-mix ring around a mono count. A faint blurred circle under each marker scales with customers affected.
+- **Sheets:** `max-h-[88dvh]` (dvh, not vh, so iOS toolbars do not cover the footer) and `pb-safe` for the home indicator. The report sheet is non-modal on its location step, so the map under it can be dragged.
+- **Sizes:** buttons 48 / 36 (`sm`) / 56 (`lg`); inputs 48; chips 36; search bar 56; map controls 44.
+- **Basemap:** OpenFreeMap recoloured per layer in `lib/map/brand-style.ts`. The heat map is drawn under the place names.

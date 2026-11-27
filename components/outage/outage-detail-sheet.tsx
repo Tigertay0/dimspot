@@ -11,7 +11,6 @@ import {
   ThumbsUp,
 } from "lucide-react";
 import {
-  SEVERITY_META,
   VERIFICATION_THRESHOLD,
   isDetected,
   sourceAttribution,
@@ -36,7 +35,7 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
-import { ServiceBadge } from "@/components/map/markers";
+import { ServiceBadge, SeverityLabel } from "@/components/map/markers";
 import { OutageTimeline } from "./outage-timeline";
 
 /**
@@ -127,39 +126,28 @@ export function OutageDetailSheet({
           <>
             <SheetHeader className="pr-12">
               <div className="flex items-center gap-3">
-                <ServiceBadge
-                  type={outage.serviceType}
-                  severity={outage.severity}
-                  resolved={isResolved}
-                  size="lg"
-                />
+                <ServiceBadge type={outage.serviceType} size="lg" />
 
                 <div className="min-w-0 flex-1">
                   <SheetTitle className="truncate">
                     {outage.providerName ?? "Unknown provider"}
                   </SheetTitle>
-                  <p className="mt-0.5 truncate text-[13px] text-muted-foreground">
+                  <p className="mt-1 truncate text-[15px] text-muted-foreground">
                     {locationLabel(outage)}
                   </p>
                 </div>
               </div>
             </SheetHeader>
 
-            <div className="flex-1 overflow-y-auto overscroll-contain px-5">
+            <div className="flex-1 overflow-y-auto overscroll-contain px-6">
               {/* One line of status: what it is, and how far to trust it. */}
-              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 pb-3 text-[13px]">
-                <span
-                  className="inline-flex items-center gap-1.5 font-medium"
-                  style={{
-                    color: isResolved
-                      ? "var(--severity-resolved)"
-                      : SEVERITY_META[outage.severity].token,
-                  }}
-                >
-                  <span aria-hidden className="size-1.5 rounded-full bg-current" />
-                  {isResolved ? "Resolved" : SEVERITY_META[outage.severity].label}
-                </span>
-                <span aria-hidden className="text-muted-foreground/50">/</span>
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 pb-4 text-[15px]">
+                <SeverityLabel
+                  severity={outage.severity}
+                  resolved={isResolved}
+                  className="font-semibold"
+                />
+                <span aria-hidden className="text-muted-foreground">·</span>
                 <span className="inline-flex items-center gap-1 text-muted-foreground">
                   {outage.origin === "official" ? (
                     // A utility saying so and a measurement suggesting so are
@@ -186,13 +174,14 @@ export function OutageDetailSheet({
               <Facts outage={outage} />
 
               {outage.description && (
-                <p className="pt-4 text-sm leading-relaxed">
+                <p className="pt-4 text-[15px] leading-relaxed">
                   {outage.description}
                 </p>
               )}
 
-              {outage.origin === "official" && (
-                <p className="pt-2 text-[13px] leading-snug text-muted-foreground">
+              {/* Radar's own description already says how it knows. */}
+              {outage.origin === "official" && outage.sourceName !== "radar-anomalies" && (
+                <p className="pt-2 text-sm leading-snug text-muted-foreground">
                   {sourceAttribution(outage.sourceName)}
                 </p>
               )}
@@ -240,7 +229,7 @@ export function OutageDetailSheet({
                 </div>
               )}
 
-              <Tabs defaultValue="updates" className="pb-4 pt-5">
+              <Tabs defaultValue="updates" className="pb-6 pt-5">
                 <TabsList>
                   <TabsTrigger value="updates">
                     Updates
@@ -253,14 +242,46 @@ export function OutageDetailSheet({
                   <TabsTrigger value="timeline">Timeline</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="updates" className="pt-3">
+                <TabsContent value="updates" className="pt-4">
+                  {/* In the tab it belongs to, not pinned under the sheet:
+                      pinned, it took the room the updates need on a phone. */}
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void submitComment();
+                    }}
+                    className="flex h-12 items-center gap-1 rounded-full border border-input bg-card pr-1.5 pl-4 transition-[border-color,box-shadow] duration-150 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/15"
+                  >
+                    <input
+                      value={draft}
+                      onChange={(event) => setDraft(event.target.value)}
+                      placeholder="Add an update…"
+                      maxLength={500}
+                      aria-label="Add an update"
+                      // 16px, or iOS Safari zooms the page when the field is focused.
+                      className="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!draft.trim() || addComment.isPending}
+                      aria-label="Post update"
+                      className="tap-target flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-[background-color,opacity,transform] duration-150 hover:bg-primary/85 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:bg-secondary disabled:text-muted-foreground"
+                    >
+                      {addComment.isPending ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <ArrowUp className="size-4" strokeWidth={2.25} />
+                      )}
+                    </button>
+                  </form>
+
                   {outage.comments.length === 0 ? (
-                    <p className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
+                    <p className="flex items-center gap-2 pt-4 text-sm text-muted-foreground">
                       <MessageSquare className="size-4 shrink-0" />
                       No updates yet. Add the first one.
                     </p>
                   ) : (
-                    <ul>
+                    <ul className="pt-2">
                       {outage.comments.map((comment) => (
                         <li
                           key={comment.id}
@@ -270,7 +291,7 @@ export function OutageDetailSheet({
                             <span className="font-medium">
                               {comment.authorLabel}
                             </span>
-                            <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                               {timeAgo(comment.createdAt)}
                             </span>
                           </div>
@@ -289,40 +310,6 @@ export function OutageDetailSheet({
               </Tabs>
             </div>
 
-            <div className="border-t px-5 pb-3 pt-3">
-              {/* One field with the send button inside it: a 44px button next
-                  to a 48px input never lined up, and the pair read as two
-                  controls rather than one composer. */}
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void submitComment();
-                }}
-                className="flex h-10 items-center gap-1 rounded-lg border border-input bg-background pr-1 pl-3 transition-[border-color,box-shadow] duration-150 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/15"
-              >
-                <input
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  placeholder="Add an update…"
-                  maxLength={500}
-                  aria-label="Add an update"
-                  // 16px, or iOS Safari zooms the page when the field is focused.
-                  className="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
-                />
-                <button
-                  type="submit"
-                  disabled={!draft.trim() || addComment.isPending}
-                  aria-label="Post update"
-                  className="tap-target flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground transition-[background-color,opacity,transform] duration-150 hover:bg-primary/85 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:bg-secondary disabled:text-muted-foreground"
-                >
-                  {addComment.isPending ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <ArrowUp className="size-4" strokeWidth={2.25} />
-                  )}
-                </button>
-              </form>
-            </div>
           </>
         )}
       </SheetContent>
@@ -379,11 +366,11 @@ function Facts({ outage }: { outage: OutageDetail }) {
   }
 
   return (
-    <dl className="divide-y border-y text-sm">
+    <dl className="divide-y border-y text-[15px]">
       {facts.map((fact) => (
-        <div key={fact.label} className="flex items-baseline justify-between gap-4 py-2.5">
+        <div key={fact.label} className="flex items-baseline justify-between gap-4 py-3.5">
           <dt className="shrink-0 text-muted-foreground">{fact.label}</dt>
-          <dd className={fact.mono ? "truncate font-mono text-[13px]" : "truncate font-medium"}>
+          <dd className="truncate font-semibold tabular-nums">
             {fact.value}
           </dd>
         </div>

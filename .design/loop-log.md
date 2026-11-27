@@ -18,4 +18,7 @@ Run by hand on 2026-11-27 (the studio-loop skill was not installed in the sessio
 | Round | Score | Verdict | Top fixes |
 |---|---|---|---|
 | user | n/a | REVISE (user) | "still looks like slop": navy and amber glass, pills, stat cards |
+| 1 | 58 | REVISE | Homepage-minimal restyle (dark, square, mono). Reviewer: tinted icon tiles, marker glows, tab body squeezed on phone, report pin hidden under a dimmed map, three selected-state grammars, three footer layouts, mono figures |
+| user | n/a | REDIRECT (user) | "Not the homepage, just the map"; sent the Airbnb map and Uber ride picker as the look to follow |
+| 2 | pending | pending | Rebuilt on the references: solid header with pill search and icon tabs, pill markers with figures, preview card, centred bottom sheet, ink primary. Round-1 defects fixed: composer moved into the Updates tab, report sheet non-modal with the map padded so the pin is visible, neutral icon circles, one selected state, one footer pattern, short addresses, heat under labels |
 

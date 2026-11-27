@@ -9,9 +9,9 @@ import type { Outage } from "@/lib/types";
  *
  * A carrier failing nationwide has no location to pin, and pinning it to the
  * middle of the country would hide it from everyone not looking at Kansas. It
- * sits here instead, in every viewport, and opens the same detail sheet as a
- * marker. With several, the strip names the first and counts the rest; the
- * list panel has them all.
+ * sits here instead, as one small pill in every viewport, and opens the same
+ * detail sheet as a marker. With several, the pill counts them and opens the
+ * list, which has them all.
  */
 export function NetworkAlerts({
   alerts,
@@ -31,23 +31,13 @@ export function NetworkAlerts({
     <button
       type="button"
       onClick={() => (rest.length > 0 ? onShowAll() : onSelect(first))}
-      className="panel flex min-h-11 w-full items-center gap-2.5 rounded-lg py-1.5 pr-2 pl-2.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="panel pointer-events-auto flex h-10 max-w-full items-center gap-2 rounded-full pr-3 pl-3.5 text-left text-sm font-semibold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <span
-        aria-hidden
-        className="flex size-7 shrink-0 items-center justify-center rounded-md bg-severity-degraded/12 text-severity-degraded"
-      >
-        <RadioTower className="size-3.5" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-medium leading-tight">
-          {first.providerName ?? "A US network"}: {kind} trouble nationwide
-        </span>
-        <span className="block truncate text-xs leading-tight text-muted-foreground">
-          {rest.length > 0
-            ? `and ${rest.length} more network ${rest.length === 1 ? "alert" : "alerts"}`
-            : "Network-wide signal, not a location"}
-        </span>
+      <RadioTower aria-hidden className="size-4 shrink-0 text-severity-degraded" />
+      <span className="truncate">
+        {rest.length > 0
+          ? `${alerts.length} network alerts`
+          : `${first.providerName ?? "A US network"}: ${kind} trouble`}
       </span>
       <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
     </button>

@@ -2,22 +2,19 @@
 
 import {
   CheckCircle2,
-  ChevronUp,
   CloudAlert,
   Loader2,
   Plus,
-  RadioTower,
   RefreshCw,
   TriangleAlert,
 } from "lucide-react";
 import { SERVICE_COVERAGE, SERVICE_META, SEVERITY_META, sourceLabel } from "@/lib/constants";
-import { formatDistance, haversineMeters } from "@/lib/geo";
+import { haversineMeters } from "@/lib/geo";
 import { locationLabel, timeAgo } from "@/lib/format";
 import { useFilters } from "@/lib/store/filters";
 import type { Advisory, Outage } from "@/lib/types";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ServiceBadge } from "@/components/map/markers";
+import { ServiceBadge, SeverityLabel } from "@/components/map/markers";
 import { cn } from "@/lib/utils";
 
 /**
@@ -89,105 +86,54 @@ export function NearbyPanel({
         "Outages may be out of date"
       : "Could not load outages"
     : active > 0
-      ? `${active} ${kind}outage${active === 1 ? "" : "s"} in view`
-      : networkAlerts.length > 0
-        ? `No ${kind}outages in view · ${networkAlerts.length} network alert${networkAlerts.length === 1 ? "" : "s"}`
-        : advisories.length > 0
-        ? `No ${kind}outages · ${advisories.length} weather warning${advisories.length === 1 ? "" : "s"}`
-        : `No ${kind}outages reported nearby`;
+      ? `${active.toLocaleString()} ${kind}outage${active === 1 ? "" : "s"} in view`
+      : `No ${kind}outages in view`;
 
   return (
     <div
       className={cn(
-        "pointer-events-auto overflow-hidden rounded-t-xl border border-b-0 bg-card pb-safe",
+        "pointer-events-auto overflow-hidden rounded-t-3xl border border-b-0 border-transparent bg-card pb-safe dark:border-border",
         "shadow-[var(--shadow-sheet)] transition-[max-height] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
         expanded
           ? "max-h-[62dvh]"
-          : "max-h-[calc(3.5rem+env(safe-area-inset-bottom,0px))]",
+          : "max-h-[calc(4rem+env(safe-area-inset-bottom,0px))]",
       )}
     >
+      {/* The whole bar is the handle: tap it to open the list. */}
       <button
         type="button"
         onClick={() => onExpandedChange(!expanded)}
         aria-expanded={expanded}
-        className="flex h-14 w-full items-center gap-2.5 px-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        className="flex h-16 w-full flex-col items-center px-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
-        <span
-          aria-hidden
-          className={cn(
-            "flex size-7 shrink-0 items-center justify-center rounded-md",
-            failed
-              ? "bg-muted text-muted-foreground"
-              : active > 0
-                ? "bg-severity-complete/15 text-severity-complete"
-                : advisories.length > 0
-                  ? "bg-severity-intermittent/15 text-severity-intermittent"
-                  : "bg-severity-resolved/15 text-severity-resolved",
-          )}
-        >
-          {loading ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : failed ? (
-            <TriangleAlert className="size-3.5" />
-          ) : active > 0 ? (
-            <span className="size-2 rounded-full bg-current" />
-          ) : advisories.length > 0 ? (
-            <CloudAlert className="size-3.5" />
-          ) : (
-            <CheckCircle2 className="size-3.5" />
-          )}
-        </span>
-
-        <span className="min-w-0 flex-1 truncate text-sm font-medium tracking-[-0.01em]">
+        <span aria-hidden className="mt-2.5 h-1 w-9 shrink-0 rounded-full bg-input" />
+        <span className="flex flex-1 items-center gap-2 text-[15px] font-semibold tracking-[-0.01em]">
+          {loading && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
+          {failed && !loading && <TriangleAlert className="size-4 text-muted-foreground" />}
           {summary}
-        </span>
-
-        <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
-          {expanded ? "Hide" : "List"}
-          <ChevronUp
-            className={cn(
-              "size-4 transition-transform duration-200",
-              expanded && "rotate-180",
-            )}
-          />
         </span>
       </button>
 
       {expanded && (
-        <ul className="max-h-[calc(62dvh-3.5rem)] divide-y overflow-y-auto overscroll-contain border-t">
+        <ul className="max-h-[calc(62dvh-4rem)] overflow-y-auto overscroll-contain border-t px-2 py-1">
           {networkAlerts.map((alert) => (
             <li key={alert.id}>
               <button
                 type="button"
                 onClick={() => onSelect(alert)}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+                className="flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left transition-colors hover:bg-secondary focus-visible:bg-secondary focus-visible:outline-none"
               >
-                <span
-                  aria-hidden
-                  className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-severity-degraded/15 text-severity-degraded"
-                >
-                  <RadioTower className="size-4" />
-                </span>
+                <ServiceBadge type={alert.serviceType} />
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1.5">
-                    <span className="truncate text-sm font-semibold">
-                      {alert.providerName ?? "A US network"}
-                    </span>
-                    <Badge variant="muted" size="sm">
-                      Network-wide
-                    </Badge>
+                  <span className="block truncate text-[15px] font-semibold">
+                    {alert.providerName ?? "A US network"}
                   </span>
-                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                    {SERVICE_META[alert.serviceType].label} · nationwide signal
+                  <span className="mt-0.5 block truncate text-sm text-muted-foreground">
+                    Whole network · {sourceLabel(alert.sourceName, "short")}
                   </span>
                 </span>
-                <span className="shrink-0 text-right">
-                  <span className="block text-xs font-medium">
-                    {sourceLabel(alert.sourceName, "short")}
-                  </span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">
-                    {timeAgo(alert.reportedAt)}
-                  </span>
+                <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
+                  {timeAgo(alert.reportedAt)}
                 </span>
               </button>
             </li>
@@ -215,47 +161,34 @@ export function NearbyPanel({
                 <button
                   type="button"
                   onClick={() => onSelect(outage)}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+                  className="flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left transition-colors hover:bg-secondary focus-visible:bg-secondary focus-visible:outline-none"
                 >
-                  <ServiceBadge
-                    type={outage.serviceType}
-                    severity={outage.severity}
-                    resolved={resolved}
-                  />
+                  <ServiceBadge type={outage.serviceType} />
 
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-1.5">
-                      <span className="truncate text-sm font-medium">
-                        {outage.providerName ?? "Unknown provider"}
-                      </span>
-                      {outage.origin === "official" ? (
-                        <Badge variant="muted" size="sm">
-                          Official
-                        </Badge>
-                      ) : (
-                        outage.isVerified && (
-                          <Badge variant="muted" size="sm">
-                            Verified
-                          </Badge>
-                        )
-                      )}
+                    <span className="block truncate text-[15px] font-semibold">
+                      {outage.providerName ?? "Unknown provider"}
                     </span>
-                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                      {locationLabel(outage)}
-                      {center && ` · ${formatDistance(haversineMeters(center, outage))}`}
+                    <span className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <SeverityLabel severity={outage.severity} resolved={resolved} short className="shrink-0" />
+                      <span className="truncate">· {locationLabel(outage)}</span>
                     </span>
                   </span>
 
                   <span className="shrink-0 text-right">
-                    <span className="block font-mono text-xs">
-                      {outage.origin === "official"
-                        ? outage.customersAffected !== null
-                          ? `${outage.customersAffected.toLocaleString()} out`
-                          : sourceLabel(outage.sourceName, "short")
-                        : `${outage.verificationCount} confirmed`}
+                    <span className="block text-[15px] font-semibold tabular-nums">
+                      {outage.customersAffected !== null
+                        ? outage.customersAffected.toLocaleString()
+                        : outage.origin === "crowdsourced"
+                          ? outage.verificationCount
+                          : ""}
                     </span>
-                    <span className="mt-0.5 block text-xs text-muted-foreground">
-                      {timeAgo(outage.reportedAt)}
+                    <span className="mt-0.5 block text-sm text-muted-foreground tabular-nums">
+                      {outage.customersAffected !== null
+                        ? "customers"
+                        : outage.origin === "crowdsourced"
+                          ? "confirmed"
+                          : timeAgo(outage.reportedAt)}
                     </span>
                   </span>
                 </button>

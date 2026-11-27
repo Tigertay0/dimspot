@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Loader2, MapPin } from "lucide-react";
+import { Loader2, MapPin } from "lucide-react";
+import { shortAddress } from "@/lib/format";
 import { stateCode } from "@/lib/us-states";
 import { cn } from "@/lib/utils";
 import { SERVICE_META, SEVERITY_META } from "@/lib/constants";
@@ -147,7 +148,7 @@ export function ReportSheet({
         latitude: pickedLocation.latitude,
         longitude: pickedLocation.longitude,
         description: description.trim() || null,
-        address: place?.label.split(",").slice(0, 2).join(",").trim() ?? null,
+        address: place ? shortAddress(place.label) : null,
         city: place?.city ?? null,
         state: place?.state ?? null,
         zipCode: place?.zipCode ?? null,
@@ -171,24 +172,30 @@ export function ReportSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    // Not modal while the pin is being placed: that step is done on the map,
+    // and a modal sheet dims the map and swallows the drag meant for it.
+    <Sheet open={open} onOpenChange={onOpenChange} modal={step !== "location"}>
       <SheetContent
         side="bottom"
-        // Content-sized. The location step's content is short, so the sheet
-        // stays out of the way of the crosshair at the map centre.
+        noOverlay={step === "location"}
+        // The map is part of this step, so touching it is not "outside".
+        onInteractOutside={(event) => {
+          if (step === "location") event.preventDefault();
+        }}
       >
         <SheetHeader>
-          <SheetDescription className="pr-12 font-mono text-xs">
-            {stepIndex + 1} / {STEP_ORDER.length}
+          {/* Radix wants a description; the progress bar below says it visually. */}
+          <SheetDescription className="sr-only">
+            Step {stepIndex + 1} of {STEP_ORDER.length}
           </SheetDescription>
-          <SheetTitle>
+          <SheetTitle className="pr-12">
             {step === "service" && "What is out?"}
-            {step === "location" && "Where is it out?"}
+            {step === "location" && "Where is it?"}
             {step === "severity" && "How bad is it?"}
           </SheetTitle>
 
           <div
-            className="mt-2.5 flex gap-1.5"
+            className="mt-4 flex gap-1.5"
             role="progressbar"
             aria-valuenow={stepIndex + 1}
             aria-valuemin={1}
@@ -206,7 +213,7 @@ export function ReportSheet({
           </div>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain px-5 pb-4 pt-1">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-6 pb-4 pt-1">
           {step === "service" && (
             <div className="space-y-5">
               <div className="grid grid-cols-4 gap-2">
@@ -227,20 +234,20 @@ export function ReportSheet({
                       }}
                       aria-pressed={selected}
                       className={cn(
-                        "flex h-[68px] flex-col items-center justify-center gap-2 rounded-lg border bg-card transition-[background-color,border-color,transform] duration-150 active:scale-[0.98]",
+                        "flex h-20 flex-col items-center justify-center gap-2 rounded-xl border border-input bg-card transition-[background-color,border-color,transform] duration-150 active:scale-[0.98]",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
                         // An ink outline on a quiet fill, not an ink fill: the
                         // Next button below is the one solid ink on screen.
                         selected
-                          ? "border-foreground bg-secondary text-foreground"
-                          : "border-input text-muted-foreground hover:bg-accent hover:text-foreground",
+                          ? "border-foreground bg-card text-foreground shadow-[inset_0_0_0_1px_var(--foreground)]"
+                          : "text-foreground hover:border-foreground",
                       )}
                     >
                       <ServiceIcon
                         type={type}
                         className={cn("size-5", selected && "text-foreground")}
                       />
-                      <span className="text-[13px] font-medium leading-none">
+                      <span className="text-sm font-medium leading-none">
                         {SERVICE_META[type].shortLabel}
                       </span>
                     </button>
@@ -294,7 +301,7 @@ export function ReportSheet({
                       Finding address…
                     </span>
                   ) : place ? (
-                    <span className="break-words">{place.label}</span>
+                    <span className="break-words font-medium">{shortAddress(place.label)}</span>
                   ) : pickedLocation ? (
                     <span className="tabular-nums text-muted-foreground">
                       {pickedLocation.latitude.toFixed(4)},{" "}
@@ -322,11 +329,11 @@ export function ReportSheet({
                       onClick={() => setSeverity(option)}
                       aria-pressed={selected}
                       className={cn(
-                        "flex min-h-14 w-full items-center gap-3 rounded-lg border bg-card px-3.5 py-2.5 text-left transition-[background-color,border-color] duration-150",
+                        "flex min-h-16 w-full items-center gap-3 rounded-xl border border-input bg-card px-4 py-3 text-left transition-[background-color,border-color] duration-150",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
                         selected
-                          ? "border-foreground bg-secondary"
-                          : "border-input hover:bg-accent",
+                          ? "border-foreground bg-card shadow-[inset_0_0_0_1px_var(--foreground)]"
+                          : "hover:border-foreground",
                       )}
                     >
                       <span
@@ -335,23 +342,12 @@ export function ReportSheet({
                         className="size-2.5 shrink-0 rounded-full"
                       />
                       <span className="flex-1">
-                        <span className="block text-sm font-medium">
+                        <span className="block text-[15px] font-semibold">
                           {SEVERITY_META[option].label}
                         </span>
-                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                        <span className="mt-0.5 block text-sm text-muted-foreground">
                           {SEVERITY_META[option].description}
                         </span>
-                      </span>
-                      <span
-                        aria-hidden
-                        className={cn(
-                          "flex size-[18px] shrink-0 items-center justify-center rounded-full border transition-colors",
-                          selected
-                            ? "border-foreground bg-foreground text-background"
-                            : "border-input",
-                        )}
-                      >
-                        {selected && <Check className="size-3" strokeWidth={3} />}
                       </span>
                     </button>
                   );

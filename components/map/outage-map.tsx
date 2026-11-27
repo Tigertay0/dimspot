@@ -24,7 +24,7 @@ import { DEFAULT_VIEW, HOME_BOUNDS, MARKER_ZOOM } from "@/lib/constants";
 import { useNow } from "@/lib/hooks/use-now";
 import type { Advisory, BoundingBox, Outage } from "@/lib/types";
 import { FALLBACK_STYLE } from "./basemap";
-import { MARKERS_MIN_ZOOM, glowLayer, heatLayer, outagesToGeoJSON } from "./heat-layer";
+import { MARKERS_MIN_ZOOM, heatLayer, outagesToGeoJSON } from "./heat-layer";
 import { AdvisoryMarker, ClusterMarker, OutageMarker } from "./markers";
 import { useClusters, type ClusterProperties, type PointProperties } from "./use-clusters";
 import { useTintedBasemap } from "./use-tinted-basemap";
@@ -44,11 +44,26 @@ function chromePadding(map: Pick<MapRef, "getContainer"> | null | undefined) {
   const width = map?.getContainer().clientWidth ?? 400;
 
   return {
-    top: Math.min(90, height * 0.12),
-    bottom: Math.min(130, height * 0.16),
+    // The header (search and tabs) is about 150px; the dock and the report
+    // button take about 130px at the bottom.
+    top: Math.min(170, height * 0.22),
+    bottom: Math.min(140, height * 0.18),
     left: Math.min(48, width * 0.08),
     right: Math.min(48, width * 0.08),
   };
+}
+
+/** "1.2k" for customers out, or the confirmation count on a report; else nothing. */
+function markerLabel(outage: Outage): string | null {
+  const customers = outage.customersAffected;
+  if (customers !== null && customers > 0) {
+    return customers >= 10_000
+      ? `${Math.round(customers / 1000)}k`
+      : customers >= 1000
+        ? `${Math.round(customers / 100) / 10}k`
+        : String(customers);
+  }
+  return outage.verificationCount > 1 ? String(outage.verificationCount) : null;
 }
 
 export interface MapView {
@@ -82,6 +97,8 @@ interface OutageMapProps {
   onPickMove?: (center: { latitude: number; longitude: number }) => void;
   theme: "light" | "dark";
   controls?: Ref<MapControls>;
+  /** A tap on the map itself, not on a marker. */
+  onBackgroundClick?: () => void;
   /** The device refused or failed to give a position. */
   onLocateError?: (message: string) => void;
 }
@@ -98,6 +115,7 @@ export function OutageMap({
   onPickMove,
   theme,
   controls,
+  onBackgroundClick,
   onLocateError,
 }: OutageMapProps) {
   const mapRef = useRef<MapRef | null>(null);
@@ -131,7 +149,6 @@ export function OutageMap({
   const showMarkers = (viewport?.zoom ?? DEFAULT_VIEW.zoom) >= MARKERS_MIN_ZOOM;
 
   const heatData = useMemo(() => outagesToGeoJSON(outages), [outages]);
-  const glow = useMemo(() => glowLayer(theme), [theme]);
 
   /**
    * Reveal a cluster's contents.
@@ -246,6 +263,28 @@ export function OutageMap({
   const tinted = useTintedBasemap(theme);
   const mapStyle = styleFailed ? FALLBACK_STYLE : tinted;
 
+  // The heat map goes under the place names, so a hot region does not bury
+  // the labels that say where it is.
+  const firstLabelLayer = useMemo(() => {
+    if (!mapStyle || typeof mapStyle === "string") return undefined;
+    return mapStyle.layers.find(
+      (layer) => layer.type === "symbol" && /^(place|label)/.test(layer.id),
+    )?.id;
+  }, [mapStyle]);
+
+  /**
+   * While a report location is being picked, the sheet covers the lower part
+   * of the map. Padding the map by that much moves its centre (and the pin the
+   * shell draws there) into the part that is still visible, and the centre the
+   * map reports stays the point under the pin.
+   */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const sheet = picking ? Math.min(300, map.getContainer().clientHeight * 0.38) : 0;
+    map.easeTo({ padding: { top: 0, right: 0, left: 0, bottom: sheet }, duration: 250 });
+  }, [picking]);
+
   // Ticks once a minute rather than being read during render, so marker
   // freshness is stable state instead of an impure read.
   const now = useNow(60_000);
@@ -296,6 +335,7 @@ export function OutageMap({
 
         syncViewport(map);
       }}
+      onClick={() => onBackgroundClick?.()}
       onMove={handleMove}
       onMoveEnd={(event) => syncViewport(event.target)}
       onError={(event) => {
@@ -333,8 +373,7 @@ export function OutageMap({
           picture, and by the time markers appear it has faded to nothing. */}
       {!picking && (
         <Source id="outage-heat-source" type="geojson" data={heatData}>
-          <Layer {...heatLayer} />
-          <Layer {...glow} />
+          <Layer {...heatLayer} beforeId={firstLabelLayer} />
         </Source>
       )}
 
@@ -405,6 +444,7 @@ export function OutageMap({
               <OutageMarker
                 serviceType={outage.serviceType}
                 severity={outage.severity}
+                label={markerLabel(outage)}
                 // A utility's own report needs no crowd confirmation; drawing it
                 // dashed like an unverified guess would misstate it.
                 isVerified={outage.isVerified || outage.origin === "official"}

@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const field = cn(
-  "w-full rounded-lg border border-input bg-background px-3",
+  "w-full rounded-xl border border-input bg-card px-4",
   // 16px minimum, otherwise iOS Safari zooms the viewport on focus.
   "text-base",
   "placeholder:text-muted-foreground/80",
@@ -16,7 +16,7 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
     <input
       type={type}
       ref={ref}
-      className={cn(field, "flex h-10 py-2", className)}
+      className={cn(field, "flex h-12 py-2", className)}
       {...props}
     />
   ),
@@ -29,7 +29,7 @@ const Textarea = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <textarea
     ref={ref}
-    className={cn(field, "flex min-h-20 resize-none py-2.5 leading-snug", className)}
+    className={cn(field, "flex min-h-24 resize-none py-3 leading-snug", className)}
     {...props}
   />
 ));

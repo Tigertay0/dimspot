@@ -53,7 +53,6 @@ export function FilterSheet({
   const showAdvisories = useFilters((s) => s.showAdvisories);
   const setShowAdvisories = useFilters((s) => s.setShowAdvisories);
   const selectAll = useFilters((s) => s.selectAll);
-  const deselectAll = useFilters((s) => s.deselectAll);
 
   const byService = useMemo(() => {
     const grouped = new Map<ServiceType, Provider[]>();
@@ -93,12 +92,12 @@ export function FilterSheet({
       >
         <SheetHeader>
           <SheetTitle>Filters</SheetTitle>
-          <SheetDescription>
+          <SheetDescription className="sr-only">
             Choose what appears on the map.
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain px-5 pb-4">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-6 pb-4">
           <section className="pb-4 pt-1">
             <h3 className="mb-2.5 text-[13px] font-medium text-muted-foreground">
               Service
@@ -334,13 +333,10 @@ export function FilterSheet({
         {/* One row rather than the stacked default: three full-width buttons
             would eat most of a phone screen that is already short on room. */}
         <SheetFooter className="flex-row gap-2">
-          <Button variant="ghost" onClick={deselectAll} className="px-3.5">
-            Clear all
-          </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={() => selectAll(providers.map((p) => p.id))}
-            className="px-3.5"
+            className="px-4"
           >
             Reset
           </Button>

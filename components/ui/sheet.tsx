@@ -46,7 +46,7 @@ const sheetVariants = cva(
         // toolbar, so a sheet sized in vh hides its own footer behind it.
         // pb-safe keeps the last row clear of the home indicator.
         bottom:
-          "inset-x-0 bottom-0 flex max-h-[88dvh] flex-col rounded-t-2xl border border-b-0 pb-safe shadow-[var(--shadow-sheet)] sm:mx-auto sm:max-w-lg data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+          "inset-x-0 bottom-0 flex max-h-[88dvh] flex-col rounded-t-3xl border border-b-0 border-transparent pb-safe dark:border-border shadow-[var(--shadow-sheet)] sm:mx-auto sm:max-w-lg data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
         left: "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
         right:
           "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-md",
@@ -61,30 +61,27 @@ interface SheetContentProps
     VariantProps<typeof sheetVariants> {
   /** Hide the built-in close button when the content supplies its own. */
   hideClose?: boolean;
+  /**
+   * Leave the page behind undimmed. For a sheet that works together with the
+   * map (placing a report), used with a non-modal Sheet.
+   */
+  noOverlay?: boolean;
 }
 
 const SheetContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
   SheetContentProps
->(({ side = "bottom", className, children, hideClose, ...props }, ref) => (
+>(({ side = "bottom", className, children, hideClose, noOverlay, ...props }, ref) => (
   <SheetPortal>
-    <SheetOverlay />
+    {!noOverlay && <SheetOverlay />}
     <DialogPrimitive.Content
       ref={ref}
       className={cn(sheetVariants({ side }), className)}
       {...props}
     >
-      {/* A grab handle reads as "this sheet is draggable/dismissable" even
-          though dismissal is by tap — it is the expected mobile affordance. */}
-      {side === "bottom" && (
-        <div
-          aria-hidden
-          className="mx-auto mt-2 h-1 w-8 shrink-0 rounded-full bg-input"
-        />
-      )}
       {children}
       {!hideClose && (
-        <DialogPrimitive.Close className="tap-target absolute right-3 top-3 flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none">
+        <DialogPrimitive.Close className="tap-target absolute right-4 top-4 flex size-8 items-center justify-center rounded-full bg-secondary text-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none">
           <X className="size-4" />
           <span className="sr-only">Close</span>
         </DialogPrimitive.Close>
@@ -97,7 +94,7 @@ SheetContent.displayName = "SheetContent";
 function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      className={cn("flex flex-col gap-1 px-5 pb-3 pt-3 text-left", className)}
+      className={cn("flex flex-col gap-1 px-6 pb-4 pt-4 text-left", className)}
       {...props}
     />
   );
@@ -107,7 +104,7 @@ function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "flex flex-col-reverse gap-2 border-t px-5 py-3 sm:flex-row sm:justify-end",
+        "flex flex-col-reverse gap-3 border-t px-6 py-4 sm:flex-row sm:justify-end",
         className,
       )}
       {...props}
@@ -121,7 +118,7 @@ const SheetTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn("text-[17px] font-semibold leading-tight tracking-[-0.02em]", className)}
+    className={cn("text-[22px] font-semibold leading-tight tracking-[-0.02em]", className)}
     {...props}
   />
 ));
@@ -133,7 +130,7 @@ const SheetDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn("text-[13px] text-muted-foreground", className)}
+    className={cn("text-sm text-muted-foreground", className)}
     {...props}
   />
 ));

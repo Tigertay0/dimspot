@@ -13,37 +13,37 @@
    maps them onto utility classes (bg-card, text-muted-foreground, ...).
 --------------------------------------------------------------------------- */
 
-/* Dimspot app palette: the homepage's (components/minimal/minimal.css), so
-   the map reads as the same product. Neutral surfaces, solid hairlines, ink
-   for the one primary action, and amber only as the brand's mark. Colour is
-   left to the things that are data: severity, and the map itself.
-   Dark is the default (html.dark is set in the root layout). */
+/* Dimspot app palette. The references are the Airbnb and Uber map screens:
+   white surfaces on a light map, near-black ink for text and for the one
+   primary action, soft shadows instead of borders, and colour kept for data
+   (severity). Light is the default; dark is the same system inverted. */
 :root {
-  --background: #fafafa;
-  --foreground: #171717;
+  --background: #ffffff;
+  --foreground: #1a1a1a;
   --card: #ffffff;
-  --card-foreground: #171717;
+  --card-foreground: #1a1a1a;
   --popover: #ffffff;
-  --popover-foreground: #171717;
-  --primary: #171717; /* ink: the primary button, selection */
+  --popover-foreground: #1a1a1a;
+  --primary: #111111; /* ink: the primary button, the selected marker */
   --primary-foreground: #ffffff;
-  --secondary: #f2f2f2;
-  --secondary-foreground: #171717;
-  --muted: #f2f2f2;
-  --muted-foreground: #666666; /* 5.4:1 on the page, 5.1:1 on muted */
-  --accent: #ebebeb;
-  --accent-foreground: #171717;
+  --secondary: #f5f5f5;
+  --secondary-foreground: #1a1a1a;
+  --muted: #f5f5f5;
+  --muted-foreground: #6a6a6a; /* 5.4:1 on white, 4.9:1 on secondary */
+  --accent: #efefef;
+  --accent-foreground: #1a1a1a;
   --destructive: #c81e1e;
   --destructive-foreground: #ffffff;
-  --border: #e6e6e6;
-  --input: #d4d4d4;
-  --ring: #171717;
+  --border: #ebebeb;
+  --input: #d9d9d9;
+  --ring: #111111;
   --brand: #ffb21a;
-  --radius: 0.5rem;
-  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.06), 0 8px 24px rgb(0 0 0 / 0.08);
-  --shadow-sheet: 0 -8px 32px rgb(0 0 0 / 0.1);
+  --radius: 0.75rem;
+  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.08), 0 4px 12px rgb(0 0 0 / 0.1);
+  --shadow-marker: 0 1px 2px rgb(0 0 0 / 0.12), 0 2px 6px rgb(0 0 0 / 0.14);
+  --shadow-sheet: 0 -2px 16px rgb(0 0 0 / 0.1);
 
-  /* Severity. Dark enough to hold 4.5:1 as text on the light surfaces. */
+  /* Severity. Dark enough to hold 4.5:1 as text on white. */
   --severity-complete: hsl(0 72% 45%);
   --severity-degraded: hsl(24 90% 38%);
   --severity-intermittent: hsl(38 92% 31%);
@@ -71,8 +71,9 @@
   --input: #3a3a3a;
   --ring: #ededed;
   --brand: #ffb21a;
-  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.45);
-  --shadow-sheet: 0 -8px 32px rgb(0 0 0 / 0.5);
+  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 16px rgb(0 0 0 / 0.45);
+  --shadow-marker: 0 1px 2px rgb(0 0 0 / 0.5), 0 2px 8px rgb(0 0 0 / 0.5);
+  --shadow-sheet: 0 -2px 16px rgb(0 0 0 / 0.5);
 
   --severity-complete: hsl(0 84% 67%);
   --severity-degraded: hsl(27 92% 60%);
@@ -157,13 +158,17 @@
   }
 }
 
-/* Floating chrome over the map: search, chips, controls, the list bar. A
-   solid surface with a hairline, as on the homepage. No blur: the map behind a
-   frosted panel reads as smudge, and text on it loses its edge. */
+/* Anything floating over the map: a solid surface lifted by a soft shadow,
+   as the reference apps do it. No border in the light theme (the shadow is the
+   edge); a hairline in the dark one, where a shadow on a dark map does not
+   read. No blur. */
 @utility panel {
   background-color: var(--card);
-  border: 1px solid var(--border);
   box-shadow: var(--shadow-float);
+  border: 1px solid transparent;
+  :where(.dark) & {
+    border-color: var(--border);
+  }
 }
 
 /* The home indicator and browser toolbars: nothing tappable sits under them. */

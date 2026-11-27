@@ -13,7 +13,7 @@ export function DemoBanner() {
   if (dismissed) return null;
 
   return (
-    <div className="panel flex items-center gap-2.5 rounded-lg py-1.5 pr-1.5 pl-2.5 text-xs">
+    <div className="mb-2 flex items-center gap-2.5 rounded-xl bg-secondary py-2 pr-2 pl-3 text-xs">
       <FlaskConical
         aria-hidden
         className="size-3.5 shrink-0 text-severity-intermittent"

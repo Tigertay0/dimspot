@@ -70,7 +70,7 @@ export function AdvisorySheet({
               </div>
             </SheetHeader>
 
-            <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 pb-4 pt-1">
+            <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain px-6 pb-4 pt-1">
               {advisory.headline && (
                 <p className="text-sm font-medium">{advisory.headline}</p>
               )}
@@ -102,7 +102,7 @@ export function AdvisorySheet({
               )}
             </div>
 
-            <div className="border-t px-5 py-3">
+            <div className="border-t px-6 py-4">
               <p className="text-xs leading-snug text-muted-foreground">
                 {advisory.startsAt
                   ? `In effect from ${dayAndTime(advisory.startsAt)}`

@@ -198,14 +198,14 @@ function SettingsForm({
     >
         <SheetHeader>
           <SheetTitle>Settings</SheetTitle>
-          <SheetDescription>
+          <SheetDescription className="sr-only">
             {isAuthenticated
               ? "Synced to your account."
               : "Saved to this browser until you sign in."}
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 space-y-6 overflow-y-auto overscroll-contain px-5 pb-4 pt-1">
+        <div className="flex-1 space-y-6 overflow-y-auto overscroll-contain px-6 pb-4 pt-1">
           {onAccount && (
             <div className="flex items-center gap-3 rounded-lg border bg-background p-3">
               <span
@@ -436,11 +436,7 @@ function SettingsForm({
         </div>
 
         <SheetFooter className="flex-row gap-2">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            className="flex-1"
-          >
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="px-4">
             Cancel
           </Button>
           <Button
@@ -459,8 +455,8 @@ function SettingsForm({
 }
 
 const APPEARANCES: { value: Appearance; label: string; hint: string }[] = [
-  { value: "night", label: "Dark", hint: "The default" },
-  { value: "dusk", label: "Light", hint: "For daylight" },
+  { value: "dusk", label: "Light", hint: "The default" },
+  { value: "night", label: "Dark", hint: "Easier at night" },
   { value: "system", label: "System", hint: "Follow this device" },
 ];
 
@@ -484,7 +480,7 @@ function AppearancePicker() {
               className={cn(
                 "flex min-h-14 flex-col items-start justify-center gap-1 rounded-lg border px-3 py-2 text-left transition-colors duration-150",
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-                selected ? "border-foreground bg-secondary" : "border-input hover:bg-accent",
+                selected ? "border-foreground bg-card shadow-[inset_0_0_0_1px_var(--foreground)]" : "border-input hover:bg-accent",
               )}
             >
               <span className="text-sm font-medium leading-none">{option.label}</span>

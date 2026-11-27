@@ -109,67 +109,12 @@ export const heatLayer: LayerProps = {
       ["linear"],
       ["zoom"],
       3,
-      0.85,
-      MARKERS_MIN_ZOOM,
       0.7,
+      MARKERS_MIN_ZOOM,
+      0.6,
       HEAT_MAX_ZOOM,
       0,
     ],
   },
 };
 
-/**
- * A pool of light under each outage once the heat map has handed over.
- *
- * Markers say what and how bad; this says how big. The radius follows the
- * customer count (the same log weight the heat map uses), so a substation
- * failure reads as a wide glow and a single street as a small one, without a
- * number on the map. Fixed hex for the reason given above.
- */
-const GLOW_COLORS: Record<"light" | "dark", Record<string, string>> = {
-  dark: { complete: "#f47272", degraded: "#f6924e", intermittent: "#f5c542", resolved: "#58c98a" },
-  light: { complete: "#c5221f", degraded: "#c2570a", intermittent: "#a1700a", resolved: "#257f4b" },
-};
-
-export function glowLayer(theme: "light" | "dark"): LayerProps {
-  const c = GLOW_COLORS[theme];
-  return {
-    id: "outage-glow",
-    type: "circle",
-    minzoom: MARKERS_MIN_ZOOM - 1,
-    paint: {
-      "circle-color": [
-        "match",
-        ["get", "severity"],
-        "complete",
-        c.complete,
-        "degraded",
-        c.degraded,
-        "resolved",
-        c.resolved,
-        c.intermittent,
-      ],
-      "circle-radius": [
-        "interpolate",
-        ["linear"],
-        ["zoom"],
-        5,
-        ["+", 6, ["*", 14, ["get", "weight"]]],
-        10,
-        ["+", 14, ["*", 46, ["get", "weight"]]],
-        14,
-        ["+", 22, ["*", 70, ["get", "weight"]]],
-      ],
-      "circle-blur": 0.9,
-      "circle-opacity": [
-        "interpolate",
-        ["linear"],
-        ["zoom"],
-        MARKERS_MIN_ZOOM - 1,
-        0,
-        MARKERS_MIN_ZOOM + 0.5,
-        theme === "dark" ? 0.24 : 0.18,
-      ],
-    },
-  };
-}

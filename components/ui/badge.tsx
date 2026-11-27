@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
  * text or icon inside, and wraps as whole pills.
  */
 const badgeVariants = cva(
-  "inline-flex h-[22px] shrink-0 items-center gap-1 rounded-md border px-1.5 text-xs font-medium leading-none whitespace-nowrap tabular-nums [&_svg]:size-3 [&_svg]:shrink-0",
+  "inline-flex h-6 shrink-0 items-center gap-1 rounded-full border px-2.5 text-xs font-medium leading-none whitespace-nowrap tabular-nums [&_svg]:size-3 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -28,7 +28,7 @@ const badgeVariants = cva(
       },
       size: {
         default: "",
-        sm: "h-[18px] rounded-[5px] px-1.5 text-[11px]",
+        sm: "h-5 px-2 text-[11px]",
       },
     },
     defaultVariants: { variant: "default", size: "default" },
