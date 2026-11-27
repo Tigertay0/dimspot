@@ -18,7 +18,12 @@ export async function GET() {
 
     return ok({
       preferences: preferences ?? DEFAULT_PREFERENCES,
-      isAuthenticated: identity.isAuthenticated,
+      // "Has an account", which is what the settings screen asks. A guest on
+      // a database-backed deployment is an anonymous user row, so it counts as
+      // authenticated to the session layer while having nothing to sign in to;
+      // reporting it as signed in told guests their settings were "synced to
+      // your account".
+      isAuthenticated: identity.isAuthenticated && !identity.isAnonymous,
     });
   } catch (error) {
     return serverError(error, "GET /api/preferences");

@@ -232,3 +232,26 @@ export const PROVIDER_CATALOG: CatalogProvider[] = [
  * people whose real provider is two rows further down.
  */
 export const FALLBACK_PROVIDER_SLUGS = new Set(["local-power", "local-internet"]);
+
+/**
+ * The largest electric utilities by customers. Shown in the report form when
+ * the pin's state is not known yet, so the list opens on names people
+ * recognise instead of on a lone "Local power company".
+ */
+export const POPULAR_POWER_SLUGS = new Set([
+  "pge", "sce", "fpl", "duke", "coned", "comed", "dominion", "georgia-power",
+  "oncor", "centerpoint", "dte", "xcel", "pseg", "national-grid", "eversource",
+  "entergy", "aps", "pepco",
+]);
+
+const RANK = new Map(PROVIDER_CATALOG.map((provider, index) => [provider.slug, index]));
+
+/**
+ * Position in the catalog, which lists each service's providers roughly
+ * largest first. Pickers sort by it so Comcast and Verizon lead rather than
+ * whatever starts with A. Unknown slugs sort last.
+ */
+export function providerRank(slug: string): number {
+  return RANK.get(slug) ?? Number.MAX_SAFE_INTEGER;
+}
+

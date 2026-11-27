@@ -87,4 +87,6 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
     quietHoursEnd: null,
   },
   defaultCenter: null,
+  home: null,
+  myProviders: {},
 };

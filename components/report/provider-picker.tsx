@@ -2,73 +2,79 @@
 
 import { useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
-import { FALLBACK_PROVIDER_SLUGS } from "@/lib/data/provider-catalog";
+import { suggestProviders } from "@/lib/provider-suggestions";
 import { US_STATE_NAMES } from "@/lib/us-states";
 import type { Provider } from "@/lib/types";
 import { Chip } from "@/components/ui/chip";
 
 /**
- * Choosing a provider from a list that is now over a hundred long.
+ * Choosing a provider from a list that is over a hundred long.
  *
- * Nobody scrolls a hundred chips, so the default view is short: the providers
- * that operate where the pin is (plus the nationwide ones), and a search box
- * for anything else. The "not listed" catch-alls sort last however the list is
- * filtered, so they are a fallback rather than the first thing someone taps.
+ * Three views of the same list:
+ *
+ *   - Suggested (the default): the providers that operate where the pin is,
+ *     then the nationwide ones, largest first. With no state to go on, the
+ *     biggest names in the country instead, so the list never opens on a lone
+ *     "Local power company".
+ *   - Search: anything in the list, by name.
+ *   - All: every provider, for someone who would rather scroll than type.
+ *
+ * The person's own saved provider leads whichever view is showing, and the
+ * "not listed" catch-alls sort last, so they are a fallback rather than the
+ * first thing someone taps.
  */
 export function ProviderPicker({
   providers,
   stateCode,
   value,
   onChange,
+  preferred = null,
+  label = "Provider",
 }: {
   /** Already narrowed to one service type. */
   providers: Provider[];
-  /** Where the pin is, as a two-letter code, once known. */
+  /** Where the pin (or home) is, as a two-letter code, once known. */
   stateCode: string | null;
   value: string | null;
   onChange: (providerId: string | null) => void;
+  /** The provider saved in the person's settings for this service. */
+  preferred?: string | null;
+  label?: string;
 }) {
   const [query, setQuery] = useState("");
+  const [showAll, setShowAll] = useState(false);
   const needle = query.trim().toLowerCase();
 
-  const { shown, total } = useMemo(() => {
-    const fallbackLast = (a: Provider, b: Provider) =>
-      Number(FALLBACK_PROVIDER_SLUGS.has(a.id)) - Number(FALLBACK_PROVIDER_SLUGS.has(b.id)) ||
-      a.name.localeCompare(b.name);
+  const { shown, local } = useMemo(
+    () =>
+      suggestProviders(providers, {
+        stateCode,
+        query,
+        all: showAll,
+        selected: value,
+        preferred,
+      }),
+    [providers, query, showAll, stateCode, value, preferred],
+  );
+  const total = providers.length;
 
-    const matches = needle
-      ? providers.filter(
-          (p) => p.name.toLowerCase().includes(needle) || p.id.includes(needle),
-        )
-      : providers.filter(
-          (p) =>
-            p.id === value ||
-            p.regions.length === 0 ||
-            (stateCode !== null && p.regions.includes(stateCode)),
-        );
-
-    return { shown: [...matches].sort(fallbackLast).slice(0, 24), total: matches.length };
-  }, [providers, needle, stateCode, value]);
-
-  // Only worth a search box when the short list is hiding something.
-  const searchable = providers.length > 12;
-  const hidden = providers.length - (needle ? 0 : total);
-  const regional = providers.some((p) => p.regions.length > 0);
+  // Only worth the extra controls when the suggestions are hiding something.
+  const expandable = providers.length > shown.length || showAll;
 
   return (
     <div>
       <div className="mb-2 flex items-baseline justify-between gap-3">
         <span className="text-[13px] font-medium text-muted-foreground">
-          Provider <span className="font-normal">(optional)</span>
+          {label} <span className="font-normal">(optional)</span>
         </span>
-        {!needle && regional && stateCode && (
+        {!needle && !showAll && local > 0 && stateCode && (
           <span className="truncate text-xs text-muted-foreground">
             Serving {US_STATE_NAMES[stateCode] ?? stateCode}
           </span>
         )}
       </div>
 
-      {searchable && (
+      {providers.length > 12 && (
         <div className="relative mb-2.5">
           <Search
             aria-hidden
@@ -77,8 +83,8 @@ export function ProviderPicker({
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder={`Search ${providers.length} providers`}
-            aria-label="Search providers"
+            placeholder={`Search ${total} providers`}
+            aria-label={`Search ${label.toLowerCase()}s`}
             autoComplete="off"
             enterKeyHint="search"
             // 16px, or iOS Safari zooms the page when the field is focused.
@@ -98,7 +104,13 @@ export function ProviderPicker({
       )}
 
       {shown.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
+        <div
+          className={
+            showAll && !needle
+              ? "-mr-2 flex max-h-56 flex-wrap gap-2 overflow-y-auto overscroll-contain pr-2"
+              : "flex flex-wrap gap-2"
+          }
+        >
           {shown.map((provider) => (
             <Chip
               key={provider.id}
@@ -106,27 +118,26 @@ export function ProviderPicker({
               onClick={() => onChange(value === provider.id ? null : provider.id)}
             >
               {provider.name}
+              {provider.id === preferred && (
+                <span className="text-[11px] font-normal text-muted-foreground">Yours</span>
+              )}
             </Chip>
           ))}
         </div>
       ) : (
         <p className="py-1 text-sm text-muted-foreground">
-          No provider matches “{query.trim()}”. You can send the report without
-          one.
+          No provider matches “{query.trim()}”. You can carry on without one.
         </p>
       )}
 
-      {needle && total > shown.length && (
-        <p className="pt-2 text-xs text-muted-foreground">
-          Showing {shown.length} of {total}. Keep typing to narrow it down.
-        </p>
-      )}
-      {!needle && searchable && hidden > 0 && (
-        <p className="pt-2 text-xs text-muted-foreground">
-          {stateCode || !regional
-            ? `Not here? Search all ${providers.length}.`
-            : `Search to find yours among ${providers.length}.`}
-        </p>
+      {!needle && expandable && (
+        <button
+          type="button"
+          onClick={() => setShowAll((all) => !all)}
+          className="tap-target mt-3 text-[13px] font-medium text-foreground underline underline-offset-4"
+        >
+          {showAll ? "Show suggestions only" : `Show all ${total} providers`}
+        </button>
       )}
     </div>
   );

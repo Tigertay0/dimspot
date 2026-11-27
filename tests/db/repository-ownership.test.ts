@@ -78,6 +78,33 @@ describe("PostgresRepository ownership", () => {
     });
   });
 
+  it("saves a home and the person's providers, and clears the home again", async () => {
+    const [a, b] = await Promise.all([newGuest(), newGuest()]);
+    const home = { label: "6700 Bradley Boulevard, Bethesda", latitude: 38.99, longitude: -77.12, state: "MD" };
+
+    await repo.savePreferences(a.id, {
+      ...DEFAULT_PREFERENCES,
+      home,
+      myProviders: { power: "pepco", internet: "xfinity" },
+    });
+
+    expect(await repo.getPreferences(a.id)).toMatchObject({
+      home,
+      myProviders: { power: "pepco", internet: "xfinity" },
+    });
+    // Someone else's home is not readable through another identity.
+    expect(await repo.getPreferences(b.id)).toBeNull();
+
+    // Removing the home stores no home, not the JSON word "null".
+    await repo.savePreferences(a.id, { ...DEFAULT_PREFERENCES, home: null, myProviders: {} });
+    expect(await repo.getPreferences(a.id)).toMatchObject({ home: null, myProviders: {} });
+    const [row] = await query<{ is_sql_null: boolean }>(
+      "SELECT home IS NULL AS is_sql_null FROM user_preferences WHERE user_id = $1",
+      [a.id],
+    );
+    expect(row?.is_sql_null).toBe(true);
+  });
+
   it("counts simultaneous confirmations exactly, without deadlocking", async () => {
     const reporter = await newGuest();
     const outage = await reportAs(reporter.id);

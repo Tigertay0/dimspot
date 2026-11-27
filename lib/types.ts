@@ -145,7 +145,23 @@ export interface UserPreferences {
   savedLocations: SavedLocation[];
   notifications: NotificationSettings;
   defaultCenter: { latitude: number; longitude: number; zoom: number } | null;
+  /** Where the person lives: the map opens here and alerts are aimed here. */
+  home: HomeLocation | null;
+  /** Who supplies them, per service. Pre-fills the report form. */
+  myProviders: MyProviders;
 }
+
+export interface HomeLocation {
+  /** A short address or place name, for display. */
+  label: string;
+  latitude: number;
+  longitude: number;
+  /** Two-letter state code, when known: narrows the provider lists. */
+  state: string | null;
+}
+
+/** Provider slugs, one per service a household has. */
+export type MyProviders = Partial<Record<"power" | "internet" | "cellular", string | null>>;
 
 export interface SavedLocation {
   id: string;

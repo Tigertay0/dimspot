@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { LocateFixed, Minus, Plus, Settings2 } from "lucide-react";
+import { House, LocateFixed, Minus, Plus, Settings2 } from "lucide-react";
 import { DEFAULT_VIEW } from "@/lib/constants";
 import { useAdvisories, useOutages, useSession } from "@/lib/hooks/use-outages";
 import { activeFilterCount, useFilters } from "@/lib/store/filters";
@@ -26,6 +26,7 @@ import { DemoBanner } from "./demo-banner";
 import { NetworkAlerts } from "./network-alerts";
 import { SettingsSheet } from "./settings-sheet";
 import { useAppearance } from "@/lib/hooks/use-appearance";
+import { usePreferences } from "@/lib/hooks/use-preferences";
 import { useHydrated } from "@/lib/hooks/use-hydrated";
 
 /**
@@ -87,6 +88,25 @@ export function MapShell() {
   const { theme } = useAppearance();
 
   const { data: session } = useSession();
+  const { data: saved } = usePreferences();
+  const home = saved?.preferences.home ?? null;
+
+  /**
+   * Open on the saved home, once.
+   *
+   * Someone who saved where they live is asking about that street, not about
+   * the country. Skipped when the page was opened on a specific outage (a
+   * notification or a shared link), which has its own place to show.
+   */
+  // Decided while rendering, as the report sheet does for its reset: an
+  // effect would paint the country view first and then set state from it.
+  const [openedOnHome, setOpenedOnHome] = useState(false);
+  if (home && !openedOnHome) {
+    setOpenedOnHome(true);
+    if (selectedId === null) {
+      setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: 12 });
+    }
+  }
   const {
     data: outages = [],
     isFetching,
@@ -286,6 +306,20 @@ export function MapShell() {
             <Settings2 />
           </MapButton>
 
+          {home && (
+            <MapButton
+              onClick={() =>
+                // A new object each time, so pressing it again after panning
+                // away flies back.
+                setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: 13 })
+              }
+              aria-label="Go to my home"
+              title="Go to my home"
+            >
+              <House />
+            </MapButton>
+          )}
+
           {/* Only offered where accounts exist at all: the local backend has no
               auth, and a button that cannot work is worse than no button. */}
           {session?.capabilities.accounts && (
@@ -414,6 +448,17 @@ export function MapShell() {
             longitude: place.longitude,
             zoom: place.zoom,
           })
+        }
+        onShowHome={(place) =>
+          setFlyTo({ latitude: place.latitude, longitude: place.longitude, zoom: 13 })
+        }
+        onSignIn={
+          session?.capabilities.accounts
+            ? () => {
+                setSettingsOpen(false);
+                setAuthOpen(true);
+              }
+            : undefined
         }
       />
 

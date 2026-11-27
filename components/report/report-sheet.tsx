@@ -6,6 +6,7 @@ import { stateCode } from "@/lib/us-states";
 import { cn } from "@/lib/utils";
 import { SERVICE_META, SEVERITY_META } from "@/lib/constants";
 import { useCreateOutage, useProviders } from "@/lib/hooks/use-outages";
+import { usePreferences } from "@/lib/hooks/use-preferences";
 import { useToast } from "@/components/ui/use-toast";
 import { SERVICE_TYPES, SEVERITIES } from "@/lib/types";
 import type { GeocodeResult, ServiceType, Severity } from "@/lib/types";
@@ -50,6 +51,11 @@ export function ReportSheet({
   const { data: providers = [], isError: providersFailed } = useProviders();
   const createOutage = useCreateOutage();
   const { toast } = useToast();
+  // The person's own providers and home state, when they have saved them:
+  // choosing "Power" then pre-selects their power company.
+  const { data: saved } = usePreferences();
+  const myProviders = saved?.preferences.myProviders ?? {};
+  const homeState = saved?.preferences.home?.state ?? null;
 
   const [step, setStep] = useState<Step>("service");
   const [serviceType, setServiceType] = useState<ServiceType | null>(null);
@@ -212,7 +218,12 @@ export function ReportSheet({
                       type="button"
                       onClick={() => {
                         setServiceType(type);
-                        setProviderId(null);
+                        const mine = type === "other" ? null : (myProviders[type] ?? null);
+                        // Only if it is still in the list: a provider can be
+                        // retired after someone saved it.
+                        setProviderId(
+                          mine && providers.some((p) => p.id === mine) ? mine : null,
+                        );
                       }}
                       aria-pressed={selected}
                       className={cn(
@@ -252,9 +263,14 @@ export function ReportSheet({
                   // not carry over into the cellular list.
                   key={serviceType}
                   providers={providerOptions}
-                  stateCode={stateCode(place?.state)}
+                  // The pin's state once the address resolves; the saved
+                  // home's until then, which is usually the same place.
+                  stateCode={stateCode(place?.state) ?? homeState}
                   value={providerId}
                   onChange={setProviderId}
+                  preferred={
+                    serviceType === "other" ? null : (myProviders[serviceType] ?? null)
+                  }
                 />
               )}
             </div>

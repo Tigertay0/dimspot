@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, BellOff, Loader2, MapPin, Trash2 } from "lucide-react";
+import { Bell, BellOff, Loader2, MapPin, Trash2, UserRound } from "lucide-react";
 import { SEVERITY_META } from "@/lib/constants";
 import { usePreferences, useSavePreferences } from "@/lib/hooks/use-preferences";
 import { usePush } from "@/lib/hooks/use-push";
 import { type Appearance, useAppearance } from "@/lib/hooks/use-appearance";
-import type { SavedLocation, Severity, UserPreferences } from "@/lib/types";
+import type { HomeLocation, SavedLocation, Severity, UserPreferences } from "@/lib/types";
 import { SEVERITIES } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { Chip } from "@/components/ui/chip";
+import { HomeSettings } from "./home-settings";
 
 const RADIUS_OPTIONS = [1, 5, 10, 25];
 
@@ -38,11 +39,16 @@ export function SettingsSheet({
   onOpenChange,
   currentView,
   onGoToPlace,
+  onShowHome,
+  onSignIn,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentView: { latitude: number; longitude: number; zoom: number } | null;
   onGoToPlace: (place: SavedLocation) => void;
+  onShowHome: (home: HomeLocation) => void;
+  /** Opens the account sheet. Absent where this deployment has no accounts. */
+  onSignIn?: () => void;
 }) {
   const { data, isLoading } = usePreferences();
 
@@ -63,6 +69,8 @@ export function SettingsSheet({
           currentView={currentView}
           onOpenChange={onOpenChange}
           onGoToPlace={onGoToPlace}
+          onShowHome={onShowHome}
+          onSignIn={onSignIn}
         />
       ) : (
         <SheetContent side="bottom">
@@ -89,12 +97,16 @@ function SettingsForm({
   currentView,
   onOpenChange,
   onGoToPlace,
+  onShowHome,
+  onSignIn,
 }: {
   initial: UserPreferences;
   isAuthenticated: boolean;
   currentView: { latitude: number; longitude: number; zoom: number } | null;
   onOpenChange: (open: boolean) => void;
   onGoToPlace: (place: SavedLocation) => void;
+  onShowHome: (home: HomeLocation) => void;
+  onSignIn?: () => void;
 }) {
   const savePreferences = useSavePreferences();
   const push = usePush();
@@ -104,6 +116,13 @@ function SettingsForm({
   const [placeName, setPlaceName] = useState("");
 
   const notifications = draft.notifications;
+
+  // Alerts are aimed at the home once there is one; before that, at wherever
+  // the map is pointing, as they always were.
+  const alertCentre = draft.home ?? currentView;
+  const alertPoint = alertCentre
+    ? { latitude: alertCentre.latitude, longitude: alertCentre.longitude }
+    : null;
 
   function update(patch: Partial<UserPreferences>) {
     setDraft((current) => ({ ...current, ...patch }));
@@ -126,12 +145,7 @@ function SettingsForm({
       return;
     }
 
-    const ok = await push.subscribe(
-      { ...notifications, enabled: true },
-      currentView
-        ? { latitude: currentView.latitude, longitude: currentView.longitude }
-        : null,
-    );
+    const ok = await push.subscribe({ ...notifications, enabled: true }, alertPoint);
 
     // Roll the switch back if the browser refused, rather than showing an "on"
     // toggle that sends nothing.
@@ -162,12 +176,7 @@ function SettingsForm({
       // is what the server matches outages against. Without this, a changed
       // radius or quiet-hours window saved fine and did nothing.
       if (push.subscribed && draft.notifications.enabled) {
-        await push.resync(
-          draft.notifications,
-          currentView
-            ? { latitude: currentView.latitude, longitude: currentView.longitude }
-            : null,
-        );
+        await push.resync(draft.notifications, alertPoint);
       }
 
       toast({ title: "Settings saved" });
@@ -192,11 +201,43 @@ function SettingsForm({
           <SheetDescription>
             {isAuthenticated
               ? "Synced to your account."
-              : "Saved to this browser. Sign in later to sync across devices."}
+              : "Saved to this browser until you sign in."}
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-3">
+        <div className="flex-1 space-y-6 overflow-y-auto overscroll-contain px-5 pb-4 pt-1">
+          {!isAuthenticated && onSignIn && (
+            <div className="flex items-center gap-3 rounded-2xl border border-primary/40 bg-primary/10 p-3.5">
+              <span
+                aria-hidden
+                className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary"
+              >
+                <UserRound className="size-[18px]" />
+              </span>
+              <p className="min-w-0 flex-1 text-[13px] leading-snug">
+                <span className="block font-semibold">Keep this on every device</span>
+                <span className="text-muted-foreground">
+                  Sign in and your home, providers and alerts follow you.
+                </span>
+              </p>
+              <Button type="button" size="sm" onClick={onSignIn}>
+                Sign in
+              </Button>
+            </div>
+          )}
+
+          <HomeSettings
+            home={draft.home}
+            myProviders={draft.myProviders}
+            mapCentre={currentView}
+            onHomeChange={(home) => update({ home })}
+            onProvidersChange={(myProviders) => update({ myProviders })}
+            onShowHome={(home) => {
+              onShowHome(home);
+              onOpenChange(false);
+            }}
+          />
+
           <AppearancePicker />
 
           <section>
@@ -219,7 +260,7 @@ function SettingsForm({
                     <span>
                       <span className="block">Alert me about new outages</span>
                       <span className="block text-xs font-normal text-muted-foreground">
-                        Near the area you are viewing now
+                        {draft.home ? "Near your home" : "Near the area you are viewing now"}
                       </span>
                     </span>
                   </span>

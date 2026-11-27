@@ -96,6 +96,8 @@ What the migrations contain:
   states each one serves, feed rows linked to providers, and network-wide
   outages returned to every viewport. Additive: apply it before deploying the
   code that reads it.
+- `0008_home_and_my_providers.sql`: a saved home and the person's own power,
+  internet and mobile providers on `user_preferences`. Also additive.
 
 There is no row level security. Only the app's server code reaches the database,
 and [`lib/data/postgres-repo.ts`](lib/data/postgres-repo.ts) scopes every write
