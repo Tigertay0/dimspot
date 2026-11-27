@@ -23,6 +23,8 @@ export interface ClusterAggregates {
   /** Count per severity, so the worst one can colour the bubble. */
   severityCounts: Record<Severity, number>;
   serviceCounts: Record<ServiceType, number>;
+  /** Customers out across the cluster, where its members say. */
+  customers: number;
 }
 
 export interface ClusterProperties extends ClusterAggregates {
@@ -75,6 +77,7 @@ export function useClusters(outages: Outage[], viewport: Viewport | null) {
       map: (props) => ({
         severityCounts: { ...props.severityCounts },
         serviceCounts: { ...props.serviceCounts },
+        customers: props.customers,
       }),
 
       reduce: (accumulated, props) => {
@@ -84,6 +87,7 @@ export function useClusters(outages: Outage[], viewport: Viewport | null) {
         for (const key of Object.keys(props.serviceCounts) as ServiceType[]) {
           accumulated.serviceCounts[key] += props.serviceCounts[key];
         }
+        accumulated.customers += props.customers;
       },
     });
 
@@ -102,6 +106,7 @@ export function useClusters(outages: Outage[], viewport: Viewport | null) {
             outage,
             severityCounts,
             serviceCounts,
+            customers: Math.max(0, outage.customersAffected ?? 0),
           },
           geometry: {
             type: "Point" as const,

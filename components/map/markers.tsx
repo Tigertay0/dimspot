@@ -101,19 +101,33 @@ function halo(color: string, alpha: number) {
   return `color-mix(in oklab, ${color} ${Math.round(alpha * 100)}%, transparent)`;
 }
 
+/** "1.2k", "14k": short enough for a marker, exact below a thousand. */
+export function shortCount(value: number): string {
+  if (value >= 10_000) return `${Math.round(value / 1000)}k`;
+  if (value >= 1000) return `${Math.round(value / 100) / 10}k`;
+  return String(value);
+}
+
 /**
- * Cluster: a count in a white disc, the same surface as a single marker's
- * pill. A thin ring shows the severity mix of what it holds (one arc per
- * severity, in proportion), and the size is compressed so a 200-outage cluster
- * does not swamp a 3-outage one.
+ * Several outages too close to tell apart at this zoom.
+ *
+ * The same white pill as a single outage, so the map speaks one visual
+ * language, with a second pill's edge showing behind it: a stack, not a
+ * badge. It gives the customers out across the group (what a reader wants to
+ * know), or how many reports when none of them says. Tapping zooms in to
+ * pull the stack apart.
  */
 export function ClusterMarker({
   count,
   severityCounts,
+  serviceCounts,
+  customers,
   onClick,
 }: {
   count: number;
   severityCounts: Record<Severity, number>;
+  serviceCounts: Record<ServiceType, number>;
+  customers: number;
   onClick: () => void;
 }) {
   const order: Severity[] = ["complete", "degraded", "intermittent"];
@@ -121,33 +135,40 @@ export function ClusterMarker({
   const worst = dominantSeverity(present.length > 0 ? present : ["intermittent"]);
   const color = SEVERITY_META[worst].token;
 
-  const total = present.reduce((sum, s) => sum + severityCounts[s], 0) || 1;
-  let turned = 0;
-  const arcs = present.map((s) => {
-    const from = turned;
-    turned += (severityCounts[s] / total) * 360;
-    return `${SEVERITY_META[s].token} ${from}deg ${turned}deg`;
-  });
-  const ring =
-    arcs.length > 1 ? `conic-gradient(from -90deg, ${arcs.join(", ")})` : color;
+  const service = (Object.keys(serviceCounts) as ServiceType[]).reduce((a, b) =>
+    serviceCounts[b] > serviceCounts[a] ? b : a,
+  );
 
-  const size = Math.round(Math.min(52, 34 + Math.log2(count + 1) * 2.2));
+  const label = customers > 0 ? shortCount(customers) : `${count} reports`;
 
   return (
     <button
       type="button"
       onClick={onClick}
-      style={{ width: size, height: size, background: ring, boxShadow: "var(--shadow-marker)" }}
       className={cn(
-        "group relative flex items-center justify-center rounded-full p-[2px]",
+        "tap-target group relative flex h-8 animate-marker-in items-center",
         "transition-transform duration-150 ease-out hover:scale-105 active:scale-95",
-        "focus-visible:outline-none focus-visible:ring-2",
-        "focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground",
+        "focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-full",
       )}
-      aria-label={`${count} outages in this area. Zoom in to see them.`}
+      aria-label={`${count} outages here${
+        customers > 0 ? `, ${customers.toLocaleString("en-US")} customers out` : ""
+      }. Zoom in to see them.`}
     >
-      <span className="flex size-full items-center justify-center rounded-full bg-[var(--marker)] text-[13px] font-semibold tabular-nums text-foreground">
-        {count > 999 ? `${Math.round(count / 100) / 10}k` : count}
+      {/* The pill behind: offset down and right, so the edge reads as a stack. */}
+      <span
+        aria-hidden
+        className="absolute inset-0 translate-x-[3px] translate-y-[3px] rounded-full border border-[var(--marker-edge)] bg-[var(--marker)]"
+        style={{ boxShadow: "var(--shadow-marker)" }}
+      />
+      <span
+        className="relative flex h-8 items-center gap-1 rounded-full border border-[var(--marker-edge)] bg-[var(--marker)] px-2.5 text-[13px] font-semibold tabular-nums text-foreground"
+        style={{ boxShadow: "var(--shadow-marker)" }}
+      >
+        <span aria-hidden style={{ color }} className="flex">
+          <ServiceIcon type={service} className="size-3.5 stroke-[2.5]" />
+        </span>
+        {label}
       </span>
     </button>
   );
@@ -194,7 +215,7 @@ export function OutageMarker({
       onClick={onClick}
       style={{ boxShadow: "var(--shadow-marker)" }}
       className={cn(
-        "tap-target group relative flex h-8 items-center justify-center gap-1 rounded-full border text-[13px] font-semibold tabular-nums",
+        "tap-target group relative flex h-8 animate-marker-in items-center justify-center gap-1 rounded-full border text-[13px] font-semibold tabular-nums",
         "transition-[transform,background-color,color] duration-150 ease-out hover:scale-105 active:scale-95",
         label ? "px-2.5" : "w-8",
         isSelected

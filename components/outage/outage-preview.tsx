@@ -41,7 +41,9 @@ export function OutagePreview({
       : `first seen ${timeAgo(outage.reportedAt)}`;
 
   return (
-    <div className="panel pointer-events-auto relative rounded-2xl">
+    // Rises into place rather than appearing (tailwindcss-animate), and simply
+    // appears for anyone who has asked for less motion.
+    <div className="panel pointer-events-auto relative rounded-2xl animate-in fade-in-0 slide-in-from-bottom-3 duration-200 ease-out motion-reduce:animate-none">
       <button
         type="button"
         onClick={onOpen}

@@ -241,8 +241,27 @@
   animation: pulse-ring 2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
 }
 
+/* A marker arriving on the map: a quick settle rather than a pop. `backwards`
+   applies the start state before it runs and then lets go, so hover and
+   selected scaling still work once it has finished. */
+@keyframes marker-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-marker-in {
+  animation: marker-in 200ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .animate-pulse-ring {
+  .animate-pulse-ring,
+  .animate-marker-in {
     animation: none;
   }
 }

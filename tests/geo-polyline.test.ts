@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   boundsOf,
+  clipToCircle,
   decodePolyline,
   encodePolyline,
+  reachOf,
   ringsToGeometry,
   simplify,
   type Position,
@@ -86,5 +88,52 @@ describe("ringsToGeometry", () => {
     const geometry = ringsToGeometry([open, [[3, 3]]]);
     expect(geometry).toEqual({ type: "Polygon", coordinates: [[...open, [0, 0]]] });
     expect(ringsToGeometry([])).toBeNull();
+  });
+});
+
+describe("clipToCircle", () => {
+  // A 2 x 2 degree square on the equator, where a degree is a degree both ways.
+  const square = {
+    type: "Polygon" as const,
+    coordinates: [[[-1, -1], [1, -1], [1, 1], [-1, 1], [-1, -1]] as Position[]],
+  };
+
+  it("shows nothing before the spread starts and all of it once it has passed every corner", () => {
+    expect(clipToCircle(square, [0, 0], 0)).toBeNull();
+    const reach = reachOf([-1, -1, 1, 1], [0, 0]);
+    expect(reach).toBeCloseTo(Math.SQRT2, 6);
+    const full = clipToCircle(square, [0, 0], reach * 1.01);
+    const bounds = boundsOf(full!);
+    bounds.forEach((value, i) => expect(value).toBeCloseTo([-1, -1, 1, 1][i], 6));
+  });
+
+  it("is the circle while the circle is inside the shape", () => {
+    const small = clipToCircle(square, [0, 0], 0.5);
+    expect(small?.type).toBe("Polygon");
+    const ring = (small as { coordinates: Position[][] }).coordinates[0];
+    for (const [x, y] of ring) expect(Math.hypot(x, y)).toBeCloseTo(0.5, 6);
+  });
+
+  it("grows from an off-centre point and keeps only the part inside", () => {
+    // From the square's corner: a quarter of the circle is inside. The circle
+    // is a 48-gon, so its rim is within 0.0002 of a true circle here.
+    const corner = clipToCircle(square, [-1, -1], 0.5);
+    const [west, south, east, north] = boundsOf(corner!);
+    expect(west).toBeCloseTo(-1, 6);
+    expect(south).toBeCloseTo(-1, 6);
+    expect(east).toBeCloseTo(-0.5, 3);
+    expect(north).toBeCloseTo(-0.5, 3);
+  });
+
+  it("keeps a hole that the spread has reached", () => {
+    const withHole = {
+      type: "Polygon" as const,
+      coordinates: [
+        [[-1, -1], [1, -1], [1, 1], [-1, 1], [-1, -1]],
+        [[-0.2, -0.2], [0.2, -0.2], [0.2, 0.2], [-0.2, 0.2], [-0.2, -0.2]],
+      ] as Position[][],
+    };
+    const clipped = clipToCircle(withHole, [0.5, 0], 0.8) as { coordinates: Position[][] };
+    expect(clipped.coordinates).toHaveLength(2);
   });
 });

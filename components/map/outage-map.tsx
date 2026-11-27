@@ -26,7 +26,7 @@ import type { Advisory, BoundingBox, Outage, OutageArea } from "@/lib/types";
 import { AreaLayer, ESTIMATE_MIN_PX, areaBounds, zoomToShow } from "./area-layer";
 import { FALLBACK_STYLE } from "./basemap";
 import { MARKERS_MIN_ZOOM, heatLayer, outagesToGeoJSON } from "./heat-layer";
-import { AdvisoryMarker, ClusterMarker, OutageMarker } from "./markers";
+import { AdvisoryMarker, ClusterMarker, OutageMarker, shortCount } from "./markers";
 import { useClusters, type ClusterProperties, type PointProperties } from "./use-clusters";
 import { useTintedBasemap } from "./use-tinted-basemap";
 
@@ -61,13 +61,7 @@ function chromePadding(map: Pick<MapRef, "getContainer"> | null | undefined) {
 /** "1.2k" for customers out, or the confirmation count on a report; else nothing. */
 function markerLabel(outage: Outage): string | null {
   const customers = outage.customersAffected;
-  if (customers !== null && customers > 0) {
-    return customers >= 10_000
-      ? `${Math.round(customers / 1000)}k`
-      : customers >= 1000
-        ? `${Math.round(customers / 100) / 10}k`
-        : String(customers);
-  }
+  if (customers !== null && customers > 0) return shortCount(customers);
   return outage.verificationCount > 1 ? String(outage.verificationCount) : null;
 }
 
@@ -451,7 +445,12 @@ export function OutageMap({
       {!picking && selectedArea && (
         // Keyed by kind, and each kind has its own source and layer ids: reusing
         // one id across the switch left the map with neither drawn.
-        <AreaLayer key={selectedArea.kind} area={selectedArea} beforeId={firstLabelLayer} />
+        <AreaLayer
+          key={selectedArea.kind}
+          area={selectedArea}
+          origin={outages.find((o) => o.id === selectedId) ?? null}
+          beforeId={firstLabelLayer}
+        />
       )}
 
       {/* Advisories render first so outage markers sit above them: a report of
@@ -493,6 +492,8 @@ export function OutageMap({
                 <ClusterMarker
                   count={cluster.point_count}
                   severityCounts={cluster.severityCounts}
+                  serviceCounts={cluster.serviceCounts}
+                  customers={cluster.customers}
                   onClick={() =>
                     revealCluster(cluster.cluster_id, longitude, latitude)
                   }
