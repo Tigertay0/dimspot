@@ -6,6 +6,21 @@ import type { RateLimitResult } from "./rate-limit";
 
 /** Shared response helpers so every route reports errors the same way. */
 
+/** A request body past the size any real client sends. */
+export class RequestTooLargeError extends Error {
+  constructor() {
+    super("That request is too large.");
+    this.name = "RequestTooLargeError";
+  }
+}
+
+/**
+ * The largest JSON body a route reads. The biggest honest one is a settings
+ * save (twenty saved places, a hundred provider ids), about 10 KB. Without a
+ * cap, a field with no length limit was a way to store megabytes per request.
+ */
+export const MAX_JSON_BYTES = 32 * 1024;
+
 export function ok<T>(data: T, init?: ResponseInit) {
   return NextResponse.json(data, init);
 }
@@ -36,6 +51,10 @@ export function tooMany(result: RateLimitResult) {
  * the client.
  */
 export function serverError(error: unknown, context: string) {
+  if (error instanceof RequestTooLargeError) {
+    return NextResponse.json({ error: error.message }, { status: 413 });
+  }
+
   if (error instanceof InvalidInputError) {
     return badRequest(
       error.message,
@@ -54,10 +73,41 @@ export function serverError(error: unknown, context: string) {
   );
 }
 
-/** Parse a JSON body, tolerating an empty or malformed one. */
-export async function readJson(request: Request): Promise<unknown> {
+/**
+ * Parse a JSON body, tolerating an empty or malformed one, and refusing one
+ * over `maxBytes` (thrown as RequestTooLargeError, which serverError turns
+ * into a 413). The declared length is checked first and the stream is counted
+ * as it is read, so an oversized body is dropped without being buffered.
+ */
+export async function readJson(request: Request, maxBytes = MAX_JSON_BYTES): Promise<unknown> {
+  const declared = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) throw new RequestTooLargeError();
+
+  let text = "";
   try {
-    return await request.json();
+    const reader = request.body?.getReader();
+    if (!reader) return {};
+
+    const decoder = new TextDecoder();
+    let received = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new RequestTooLargeError();
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+  } catch (error) {
+    if (error instanceof RequestTooLargeError) throw error;
+    return {};
+  }
+
+  try {
+    return text ? JSON.parse(text) : {};
   } catch {
     return {};
   }

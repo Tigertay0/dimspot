@@ -35,14 +35,16 @@ export const createOutageSchema = z.object({
 
 export const commentSchema = z.object({
   comment: z.string().trim().min(1, "Say something").max(500),
-  commentType: z.enum(["update", "resolution", "escalation"]).default("update"),
+  // Not "resolution": that entry reads "Reported as restored" on the timeline,
+  // and only a real "it's back" vote may write it (the repository does, itself).
+  commentType: z.enum(["update", "escalation"]).default("update"),
 });
 
 /** A provider slug or nothing. The repository checks it names a real provider. */
 const providerSlugSchema = z.string().regex(/^[a-z0-9-]{1,64}$/).nullable().optional();
 
 export const savedLocationSchema = z.object({
-  id: z.string(),
+  id: z.string().min(1).max(64),
   name: z.string().trim().min(1).max(60),
   latitude: latitudeSchema,
   longitude: longitudeSchema,
@@ -50,9 +52,9 @@ export const savedLocationSchema = z.object({
 });
 
 export const preferencesSchema = z.object({
-  serviceTypes: z.array(serviceTypeSchema),
-  providerIds: z.array(z.string().max(64)).max(100),
-  severities: z.array(severitySchema),
+  serviceTypes: z.array(serviceTypeSchema).max(SERVICE_TYPES.length),
+  providerIds: z.array(z.string().max(64)).max(200),
+  severities: z.array(severitySchema).max(SEVERITIES.length),
   savedLocations: z.array(savedLocationSchema).max(20),
   notifications: z.object({
     enabled: z.boolean(),

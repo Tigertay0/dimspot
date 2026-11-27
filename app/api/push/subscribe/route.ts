@@ -4,6 +4,7 @@ import { LIMITS, consumeAddressLimit, consumeRateLimit } from "@/lib/rate-limit"
 import { getWritableIdentity } from "@/lib/identity";
 import { pushConfigured, removeSubscription, saveSubscription } from "@/lib/push";
 import { fieldErrors, preferencesSchema, pushSubscriptionSchema } from "@/lib/validation";
+import { rejectCrossSite } from "@/lib/request-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,9 @@ const bodySchema = z.object({
  */
 export async function POST(request: Request) {
   try {
+    const crossSite = rejectCrossSite(request);
+    if (crossSite) return crossSite;
+
     if (!pushConfigured()) {
       return badRequest("Push notifications are not configured on this server");
     }
@@ -95,6 +99,9 @@ export async function POST(request: Request) {
 /** DELETE /api/push/subscribe — unsubscribe this browser. */
 export async function DELETE(request: Request) {
   try {
+    const crossSite = rejectCrossSite(request);
+    if (crossSite) return crossSite;
+
     const blocked = await limitByAddress(request);
     if (blocked) return blocked;
 

@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "./constants";
 import { getPool } from "./db";
 import { linkEmail, sendEmail, type OutgoingEmail } from "./email";
-import { LIMITS, consumeRateLimit } from "./rate-limit";
+import { LIMITS, consumeRateLimit, consumeGlobalLimit } from "./rate-limit";
 
 /**
  * Accounts (PRD section 4.3), on Better Auth with users stored in the app's
@@ -68,6 +68,14 @@ async function sendAccountEmail(mail: OutgoingEmail): Promise<void> {
   const allowed = await consumeRateLimit(`email:to:${recipient}`, limit, windowMs);
   if (!allowed.allowed) {
     console.warn("[auth] account email skipped: recipient over its hourly limit");
+    return;
+  }
+  // And everyone together: many addresses aiming at many inboxes pass every
+  // limit above, and unsolicited mail is what gets a sending domain blocked,
+  // which would stop verification mail for real sign-ups too.
+  const sitewide = await consumeGlobalLimit("email:account", LIMITS.accountEmailGlobal);
+  if (sitewide) {
+    console.warn("[auth] account email skipped: sitewide hourly limit reached");
     return;
   }
   await sendEmail(mail);

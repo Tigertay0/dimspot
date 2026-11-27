@@ -2,7 +2,14 @@ import { PROVIDER_CATALOG } from "./data/provider-catalog";
 import type { ServiceType, Severity } from "./types";
 
 /** Confirmations required before an outage is badged as verified. */
-export const VERIFICATION_THRESHOLD = 5;
+/**
+ * Confirmations that make a report "verified". Counted by distinct network,
+ * not by person (db/migrations/0009_abuse_hardening.sql): three households.
+ */
+export const VERIFICATION_THRESHOLD = 3;
+
+/** Distinct networks behind a report before nearby subscribers are alerted. */
+export const ALERT_THRESHOLD = 2;
 
 /** Zoom at which clusters give way to individual markers (PRD §4.1 "Level 3"). */
 export const MARKER_ZOOM = 13;

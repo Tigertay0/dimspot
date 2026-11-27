@@ -2,8 +2,8 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { badRequest, ok, serverError, tooMany } from "@/lib/api";
 import { getIdentity } from "@/lib/identity";
-import { suggestUrl, toSuggestions } from "@/lib/geocode/photon";
-import { LIMITS, consumeAddressLimit, rateLimit } from "@/lib/rate-limit";
+import { reverseUrl, suggestUrl, toReversePlace, toSuggestions } from "@/lib/geocode/photon";
+import { LIMITS, consumeAddressLimit, consumeGlobalLimit, rateLimit } from "@/lib/rate-limit";
 import type { GeocodeResult } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -128,6 +128,8 @@ async function callNominatim(
   return response.json();
 }
 
+const MAX_QUERY_LENGTH = 200;
+
 const COUNTRIES = (process.env.GEOCODER_COUNTRY_CODES ?? "us")
   .split(",")
   .map((code) => code.trim().toLowerCase())
@@ -153,10 +155,39 @@ async function suggest(query: string, params: URLSearchParams): Promise<GeocodeR
   return toSuggestions(await response.json(), { query, countries: COUNTRIES });
 }
 
+/** The address at a point from Photon, or null (none nearby, or Photon is down). */
+async function reversePhoton(latitude: number, longitude: number): Promise<GeocodeResult | null> {
+  try {
+    const response = await fetch(reverseUrl(latitude, longitude), {
+      headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+      next: { revalidate: 3600 },
+    });
+    if (!response.ok) return null;
+    return toReversePlace(await response.json(), { countries: COUNTRIES });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The two limits in front of Nominatim, whose usage policy is one request a
+ * second for the whole app. Per address first, and low: otherwise one caller
+ * could spend the shared budget and take the lookup away from everyone.
+ */
+async function limitNominatim(request: NextRequest) {
+  const perAddress = await consumeAddressLimit(
+    "geocode:search:addr",
+    request,
+    LIMITS.geocodeSearchByAddress,
+  );
+  if (perAddress) return perAddress;
+  return consumeGlobalLimit("geocode:search", LIMITS.geocodeSearchGlobal);
+}
+
 /**
  * GET /api/geocode?q=beth&suggest=1  suggestions while typing (Photon)
  * GET /api/geocode?q=90210           submitted search, up to 5 results (Nominatim)
- * GET /api/geocode?lat=..&lng=..     reverse lookup, returns 0 or 1 result
+ * GET /api/geocode?lat=..&lng=..     reverse lookup, 0 or 1 result (Photon, then Nominatim)
  *
  * `near_lat`, `near_lng` and `near_zoom` bias suggestions towards the map.
  */
@@ -192,6 +223,19 @@ export async function GET(request: NextRequest) {
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
         return badRequest("lat and lng must be numbers");
       }
+      if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
+        return badRequest("lat and lng are out of range");
+      }
+
+      // Photon first: it has no one-a-second policy to spend, and the report
+      // sheet asks this on every pause while the pin is dragged.
+      const upstreamBusy = await consumeGlobalLimit("geocode:suggest", LIMITS.geocodeSuggestGlobal);
+      if (upstreamBusy) return tooMany(upstreamBusy);
+      const nearby = await reversePhoton(latitude, longitude);
+      if (nearby) return ok({ results: [nearby] });
+
+      const busy = await limitNominatim(request);
+      if (busy) return tooMany(busy);
 
       const body = await callNominatim(
         "/reverse",
@@ -218,10 +262,17 @@ export async function GET(request: NextRequest) {
     const query = params.get("q")?.trim();
     if (!query) return badRequest("Provide q, or lat and lng");
     if (query.length < 2) return ok({ results: [] });
+    // No address is this long; an unbounded one was forwarded upstream whole.
+    if (query.length > MAX_QUERY_LENGTH) return badRequest("That search is too long");
 
     if (params.get("suggest")) {
+      const busy = await consumeGlobalLimit("geocode:suggest", LIMITS.geocodeSuggestGlobal);
+      if (busy) return tooMany(busy);
       return ok({ results: await suggest(query, params) });
     }
+
+    const busy = await limitNominatim(request);
+    if (busy) return tooMany(busy);
 
     const places = await callNominatim(
       "/search",

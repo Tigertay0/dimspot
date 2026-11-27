@@ -1,6 +1,6 @@
 import "server-only";
 import webpush from "web-push";
-import { MILES_TO_METERS, SEVERITY_META } from "./constants";
+import { ALERT_THRESHOLD, MILES_TO_METERS, SERVICE_META, SEVERITY_META } from "./constants";
 import { isDatabaseConfigured, query } from "./db";
 import { haversineMeters } from "./geo";
 import type { NotificationSettings, Outage, Severity } from "./types";
@@ -280,7 +280,37 @@ async function send(target: Target, payload: PushPayload): Promise<boolean> {
 }
 
 /**
- * Fan out a new-outage alert.
+ * Take the one alert an outage gets, if it has earned it.
+ *
+ * A report used to be pushed to every subscriber nearby the moment it was
+ * filed, carrying text the reporter typed. One request from anyone was an
+ * alert of their wording on up to 500 phones. Now a report alerts once, and
+ * only when a second network has confirmed it; the UPDATE both checks that
+ * and claims the alert, so two confirmations landing together send one.
+ */
+const localAlerts = new Set<string>();
+
+export async function claimAlert(outage: Outage): Promise<boolean> {
+  if (!isDatabaseConfigured()) {
+    if (localAlerts.has(outage.id) || outage.status !== "active") return false;
+    if (outage.origin === "crowdsourced" && outage.verificationCount < ALERT_THRESHOLD) return false;
+    localAlerts.add(outage.id);
+    return true;
+  }
+
+  const claimed = await query<{ id: string }>(
+    `UPDATE outages SET alerted_at = NOW()
+     WHERE id = $1 AND alerted_at IS NULL AND status = 'active'
+       AND (origin <> 'crowdsourced' OR COALESCE(verification_count, 0) >= $2)
+     RETURNING id`,
+    [outage.id, ALERT_THRESHOLD],
+  );
+  return claimed.length > 0;
+}
+
+/**
+ * Alert nearby subscribers about an outage, at most once, when it qualifies.
+ * Safe to call after every report and every confirmation.
  *
  * Must run inside `after()` (on Workers, the request's waitUntil), not as a
  * floating promise: the runtime stops work once the response is sent, and a
@@ -289,20 +319,23 @@ async function send(target: Target, payload: PushPayload): Promise<boolean> {
  */
 const SEND_BATCH = 20;
 
-export async function notifyNewOutage(outage: Outage): Promise<number> {
+export async function alertSubscribers(outage: Outage): Promise<number> {
   if (!pushConfigured()) return 0;
+  if (!(await claimAlert(outage))) return 0;
 
   const targets = (await targetsFor(outage)).filter(
     (target) => !inQuietHours(target.settings, target.timezone),
   );
   if (targets.length === 0) return 0;
 
-  const where = outage.city ? ` in ${outage.city}` : "";
-  const what = outage.providerName ?? outage.serviceType;
+  // Nothing the reporter typed: the provider's name comes from the catalog
+  // and the rest is fixed wording. Every recipient is inside their own alert
+  // radius, so "near you" is true for each of them.
+  const what = outage.providerName ?? SERVICE_META[outage.serviceType].shortLabel;
 
   const payload: PushPayload = {
     title: `${SEVERITY_META[outage.severity].label}: ${what}`,
-    body: `Reported${where}. Tap to see details.`,
+    body: "Reported near you and confirmed by a neighbor. Tap to see details.",
     url: `/map?outage=${outage.id}`,
     tag: `outage-${outage.id}`,
   };
@@ -316,6 +349,14 @@ export async function notifyNewOutage(outage: Outage): Promise<number> {
       targets.slice(i, i + SEND_BATCH).map((target) => send(target, payload)),
     );
     delivered += results.filter(Boolean).length;
+  }
+
+  // Starts each recipient's ten-minute cooldown (push_targets skips anyone
+  // alerted more recently), so a burst of reports is one buzz, not twenty.
+  if (isDatabaseConfigured()) {
+    await query("UPDATE push_subscriptions SET last_alerted_at = NOW() WHERE endpoint = ANY($1)", [
+      targets.map((target) => target.endpoint),
+    ]).catch((error) => console.error("[push] could not start alert cooldown", error));
   }
   return delivered;
 }

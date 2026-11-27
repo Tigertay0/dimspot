@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { ok, serverError } from "@/lib/api";
 import { getRepository } from "@/lib/data";
 import { parseBboxParam } from "@/lib/geo";
+import { limitRead } from "@/lib/read-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,9 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(request: NextRequest) {
   try {
+    const throttled = await limitRead(request);
+    if (throttled) return throttled;
+
     const bounds = parseBboxParam(request.nextUrl.searchParams.get("bbox"));
     const advisories = await getRepository().listAdvisories(bounds);
 

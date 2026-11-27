@@ -161,7 +161,7 @@ export function ReportSheet({
     if (!serviceType || !severity || !pickedLocation) return;
 
     try {
-      const { outage } = await createOutage.mutateAsync({
+      const { outage, merged } = await createOutage.mutateAsync({
         providerId,
         serviceType,
         severity,
@@ -174,10 +174,17 @@ export function ReportSheet({
         zipCode: place?.zipCode ?? null,
       });
 
-      toast({
-        title: "Report submitted",
-        description: "It is on the map now. Others can confirm it.",
-      });
+      toast(
+        merged
+          ? {
+              title: "Added to a report nearby",
+              description: "Someone already reported this here, so yours counts as a confirmation.",
+            }
+          : {
+              title: "Report submitted",
+              description: "It is on the map now. Neighbors are alerted once someone else confirms it.",
+            },
+      );
 
       onOpenChange(false);
       onReported(outage.id);

@@ -1,15 +1,18 @@
-import { notFound, ok, serverError, tooMany } from "@/lib/api";
+import { notFound, ok, serverError } from "@/lib/api";
+import { voteNetwork } from "@/lib/client-address";
 import { getRepository } from "@/lib/data";
 import { getWritableIdentity } from "@/lib/identity";
-import { LIMITS, consumeAddressLimit, consumeRateLimit } from "@/lib/rate-limit";
+import { LIMITS } from "@/lib/rate-limit";
+import { limitWrite, rejectCrossSite } from "@/lib/request-guard";
 
 export const dynamic = "force-dynamic";
 
 /**
  * POST /api/outages/:id/resolve — "it's back for me".
  *
- * With a database this is a vote; the status only flips once enough people
- * agree (see apply_resolution_votes in db/migrations/0002_app.sql). The local repository resolves
+ * With a database this is a vote; the status only flips once enough distinct
+ * networks agree, and never for an official outage (apply_resolution_votes in
+ * db/migrations/0009_abuse_hardening.sql). The local repository resolves
  * immediately, which is fine for demo data.
  */
 export async function POST(
@@ -17,24 +20,19 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const crossSite = rejectCrossSite(request);
+    if (crossSite) return crossSite;
+
     const { id } = await params;
     const identity = await getWritableIdentity();
 
-    const perIdentity = await consumeRateLimit(
-      `outage:resolve:${identity.id}`,
-      LIMITS.resolve.limit,
-      LIMITS.resolve.windowMs,
-    );
-    if (!perIdentity.allowed) return tooMany(perIdentity);
+    const blocked = await limitWrite(request, identity, "outage:resolve", {
+      identity: LIMITS.resolve,
+      address: LIMITS.resolveByAddress,
+    });
+    if (blocked) return blocked;
 
-    const perAddress = await consumeAddressLimit(
-      "outage:resolve:addr",
-      request,
-      LIMITS.resolveByAddress,
-    );
-    if (perAddress) return tooMany(perAddress);
-
-    const outage = await getRepository().resolveOutage(id, identity.id);
+    const outage = await getRepository().resolveOutage(id, identity.id, voteNetwork(request));
     if (!outage) return notFound("That outage no longer exists");
 
     return ok({ outage });
