@@ -39,6 +39,13 @@ export interface IngestedOutage {
   utilityName: string | null;
   /** How many customers are affected, when the feed says. */
   customersAffected: number | null;
+  /** How many customers the reported area has in all, when the feed says. */
+  customersServed?: number | null;
+  /**
+   * The reported area's outline, when the feed draws one: rings as encoded
+   * polylines (lib/polyline.ts). Drawn when the outage is selected.
+   */
+  area?: string[] | null;
   /** When the outage began, if the feed says; otherwise first-seen is kept. */
   reportedAt: string | null;
   serviceType: "power" | "internet" | "cellular" | "other";

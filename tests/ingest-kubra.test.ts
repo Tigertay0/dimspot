@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { KUBRA_UTILITIES, KubraSource, decodePoint, resetKubraCache } from "@/lib/ingest/kubra";
+import { AREA_MAX_CHARS, KUBRA_UTILITIES, KubraSource, compactArea, decodePoint, resetKubraCache } from "@/lib/ingest/kubra";
+import { decodePolyline, encodePolyline, type Position } from "@/lib/polyline";
 import { PROVIDER_CATALOG } from "@/lib/data/provider-catalog";
 
 /**
@@ -232,6 +233,54 @@ describe("KubraSource", () => {
 
     const { outages = [] } = await new KubraSource(dominion).fetch();
     expect(outages.map((o) => o.state)).toEqual(["Virginia", "North Carolina"]);
+  });
+
+  it("keeps each area's outline and customer total for drawing it", async () => {
+    // A ZIP-sized square with a needless point on every side.
+    const square: Position[] = [
+      [-77.15, 38.99], [-77.125, 38.99], [-77.1, 38.99], [-77.1, 39.005], [-77.1, 39.02],
+      [-77.125, 39.02], [-77.15, 39.02], [-77.15, 39.005], [-77.15, 38.99],
+    ];
+    serve({
+      "/currentState": () => json(currentState),
+      "/configuration/": () => json(configuration),
+      "thematic-3/thematic_areas.json": () =>
+        json({
+          file_data: [
+            {
+              ...area("20817", { val: 2234 }, { cust_s: 25590 }),
+              geom: { p: ["sbbmFv}euM"], a: [encodePolyline(square)] },
+            },
+            // A total below the count out is a feed error: no total is kept.
+            area("20001", { val: 60 }, { cust_s: 10 }),
+          ],
+        }),
+    });
+
+    const { outages = [] } = await new KubraSource(pepco).fetch();
+    expect(outages[0].customersServed).toBe(25590);
+    expect(outages[0].area).toHaveLength(1);
+    // Simplified to the corners on the way in.
+    expect(decodePolyline(outages[0].area![0])).toEqual([
+      [-77.15, 38.99], [-77.1, 38.99], [-77.1, 39.02], [-77.15, 39.02], [-77.15, 38.99],
+    ]);
+    expect(outages[1]).toMatchObject({ customersServed: null, area: null });
+  });
+
+  it("leaves out an outline that is still too large after trimming", () => {
+    // A star with 8,000 spikes: every point is real detail, so no tolerance
+    // used here removes enough of it.
+    const star: Position[] = [];
+    for (let i = 0; i < 8000; i++) {
+      const angle = (i / 8000) * 2 * Math.PI;
+      const r = i % 2 ? 0.5 : 0.45;
+      star.push([-77 + r * Math.cos(angle), 39 + r * Math.sin(angle)]);
+    }
+    star.push(star[0]);
+    expect(encodePolyline(star).length).toBeGreaterThan(AREA_MAX_CHARS);
+    expect(compactArea([encodePolyline(star)])).toBeNull();
+    expect(compactArea(undefined)).toBeNull();
+    expect(compactArea(["not a polyline!"])).toBeNull();
   });
 
   it("fails rather than follow a data path that is not the usual shape", async () => {

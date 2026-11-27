@@ -3,6 +3,7 @@ import type {
   BoundingBox,
   CreateOutageInput,
   Outage,
+  OutageArea,
   OutageComment,
   OutageDetail,
   OutageQuery,
@@ -33,6 +34,9 @@ export interface Repository {
   listAdvisories(bounds?: BoundingBox): Promise<Advisory[]>;
 
   getOutage(id: string, identity: string | null): Promise<OutageDetail | null>;
+
+  /** The outage as an area to draw on the map; null if there is no such outage. */
+  getOutageArea(id: string): Promise<OutageArea | null>;
 
   /**
    * An active report of the same service within a block or so, filed in the

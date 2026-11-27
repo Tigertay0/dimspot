@@ -1,4 +1,5 @@
 import "server-only";
+import { decodePolyline, encodePolyline, simplify } from "@/lib/polyline";
 import { US_STATE_NAMES, stateCode } from "@/lib/us-states";
 import { FETCH_TIMEOUT_MS } from "./source";
 import type { IngestedOutage, OutageSource, SourceResult } from "./source";
@@ -156,12 +157,15 @@ interface ThematicArea {
     name?: string;
     n_out?: number;
     cust_a?: Counted;
+    /** Customers the area has in all. */
+    cust_s?: number;
     etr?: string | null;
     start_time?: string | null;
     /** Multi-state maps label the area's state: "MD" on some, "Missouri" on others. */
     hierarchy?: { state?: string };
   };
-  geom?: { p?: string[] };
+  /** `p`: the label point. `a`: the outline, one encoded polyline per ring. */
+  geom?: { p?: string[]; a?: string[] };
 }
 
 interface LayerChoice {
@@ -249,6 +253,40 @@ function isoOrNull(value: string | null | undefined): string | null {
   if (!value || value === "ETR-NULL") return null;
   const time = Date.parse(value);
   return Number.isFinite(time) ? new Date(time).toISOString() : null;
+}
+
+/**
+ * An area's outline, trimmed for storage. Maps draw ZIP codes to a few metres
+ * and a county can run past 50 KB; at about 20 m the shape is unchanged at any
+ * zoom the outline is looked at, and most areas come down to a few hundred
+ * bytes. One that is still large after a coarser pass is left out: the app
+ * then shows an estimate instead of the outline.
+ */
+const AREA_MAX_RINGS = 40;
+/** Simplifying is quadratic at worst; no county outline comes near this. */
+const AREA_MAX_POINTS = 20_000;
+export const AREA_MAX_CHARS = 24_000;
+
+export function compactArea(rings: string[] | undefined): string[] | null {
+  if (!Array.isArray(rings) || rings.length === 0) return null;
+
+  for (const tolerance of [0.0002, 0.001]) {
+    const out: string[] = [];
+    let chars = 0;
+    for (const encoded of rings.slice(0, AREA_MAX_RINGS)) {
+      if (typeof encoded !== "string") continue;
+      const points = decodePolyline(encoded);
+      if (!points || points.length < 4 || points.length > AREA_MAX_POINTS) continue;
+      const trimmed = simplify(points, tolerance);
+      // A sliver that simplifies to a line is not part of the shape.
+      if (trimmed.length < 4) continue;
+      const line = encodePolyline(trimmed);
+      out.push(line);
+      chars += line.length;
+    }
+    if (out.length > 0 && chars <= AREA_MAX_CHARS) return out;
+  }
+  return null;
 }
 
 /** "MD" or "Missouri" to the full state name the rest of the app stores. */
@@ -354,6 +392,11 @@ export class KubraSource implements OutageSource {
         providerSlug: this.utility.slug,
         utilityName: name,
         customersAffected: customers.val,
+        customersServed:
+          typeof area.desc?.cust_s === "number" && area.desc.cust_s >= customers.val
+            ? area.desc.cust_s
+            : null,
+        area: compactArea(area.geom?.a),
         reportedAt: isoOrNull(area.desc?.start_time),
         serviceType: "power",
         severity: "complete",
