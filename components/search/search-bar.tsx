@@ -19,6 +19,7 @@ export function SearchBar({
   onPick,
   onOpenFilters,
   onOpenSettings,
+  onOpenChange,
   activeFilterCount,
   signedIn = false,
   className,
@@ -27,6 +28,8 @@ export function SearchBar({
   onOpenFilters: () => void;
   /** Home, providers, alerts and the account live behind this. */
   onOpenSettings: () => void;
+  /** The suggestion list opened or closed, so the shell can clear what is under it. */
+  onOpenChange?: (open: boolean) => void;
   activeFilterCount: number;
   signedIn?: boolean;
   className?: string;
@@ -78,6 +81,11 @@ export function SearchBar({
   }
 
   const searching = isFetching && debounced.length >= 2;
+  const listOpen = open && debounced.length >= 2;
+
+  useEffect(() => {
+    onOpenChange?.(listOpen);
+  }, [listOpen, onOpenChange]);
 
   return (
     <div ref={containerRef} className={cn("relative", className)}>
@@ -121,7 +129,7 @@ export function SearchBar({
           autoComplete="off"
           enterKeyHint="search"
           // 16px: anything smaller and iOS Safari zooms the page on focus.
-          className="h-full min-w-0 flex-1 bg-transparent px-3 text-base font-medium tracking-[-0.01em] text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground"
+          className="h-full min-w-0 flex-1 truncate bg-transparent px-3 text-base font-medium tracking-[-0.01em] text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground"
         />
 
         {value.length > 0 && (
@@ -178,7 +186,7 @@ export function SearchBar({
         </button>
       </form>
 
-      {open && debounced.length >= 2 && (
+      {listOpen && (
         <div className="panel absolute inset-x-0 top-full z-20 mt-2 overflow-hidden rounded-2xl">
           {isFetching && results.length === 0 && (
             <p className="flex items-center gap-2 px-4 py-3.5 text-sm text-muted-foreground">
@@ -209,7 +217,7 @@ export function SearchBar({
                 >
                   <span
                     aria-hidden
-                    className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-foreground"
+                    className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-foreground"
                   >
                     <MapPin className="size-4" />
                   </span>

@@ -1,6 +1,7 @@
 "use client";
 
-import { Info, LayoutGrid } from "lucide-react";
+import { useState } from "react";
+import { Info, LayoutGrid, X } from "lucide-react";
 import { SERVICE_COVERAGE, SERVICE_META } from "@/lib/constants";
 import { useFilters } from "@/lib/store/filters";
 import { SERVICE_TYPES } from "@/lib/types";
@@ -97,18 +98,49 @@ function Tab({
  * What a layer can and cannot see, shown when one type is selected alone.
  *
  * Without it, filtering to a thinly covered type shows an empty map that looks
- * identical to a broken one. Saying what feeds exist is worth one line.
+ * identical to a broken one. One line over the map says which feeds exist; a
+ * tap opens the rest of the sentence, and the X puts it away until the type
+ * changes.
  */
 export function CoverageNote() {
   const serviceTypes = useFilters((s) => s.serviceTypes);
+  const lone = serviceTypes.length === 1 ? serviceTypes[0] : null;
+  const [dismissed, setDismissed] = useState<ServiceType | null>(null);
+  const [open, setOpen] = useState(false);
+
   // With everything on, the map is the sum of every feed and no one note
   // describes it. With nothing on, there is no layer to describe.
-  if (serviceTypes.length !== 1) return null;
+  if (!lone || dismissed === lone) return null;
+
+  const { summary, note } = SERVICE_COVERAGE[lone];
 
   return (
-    <p className="panel pointer-events-auto flex items-start gap-2 rounded-xl px-3 py-2.5 text-[13px] leading-snug text-muted-foreground">
-      <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-      <span>{SERVICE_COVERAGE[serviceTypes[0]].note}</span>
-    </p>
+    <div
+      className={cn(
+        "panel pointer-events-auto flex max-w-md items-start gap-1 text-[13px] leading-snug text-muted-foreground",
+        open ? "rounded-2xl" : "rounded-full",
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className={cn(
+          "flex min-h-10 min-w-0 flex-1 items-center gap-2 py-2 pl-3.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          open ? "rounded-2xl" : "rounded-full",
+        )}
+      >
+        <Info className="size-4 shrink-0 self-start mt-0.5" aria-hidden />
+        <span className={open ? undefined : "truncate"}>{open ? note : summary}</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => setDismissed(lone)}
+        aria-label="Dismiss"
+        className="tap-target mr-1 mt-1 flex size-8 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <X className="size-4" />
+      </button>
+    </div>
   );
 }

@@ -75,7 +75,7 @@ export function HomeSettings({
 
   function setFromDevice() {
     if (!("geolocation" in navigator)) {
-      setError("This browser cannot share a location. Use the map centre instead.");
+      setError("This browser cannot share a location. Use the map center instead.");
       return;
     }
     setBusy("gps");
@@ -91,8 +91,8 @@ export function HomeSettings({
       (failure) => {
         setError(
           failure.code === failure.PERMISSION_DENIED
-            ? "Location access is blocked for this site. Move the map to your home and use the map centre."
-            : "Could not get your location. Move the map to your home and use the map centre.",
+            ? "Location access is blocked for this site. Move the map to your home and use the map center."
+            : "Could not get your location. Move the map to your home and use the map center.",
         );
         setBusy(null);
       },
@@ -105,20 +105,20 @@ export function HomeSettings({
       <h3 className="mb-2 text-[13px] font-medium text-muted-foreground">Home</h3>
 
       {home ? (
-        <div className="flex items-center gap-3 rounded-lg border bg-background py-2 pr-1.5 pl-2.5">
+        <div className="flex items-center gap-3 py-1">
           <span
             aria-hidden
-            className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-foreground"
+            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-foreground"
           >
-            <House className="size-4" />
+            <House className="size-[18px]" />
           </span>
           <button
             type="button"
             onClick={() => onShowHome(home)}
             className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:underline"
           >
-            <span className="block truncate text-sm font-medium">{home.label}</span>
-            <span className="block truncate text-xs text-muted-foreground">
+            <span className="block truncate text-[15px] font-semibold">{home.label}</span>
+            <span className="block truncate text-[13px] text-muted-foreground">
               {home.state ? `${US_STATE_NAMES[home.state] ?? home.state} · ` : ""}
               Tap to show on the map
             </span>
@@ -127,19 +127,18 @@ export function HomeSettings({
             type="button"
             onClick={() => onHomeChange(null)}
             aria-label="Remove home"
-            className="tap-target flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
+            className="tap-target flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <Trash2 className="size-3.5" />
           </button>
         </div>
       ) : (
-        <p className="rounded-lg border bg-background p-3 text-[13px] leading-snug text-muted-foreground">
-          Save where you live and the map opens there, alerts are aimed there,
-          and reports start on your own providers.
+        <p className="text-sm leading-snug text-muted-foreground">
+          The map opens here and alerts are aimed here.
         </p>
       )}
 
-      <div className="mt-2 flex gap-2">
+      <div className="mt-3 flex gap-2">
         <Button
           type="button"
           variant="outline"
@@ -158,7 +157,7 @@ export function HomeSettings({
           className="min-w-0 flex-1 px-3"
         >
           {busy === "map" ? <Loader2 className="animate-spin" /> : <MapPin />}
-          <span className="truncate">Use map centre</span>
+          <span className="truncate">Use map center</span>
         </Button>
       </div>
       {error && <p className="mt-2 text-sm text-destructive">{error}</p>}

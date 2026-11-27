@@ -174,10 +174,14 @@ export function ReportSheet({
   return (
     // Not modal while the pin is being placed: that step is done on the map,
     // and a modal sheet dims the map and swallows the drag meant for it.
-    <Sheet open={open} onOpenChange={onOpenChange} modal={step !== "location"}>
+    <Sheet dock open={open} onOpenChange={onOpenChange} modal={step !== "location"}>
       <SheetContent
         side="bottom"
         noOverlay={step === "location"}
+        // The steps that are answered in the sheet share one height, so the
+        // sheet does not jump as the answers change length. Placing the pin is
+        // the exception: it stays short to leave the map in view.
+        className={step === "location" ? undefined : "min-h-[min(540px,82dvh)]"}
         // The map is part of this step, so touching it is not "outside".
         onInteractOutside={(event) => {
           if (step === "location") event.preventDefault();
@@ -216,7 +220,7 @@ export function ReportSheet({
         <div className="flex-1 overflow-y-auto overscroll-contain px-6 pb-4 pt-1">
           {step === "service" && (
             <div className="space-y-5">
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 {SERVICE_TYPES.map((type) => {
                   const selected = serviceType === type;
                   return (
@@ -234,7 +238,7 @@ export function ReportSheet({
                       }}
                       aria-pressed={selected}
                       className={cn(
-                        "flex h-20 flex-col items-center justify-center gap-2 rounded-xl border border-input bg-card transition-[background-color,border-color,transform] duration-150 active:scale-[0.98]",
+                        "flex h-[84px] flex-col items-start justify-between rounded-2xl border border-input bg-card p-3.5 transition-[background-color,border-color,transform] duration-150 active:scale-[0.98]",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
                         // An ink outline on a quiet fill, not an ink fill: the
                         // Next button below is the one solid ink on screen.
@@ -245,9 +249,9 @@ export function ReportSheet({
                     >
                       <ServiceIcon
                         type={type}
-                        className={cn("size-5", selected && "text-foreground")}
+                        className="size-6 stroke-[1.75]"
                       />
-                      <span className="text-sm font-medium leading-none">
+                      <span className="text-[15px] font-semibold leading-none">
                         {SERVICE_META[type].shortLabel}
                       </span>
                     </button>
@@ -284,35 +288,30 @@ export function ReportSheet({
           )}
 
           {step === "location" && (
-            <div className="space-y-3 text-sm">
-              <p className="text-muted-foreground">
-                Drag the map until the pin sits on the spot.
-              </p>
-              <div className="flex items-start gap-3 rounded-lg border bg-background p-3">
-                <span
-                  aria-hidden
-                  className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-foreground"
-                >
-                  <MapPin className="size-4" />
-                </span>
-                <div className="min-w-0 flex-1 self-center leading-snug">
+            <div className="flex items-center gap-3 pb-1">
+              <span
+                aria-hidden
+                className="flex size-12 shrink-0 items-center justify-center rounded-full bg-secondary text-foreground"
+              >
+                <MapPin className="size-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[15px] font-semibold">
                   {resolvingPlace ? (
-                    <span className="text-muted-foreground">
-                      Finding address…
-                    </span>
+                    <span className="font-normal text-muted-foreground">Finding address…</span>
                   ) : place ? (
-                    <span className="break-words font-medium">{shortAddress(place.label)}</span>
+                    shortAddress(place.label)
                   ) : pickedLocation ? (
-                    <span className="tabular-nums text-muted-foreground">
-                      {pickedLocation.latitude.toFixed(4)},{" "}
-                      {pickedLocation.longitude.toFixed(4)}
+                    <span className="tabular-nums">
+                      {pickedLocation.latitude.toFixed(4)}, {pickedLocation.longitude.toFixed(4)}
                     </span>
                   ) : (
-                    <span className="text-muted-foreground">
-                      Move the map to set a location
-                    </span>
+                    "Move the map to set a location"
                   )}
-                </div>
+                </p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  Drag the map until the pin sits on the spot.
+                </p>
               </div>
             </div>
           )}
@@ -329,7 +328,7 @@ export function ReportSheet({
                       onClick={() => setSeverity(option)}
                       aria-pressed={selected}
                       className={cn(
-                        "flex min-h-16 w-full items-center gap-3 rounded-xl border border-input bg-card px-4 py-3 text-left transition-[background-color,border-color] duration-150",
+                        "flex min-h-16 w-full items-center gap-3 rounded-2xl border border-input bg-card px-4 py-3 text-left transition-[background-color,border-color] duration-150",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
                         selected
                           ? "border-foreground bg-card shadow-[inset_0_0_0_1px_var(--foreground)]"

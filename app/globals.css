@@ -40,7 +40,9 @@
   --brand: #ffb21a;
   --radius: 0.75rem;
   --shadow-float: 0 1px 2px rgb(0 0 0 / 0.08), 0 4px 12px rgb(0 0 0 / 0.1);
-  --shadow-marker: 0 1px 2px rgb(0 0 0 / 0.12), 0 2px 6px rgb(0 0 0 / 0.14);
+  --shadow-marker: 0 1px 2px rgb(0 0 0 / 0.14), 0 3px 8px rgb(0 0 0 / 0.18);
+  --marker: #ffffff;
+  --marker-edge: rgb(0 0 0 / 0.14);
   --shadow-sheet: 0 -2px 16px rgb(0 0 0 / 0.1);
 
   /* Severity. Dark enough to hold 4.5:1 as text on white. */
@@ -72,7 +74,9 @@
   --ring: #ededed;
   --brand: #ffb21a;
   --shadow-float: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 16px rgb(0 0 0 / 0.45);
-  --shadow-marker: 0 1px 2px rgb(0 0 0 / 0.5), 0 2px 8px rgb(0 0 0 / 0.5);
+  --shadow-marker: 0 1px 2px rgb(0 0 0 / 0.6), 0 3px 10px rgb(0 0 0 / 0.6);
+  --marker: #303030;
+  --marker-edge: #5a5a5a;
   --shadow-sheet: 0 -2px 16px rgb(0 0 0 / 0.5);
 
   --severity-complete: hsl(0 84% 67%);
@@ -182,9 +186,14 @@
    edge on a phone. OpenStreetMap's licence needs it reachable at all times. */
 .maplibregl-ctrl-bottom-left {
   bottom: calc(3.75rem + env(safe-area-inset-bottom, 0px));
-  left: 0.25rem;
+  left: 0.5rem;
 }
-@media (min-width: 640px) {
+/* A marker's preview card sits where the button is; move above the card. */
+[data-preview] .maplibregl-ctrl-bottom-left {
+  bottom: calc(11.75rem + env(safe-area-inset-bottom, 0px));
+}
+/* Beside the list column there is no bar to clear. */
+@media (min-width: 1024px) {
   .maplibregl-ctrl-bottom-left {
     bottom: 0.25rem;
   }

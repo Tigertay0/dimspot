@@ -340,8 +340,10 @@ export class KubraSource implements OutageSource {
         longitude: point.lng,
         description:
           `${count} customers without power` +
+          // Who reported it is the row's source, which the app prints beside
+          // this; saying it here as well put the sentence on screen twice.
           (incidents > 1 ? ` across ${incidents} outages` : "") +
-          `. Reported by ${name} on its outage map.`,
+          ".",
         city: placeName(areaName, layer.areaType),
         state:
           this.utility.state ??

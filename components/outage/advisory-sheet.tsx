@@ -1,7 +1,6 @@
 "use client";
 
 import { CloudAlert, ExternalLink, MapPin } from "lucide-react";
-import { SEVERITY_META } from "@/lib/constants";
 import { dayAndTime } from "@/lib/format";
 import type { Advisory } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +28,7 @@ export function AdvisorySheet({
   onOpenChange: (open: boolean) => void;
 }) {
   return (
-    <Sheet open={advisory !== null} onOpenChange={onOpenChange}>
+    <Sheet dock open={advisory !== null} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
         
@@ -40,10 +39,7 @@ export function AdvisorySheet({
               <div className="flex items-center gap-3">
                 <span
                   aria-hidden
-                  style={{
-                    backgroundColor: SEVERITY_META[advisory.severity].token,
-                  }}
-                  className="flex size-12 shrink-0 items-center justify-center rounded-lg text-background"
+                  className="flex size-12 shrink-0 items-center justify-center rounded-full bg-secondary text-foreground"
                 >
                   <CloudAlert className="size-[22px]" />
                 </span>

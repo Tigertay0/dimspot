@@ -88,14 +88,14 @@ export function ProviderPicker({
             autoComplete="off"
             enterKeyHint="search"
             // 16px, or iOS Safari zooms the page when the field is focused.
-            className="h-10 w-full rounded-lg border border-input bg-background pr-9 pl-9 text-base outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/80 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15"
+            className="h-11 w-full rounded-full border border-input bg-card pr-9 pl-10 text-base outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/80 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery("")}
               aria-label="Clear provider search"
-              className="tap-target absolute right-2 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="tap-target absolute right-2 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <X className="size-4" />
             </button>

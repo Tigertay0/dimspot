@@ -9,6 +9,7 @@ import {
   MessageSquare,
   RefreshCw,
   ThumbsUp,
+  X,
 } from "lucide-react";
 import {
   VERIFICATION_THRESHOLD,
@@ -28,6 +29,7 @@ import { buildTimeline } from "@/lib/timeline";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -91,10 +93,12 @@ export function OutageDetailSheet({
     : 0;
 
   return (
-    <Sheet open={outageId !== null} onOpenChange={onOpenChange}>
+    <Sheet dock open={outageId !== null} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        
+        // The loaded sheet draws its own close button, in line with the
+        // provider's badge and name.
+        hideClose={Boolean(outage)}
       >
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
@@ -124,7 +128,7 @@ export function OutageDetailSheet({
           </div>
         ) : (
           <>
-            <SheetHeader className="pr-12">
+            <SheetHeader>
               <div className="flex items-center gap-3">
                 <ServiceBadge type={outage.serviceType} size="lg" />
 
@@ -136,6 +140,11 @@ export function OutageDetailSheet({
                     {locationLabel(outage)}
                   </p>
                 </div>
+
+                <SheetClose className="tap-target flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <X className="size-4" />
+                  <span className="sr-only">Close</span>
+                </SheetClose>
               </div>
             </SheetHeader>
 
@@ -163,7 +172,7 @@ export function OutageDetailSheet({
                   ) : outage.isVerified ? (
                     <>
                       <BadgeCheck className="size-3.5" />
-                      Verified by neighbours
+                      Verified by neighbors
                     </>
                   ) : (
                     "Not yet confirmed"
@@ -329,7 +338,12 @@ function Facts({ outage }: { outage: OutageDetail }) {
     isResolved
       ? { label: "Lasted", value: outageDuration(outage), mono: true }
       : outage.startKnown
-        ? { label: "Out for", value: outageDuration(outage), mono: true }
+        ? {
+            // "Out" claims a total loss; a slowdown or a flicker is ongoing.
+            label: outage.severity === "complete" ? "Out for" : "Ongoing for",
+            value: outageDuration(outage),
+            mono: true,
+          }
         : { label: "First seen", value: timeAgo(outage.reportedAt), mono: true },
   ];
 

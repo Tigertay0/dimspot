@@ -10,7 +10,6 @@ import type { Provider, ServiceType } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Chip } from "@/components/ui/chip";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
@@ -41,11 +40,9 @@ export function FilterSheet({
 }) {
   const { data: providers = [], isError: providersFailed } = useProviders();
 
-  const serviceTypes = useFilters((s) => s.serviceTypes);
   const severities = useFilters((s) => s.severities);
   const providerIds = useFilters((s) => s.providerIds);
   const resolvedHours = useFilters((s) => s.resolvedHours);
-  const toggleServiceType = useFilters((s) => s.toggleServiceType);
   const toggleSeverity = useFilters((s) => s.toggleSeverity);
   const toggleProvider = useFilters((s) => s.toggleProvider);
   const setProviders = useFilters((s) => s.setProviders);
@@ -97,48 +94,64 @@ export function FilterSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain px-6 pb-4">
-          <section className="pb-4 pt-1">
-            <h3 className="mb-2.5 text-[13px] font-medium text-muted-foreground">
-              Service
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {SERVICE_TYPES.map((type) => (
-                <Chip
-                  key={type}
-                  active={serviceTypes.includes(type)}
-                  onClick={() => toggleServiceType(type)}
-                >
-                  <ServiceIcon type={type} />
-                  {SERVICE_META[type].shortLabel}
-                </Chip>
-              ))}
-            </div>
-          </section>
-
-          <section className="border-t py-4">
-            <h3 className="mb-2.5 text-[13px] font-medium text-muted-foreground">
-              Severity
-            </h3>
-            <div className="flex flex-wrap gap-2">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-6 pb-4 pt-1">
+          {/* Service type is not here: the tabs under the search bar are that
+              filter, and two controls for one choice disagree sooner or later. */}
+          <section className="pb-2">
+            <h3 className="mb-1 text-[13px] font-medium text-muted-foreground">Severity</h3>
+            <ul>
               {SEVERITIES.map((severity) => (
-                <Chip
-                  key={severity}
-                  active={severities.includes(severity)}
-                  onClick={() => toggleSeverity(severity)}
-                >
-                  <span
-                    aria-hidden
-                    style={{ backgroundColor: SEVERITY_META[severity].token }}
-                    className="size-2 rounded-full"
-                  />
-                  {SEVERITY_META[severity].label}
-                </Chip>
+                <li key={severity}>
+                  <Label className="flex min-h-12 cursor-pointer items-center gap-3">
+                    <Checkbox
+                      checked={severities.includes(severity)}
+                      onCheckedChange={() => toggleSeverity(severity)}
+                    />
+                    <span
+                      aria-hidden
+                      style={{ backgroundColor: SEVERITY_META[severity].token }}
+                      className="size-2 shrink-0 rounded-full"
+                    />
+                    <span className="text-[15px] font-medium">
+                      {SEVERITY_META[severity].label}
+                    </span>
+                  </Label>
+                </li>
               ))}
-            </div>
+            </ul>
           </section>
 
-          <section className="border-t py-4">
+          <section className="border-t py-2">
+            <Label className="flex min-h-14 cursor-pointer items-center justify-between gap-4 py-2">
+              <span>
+                <span className="block text-[15px] font-medium">
+                  Show recently resolved
+                </span>
+                <span className="mt-1 block text-[13px] font-normal leading-snug text-muted-foreground">
+                  Outages fixed in the last 6 hours
+                </span>
+              </span>
+              <Switch
+                checked={resolvedHours > 0}
+                onCheckedChange={(checked) => setResolvedHours(checked ? 6 : 0)}
+              />
+            </Label>
+
+            <Label className="flex min-h-14 cursor-pointer items-center justify-between gap-4 py-2">
+              <span>
+                <span className="block text-[15px] font-medium">Storm warnings</span>
+                <span className="mt-1 block text-[13px] font-normal leading-snug text-muted-foreground">
+                  Weather that tends to cause outages, from the National Weather
+                  Service
+                </span>
+              </span>
+              <Switch
+                checked={showAdvisories}
+                onCheckedChange={(checked) => setShowAdvisories(Boolean(checked))}
+              />
+            </Label>
+          </section>
+          <section className="border-t pt-4">
             <div className="mb-2.5 flex h-6 items-center justify-between">
               <h3 className="text-[13px] font-medium text-muted-foreground">
                 Providers
@@ -169,7 +182,7 @@ export function FilterSheet({
               <div className="relative mb-2">
                 <Search
                   aria-hidden
-                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                  className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
                 />
                 <input
                   value={providerQuery}
@@ -179,7 +192,7 @@ export function FilterSheet({
                   autoComplete="off"
                   enterKeyHint="search"
                   // 16px, or iOS Safari zooms the page when the field is focused.
-                  className="h-10 w-full rounded-lg border border-input bg-background pr-9 pl-9 text-base outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/80 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15"
+                  className="h-11 w-full rounded-full border border-input bg-card pr-9 pl-10 text-base outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/80 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15"
                 />
                 {providerQuery && (
                   <button
@@ -243,7 +256,7 @@ export function FilterSheet({
                               : [...open, type],
                           )
                         }
-                        className="flex h-12 min-w-0 flex-1 items-center gap-2 text-left text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                        className="flex h-12 min-w-0 flex-1 items-center gap-2 text-left text-[15px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                       >
                         <ServiceIcon type={type} className="size-4 shrink-0 text-muted-foreground" />
                         <span className="flex-1 truncate">{SERVICE_META[type].label}</span>
@@ -298,36 +311,6 @@ export function FilterSheet({
             </div>
           </section>
 
-          <section className="border-t pt-2">
-            <Label className="flex min-h-14 cursor-pointer items-center justify-between gap-4 py-2">
-              <span>
-                <span className="block text-sm font-medium">
-                  Show recently resolved
-                </span>
-                <span className="mt-1 block text-xs font-normal leading-snug text-muted-foreground">
-                  Outages fixed in the last 6 hours
-                </span>
-              </span>
-              <Switch
-                checked={resolvedHours > 0}
-                onCheckedChange={(checked) => setResolvedHours(checked ? 6 : 0)}
-              />
-            </Label>
-
-            <Label className="flex min-h-14 cursor-pointer items-center justify-between gap-4 py-2">
-              <span>
-                <span className="block text-sm font-medium">Storm warnings</span>
-                <span className="mt-1 block text-xs font-normal leading-snug text-muted-foreground">
-                  Weather that tends to cause outages, from the National Weather
-                  Service
-                </span>
-              </span>
-              <Switch
-                checked={showAdvisories}
-                onCheckedChange={(checked) => setShowAdvisories(Boolean(checked))}
-              />
-            </Label>
-          </section>
         </div>
 
         {/* One row rather than the stacked default: three full-width buttons

@@ -61,7 +61,7 @@ export function SeverityLabel({
 }: {
   severity: Severity;
   resolved?: boolean;
-  /** "Complete" rather than "Complete outage", where a row is tight. */
+  /** "Outage" rather than "Complete outage", where a row is tight. */
   short?: boolean;
   className?: string;
 }) {
@@ -75,7 +75,7 @@ export function SeverityLabel({
           backgroundColor: resolved ? "var(--severity-resolved)" : SEVERITY_META[severity].token,
         }}
       />
-      {short ? label.replace(/ outage$/, "") : label}
+      {short && !resolved && severity === "complete" ? "Outage" : label}
     </span>
   );
 }
@@ -102,9 +102,10 @@ function halo(color: string, alpha: number) {
 }
 
 /**
- * Cluster: a white disc with the count, inside a thin ring that shows the
- * severity mix of what it holds (one arc per severity, in proportion). Size is
- * compressed, so a 200-outage cluster does not swamp a 3-outage one.
+ * Cluster: a count in a white disc, the same surface as a single marker's
+ * pill. A thin ring shows the severity mix of what it holds (one arc per
+ * severity, in proportion), and the size is compressed so a 200-outage cluster
+ * does not swamp a 3-outage one.
  */
 export function ClusterMarker({
   count,
@@ -130,7 +131,7 @@ export function ClusterMarker({
   const ring =
     arcs.length > 1 ? `conic-gradient(from -90deg, ${arcs.join(", ")})` : color;
 
-  const size = Math.round(Math.min(52, 34 + Math.log2(count + 1) * 3.5));
+  const size = Math.round(Math.min(52, 34 + Math.log2(count + 1) * 2.2));
 
   return (
     <button
@@ -138,14 +139,14 @@ export function ClusterMarker({
       onClick={onClick}
       style={{ width: size, height: size, background: ring, boxShadow: "var(--shadow-marker)" }}
       className={cn(
-        "group relative flex items-center justify-center rounded-full p-[3px]",
+        "group relative flex items-center justify-center rounded-full p-[2px]",
         "transition-transform duration-150 ease-out hover:scale-105 active:scale-95",
         "focus-visible:outline-none focus-visible:ring-2",
         "focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background",
       )}
       aria-label={`${count} outages in this area. Zoom in to see them.`}
     >
-      <span className="flex size-full items-center justify-center rounded-full bg-card text-[13px] font-semibold tabular-nums text-foreground dark:bg-accent">
+      <span className="flex size-full items-center justify-center rounded-full bg-[var(--marker)] text-[13px] font-semibold tabular-nums text-foreground">
         {count > 999 ? `${Math.round(count / 100) / 10}k` : count}
       </span>
     </button>
@@ -193,15 +194,16 @@ export function OutageMarker({
       onClick={onClick}
       style={{ boxShadow: "var(--shadow-marker)" }}
       className={cn(
-        "tap-target group relative flex h-8 items-center justify-center gap-1 rounded-full text-[13px] font-semibold tabular-nums",
+        "tap-target group relative flex h-8 items-center justify-center gap-1 rounded-full border text-[13px] font-semibold tabular-nums",
         "transition-[transform,background-color,color] duration-150 ease-out hover:scale-105 active:scale-95",
         label ? "px-2.5" : "w-8",
         isSelected
-          ? "z-10 scale-110 bg-primary text-primary-foreground"
-          : // On the dark map a card-coloured pill sinks into the streets, so
-            // it is a step lighter there and gets an edge.
-            "bg-card text-foreground dark:border dark:border-input dark:bg-accent",
-        !solid && !isSelected && "border border-dashed border-muted-foreground/70",
+          ? "z-10 scale-110 border-primary bg-primary text-primary-foreground"
+          : // --marker and its edge are set per theme in globals.css: white
+            // with a hairline on the light map, a lifted grey with a visible
+            // edge on the dark one, where a card-coloured pill disappears.
+            "border-[var(--marker-edge)] bg-[var(--marker)] text-foreground",
+        !solid && !isSelected && "border-dashed border-muted-foreground",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground",
         "focus-visible:ring-offset-2 focus-visible:ring-offset-background",
       )}

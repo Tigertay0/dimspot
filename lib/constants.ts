@@ -43,22 +43,26 @@ export const SERVICE_META: Record<
  */
 export const SERVICE_COVERAGE: Record<
   ServiceType,
-  { live: boolean; note: string }
+  { live: boolean; summary: string; note: string }
 > = {
   power: {
     live: true,
+    summary: "Covers many US utilities, not all",
     note: "Live utility data covers many US utilities, not all of them, plus anything people report. A quiet map can mean your utility is not one of them.",
   },
   internet: {
     live: true,
-    note: "Live data catches a whole provider or a whole state losing connectivity. One neighbourhood going down shows up only if someone reports it.",
+    summary: "Whole-network outages and reports",
+    note: "Live data catches a whole provider or a whole state losing connectivity. One neighborhood going down shows up only if someone reports it.",
   },
   cellular: {
     live: true,
+    summary: "Whole-network outages and reports",
     note: "Live data catches a carrier's whole network dropping, not single towers. Local dead zones show up only if someone reports them.",
   },
   other: {
     live: false,
+    summary: "Reported by people only",
     note: "Water, gas and everything else is reported by people here. No free live feed covers them.",
   },
 };
@@ -177,7 +181,7 @@ export function sourceAttribution(sourceName: string | null): string {
   if (utility) {
     return (
       `Reported by ${utility} on its own outage map, not by a person. ` +
-      `The marker is the centre of the area it reports, not one address. Confirmations do not apply.`
+      `The marker is the center of the area it reports, not one address. Confirmations do not apply.`
     );
   }
 

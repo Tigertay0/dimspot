@@ -67,7 +67,9 @@ const DARK: Rule[] = [
   { match: /highway_motorway_subtle/, color: "#262626" },
   { match: /railway.*dashline/, color: NIGHT_LAND },
   { match: /^railway/, color: "#202020" },
-  { match: /highway_name/, color: "#666666", halo: NIGHT_HALO },
+  // The dark source style sets every label in capitals; the light one does
+  // not. Mixed case in both, so switching theme changes colours, not the map.
+  { match: /highway_name/, color: "#666666", halo: NIGHT_HALO, layout: { "text-transform": "none" } },
   { match: /boundary_state/, color: "#363636", paint: { "line-dasharray": [3, 2], "line-width": 0.9 } },
   { match: /boundary_country/, color: "#525252" },
   {
@@ -75,8 +77,15 @@ const DARK: Rule[] = [
     color: "#c4c4c4",
     halo: NIGHT_HALO,
     paint: { "text-halo-width": 1.4 },
+    layout: { "text-transform": "none" },
   },
-  { match: /place_(town|village|suburb|other)/, color: "#858585", halo: NIGHT_HALO, paint: { "text-halo-width": 1.2 } },
+  {
+    match: /place_(town|village|suburb|other)/,
+    color: "#858585",
+    halo: NIGHT_HALO,
+    paint: { "text-halo-width": 1.2 },
+    layout: { "text-transform": "none" },
+  },
   {
     match: /place_state/,
     color: "#636363",
@@ -84,7 +93,12 @@ const DARK: Rule[] = [
     paint: { "text-halo-width": 1 },
     layout: { "text-transform": "uppercase", "text-letter-spacing": 0.14, "text-size": 10.5 },
   },
-  { match: /place_country/, color: "#8c8c8c", halo: NIGHT_HALO, layout: { "text-letter-spacing": 0.08 } },
+  {
+    match: /place_country/,
+    color: "#8c8c8c",
+    halo: NIGHT_HALO,
+    layout: { "text-letter-spacing": 0.08, "text-transform": "none" },
+  },
 ];
 
 const DAY_LAND = "#f4f4f2";

@@ -4,7 +4,6 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
-  useMemo,
   useRef,
   useState,
   type Ref,
@@ -13,9 +12,7 @@ import type { GeolocateControl as GeolocateControlInstance } from "maplibre-gl";
 import Map, {
   AttributionControl,
   GeolocateControl,
-  Layer,
   Marker,
-  Source,
   type MapRef,
   type ViewStateChangeEvent,
 } from "react-map-gl/maplibre";
@@ -24,17 +21,26 @@ import { DEFAULT_VIEW, HOME_BOUNDS, MARKER_ZOOM } from "@/lib/constants";
 import { useNow } from "@/lib/hooks/use-now";
 import type { Advisory, BoundingBox, Outage } from "@/lib/types";
 import { FALLBACK_STYLE } from "./basemap";
-import { MARKERS_MIN_ZOOM, heatLayer, outagesToGeoJSON } from "./heat-layer";
 import { AdvisoryMarker, ClusterMarker, OutageMarker } from "./markers";
 import { useClusters, type ClusterProperties, type PointProperties } from "./use-clusters";
 import { useTintedBasemap } from "./use-tinted-basemap";
+
+/**
+ * Below this zoom weather advisories are not drawn. Outages cluster into a
+ * handful of counted discs at country zoom; advisories do not cluster, and
+ * hundreds of diamonds would bury the discs under the quieter layer.
+ */
+const ADVISORY_MIN_ZOOM = 6;
+
+/** Wide enough for the list to sit beside the map (see use-is-desktop.ts). */
+const isWide = () => window.matchMedia("(min-width: 1024px)").matches;
 
 /** Reported within this many minutes counts as "fresh" and gets a pulse ring. */
 const FRESH_MINUTES = 15;
 
 /**
- * Inset that keeps fitted content clear of the floating chrome — the search bar
- * on top, the list panel and report button below.
+ * Inset that keeps fitted content clear of what floats over the map: the alert
+ * pill and controls along the top, the list bar and report button below.
  *
  * Proportional rather than fixed: fixed pixel padding is most of the map on a
  * short viewport, which pushes a fitBounds out to hemisphere zoom.
@@ -44,10 +50,11 @@ function chromePadding(map: Pick<MapRef, "getContainer"> | null | undefined) {
   const width = map?.getContainer().clientWidth ?? 400;
 
   return {
-    // The header (search and tabs) is about 150px; the dock and the report
-    // button take about 130px at the bottom.
-    top: Math.min(170, height * 0.22),
-    bottom: Math.min(140, height * 0.18),
+    // The pill and controls are about 60px; the list bar and the report
+    // button take about 130px at the bottom of a phone, and nothing sits
+    // there when the list is a column beside the map.
+    top: Math.min(72, height * 0.12),
+    bottom: isWide() ? 32 : Math.min(140, height * 0.18),
     left: Math.min(48, width * 0.08),
     right: Math.min(48, width * 0.08),
   };
@@ -143,12 +150,7 @@ export function OutageMap({
 
   const { clusters, expansionZoom, leaves } = useClusters(outages, viewport);
 
-  // Which of the two representations is live. Before the first viewport sync
-  // the map is at DEFAULT_VIEW, which is country zoom, so heat is the correct
-  // assumption rather than a flash of pins.
-  const showMarkers = (viewport?.zoom ?? DEFAULT_VIEW.zoom) >= MARKERS_MIN_ZOOM;
-
-  const heatData = useMemo(() => outagesToGeoJSON(outages), [outages]);
+  const showAdvisories = (viewport?.zoom ?? DEFAULT_VIEW.zoom) >= ADVISORY_MIN_ZOOM;
 
   /**
    * Reveal a cluster's contents.
@@ -263,25 +265,18 @@ export function OutageMap({
   const tinted = useTintedBasemap(theme);
   const mapStyle = styleFailed ? FALLBACK_STYLE : tinted;
 
-  // The heat map goes under the place names, so a hot region does not bury
-  // the labels that say where it is.
-  const firstLabelLayer = useMemo(() => {
-    if (!mapStyle || typeof mapStyle === "string") return undefined;
-    return mapStyle.layers.find(
-      (layer) => layer.type === "symbol" && /^(place|label)/.test(layer.id),
-    )?.id;
-  }, [mapStyle]);
-
   /**
-   * While a report location is being picked, the sheet covers the lower part
-   * of the map. Padding the map by that much moves its centre (and the pin the
-   * shell draws there) into the part that is still visible, and the centre the
-   * map reports stays the point under the pin.
+   * While a report location is being picked on a phone, the sheet covers the
+   * lower part of the map. Padding the map by that much moves its centre (and
+   * the pin the shell draws there) into the part that is still visible, and the
+   * centre the map reports stays the point under the pin. On a wide screen the
+   * sheet is beside the map and covers nothing.
    */
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const sheet = picking ? Math.min(300, map.getContainer().clientHeight * 0.38) : 0;
+    const sheet =
+      picking && !isWide() ? Math.min(280, map.getContainer().clientHeight * 0.5) : 0;
     map.easeTo({ padding: { top: 0, right: 0, left: 0, bottom: sheet }, duration: 250 });
   }, [picking]);
 
@@ -369,21 +364,10 @@ export function OutageMap({
         }
       />
 
-      {/* Density first, underneath everything: at country zoom this is the whole
-          picture, and by the time markers appear it has faded to nothing. */}
-      {!picking && (
-        <Source id="outage-heat-source" type="geojson" data={heatData}>
-          <Layer {...heatLayer} beforeId={firstLabelLayer} />
-        </Source>
-      )}
-
       {/* Advisories render first so outage markers sit above them: a report of
-          actual lost service outranks a forecast of possible lost service.
-          They also follow the same zoom gate: scattered over the heat map at
-          country zoom they read as the louder layer, which inverts what they
-          are — weather that might cause an outage, not one that happened. */}
+          actual lost service outranks a forecast of possible lost service. */}
       {!picking &&
-        showMarkers &&
+        showAdvisories &&
         advisories.map((advisory) => (
           <Marker
             key={`advisory-${advisory.id}`}
@@ -402,7 +386,6 @@ export function OutageMap({
         ))}
 
       {!picking &&
-        showMarkers &&
         clusters.map((feature) => {
           const [longitude, latitude] = feature.geometry.coordinates;
           const props = feature.properties;

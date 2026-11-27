@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
  * 70-80% of the screen the PRD asks for (section 5.1).
  */
 export function NearbyPanel({
+  docked = false,
   outages,
   networkAlerts,
   advisories,
@@ -39,6 +40,8 @@ export function NearbyPanel({
   onSelectAdvisory,
   onReport,
 }: {
+  /** A column beside the map (wide screens) rather than a sheet over it. */
+  docked?: boolean;
   /** Outages with a place, in the current viewport. */
   outages: Outage[];
   /** Outages of a whole network: listed first, wherever the map is looking. */
@@ -89,10 +92,85 @@ export function NearbyPanel({
       ? `${active.toLocaleString()} ${kind}outage${active === 1 ? "" : "s"} in view`
       : `No ${kind}outages in view`;
 
+  // A carrier failing everywhere is not "in view", so it is not in that count.
+  // With nothing else to show, it is the summary.
+  const headline =
+    !failed && active === 0 && networkAlerts.length > 0
+      ? `${networkAlerts.length} network alert${networkAlerts.length === 1 ? "" : "s"}`
+      : summary;
+
+  const rows = (
+    <>
+      {networkAlerts.length > 0 && <SectionLabel>Network-wide</SectionLabel>}
+      {networkAlerts.map((alert) => (
+        <li key={alert.id}>
+          <Row
+            outage={alert}
+            title={alert.providerName ?? "A US network"}
+            detail={`Whole network · ${sourceLabel(alert.sourceName, "short")}`}
+            figure={timeAgo(alert.reportedAt)}
+            quietFigure
+            onSelect={onSelect}
+          />
+        </li>
+      ))}
+
+      {networkAlerts.length > 0 && visible.length > 0 && <SectionLabel>In this area</SectionLabel>}
+
+      {visible.length === 0 && (networkAlerts.length === 0 || failed) && (
+        <li>
+          {failed ? (
+            <FailedState onRetry={onRetry} loading={loading} />
+          ) : (
+            <EmptyState
+              advisories={advisories}
+              onSelectAdvisory={onSelectAdvisory}
+              onReport={onReport}
+            />
+          )}
+        </li>
+      )}
+
+      {visible.map((outage) => (
+        <li key={outage.id}>
+          <Row
+            outage={outage}
+            title={outage.providerName ?? "Unknown provider"}
+            detail={locationLabel(outage)}
+            severity
+            figure={
+              outage.customersAffected !== null
+                ? `${outage.customersAffected.toLocaleString()} out`
+                : outage.origin === "crowdsourced"
+                  ? `${outage.verificationCount} confirmed`
+                  : timeAgo(outage.reportedAt)
+            }
+            quietFigure={outage.customersAffected === null}
+            onSelect={onSelect}
+          />
+        </li>
+      ))}
+    </>
+  );
+
+  // Beside the map on a wide screen: a plain column, always open.
+  if (docked) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        <h2 className="flex h-14 shrink-0 items-center gap-2 border-b px-5 text-[15px] font-semibold tracking-[-0.01em]">
+          {loading && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
+          {failed && !loading && <TriangleAlert className="size-4 text-muted-foreground" />}
+          {headline}
+        </h2>
+        <ul className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-1">{rows}</ul>
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
-        "pointer-events-auto overflow-hidden rounded-t-3xl border border-b-0 border-transparent bg-card pb-safe dark:border-border",
+        "pointer-events-auto overflow-hidden rounded-t-3xl bg-card pb-safe dark:border dark:border-b-0 dark:border-border",
         "shadow-[var(--shadow-sheet)] transition-[max-height] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
         expanded
           ? "max-h-[62dvh]"
@@ -110,94 +188,81 @@ export function NearbyPanel({
         <span className="flex flex-1 items-center gap-2 text-[15px] font-semibold tracking-[-0.01em]">
           {loading && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
           {failed && !loading && <TriangleAlert className="size-4 text-muted-foreground" />}
-          {summary}
+          {headline}
         </span>
       </button>
 
       {expanded && (
         <ul className="max-h-[calc(62dvh-4rem)] overflow-y-auto overscroll-contain border-t px-2 py-1">
-          {networkAlerts.map((alert) => (
-            <li key={alert.id}>
-              <button
-                type="button"
-                onClick={() => onSelect(alert)}
-                className="flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left transition-colors hover:bg-secondary focus-visible:bg-secondary focus-visible:outline-none"
-              >
-                <ServiceBadge type={alert.serviceType} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[15px] font-semibold">
-                    {alert.providerName ?? "A US network"}
-                  </span>
-                  <span className="mt-0.5 block truncate text-sm text-muted-foreground">
-                    Whole network · {sourceLabel(alert.sourceName, "short")}
-                  </span>
-                </span>
-                <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
-                  {timeAgo(alert.reportedAt)}
-                </span>
-              </button>
-            </li>
-          ))}
-
-          {visible.length === 0 && (
-            <li>
-              {failed ? (
-                <FailedState onRetry={onRetry} loading={loading} />
-              ) : (
-                <EmptyState
-                  advisories={advisories}
-                  onSelectAdvisory={onSelectAdvisory}
-                  onReport={onReport}
-                />
-              )}
-            </li>
-          )}
-
-          {visible.map((outage) => {
-            const resolved = outage.status === "resolved";
-
-            return (
-              <li key={outage.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelect(outage)}
-                  className="flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left transition-colors hover:bg-secondary focus-visible:bg-secondary focus-visible:outline-none"
-                >
-                  <ServiceBadge type={outage.serviceType} />
-
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-semibold">
-                      {outage.providerName ?? "Unknown provider"}
-                    </span>
-                    <span className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <SeverityLabel severity={outage.severity} resolved={resolved} short className="shrink-0" />
-                      <span className="truncate">· {locationLabel(outage)}</span>
-                    </span>
-                  </span>
-
-                  <span className="shrink-0 text-right">
-                    <span className="block text-[15px] font-semibold tabular-nums">
-                      {outage.customersAffected !== null
-                        ? outage.customersAffected.toLocaleString()
-                        : outage.origin === "crowdsourced"
-                          ? outage.verificationCount
-                          : ""}
-                    </span>
-                    <span className="mt-0.5 block text-sm text-muted-foreground tabular-nums">
-                      {outage.customersAffected !== null
-                        ? "customers"
-                        : outage.origin === "crowdsourced"
-                          ? "confirmed"
-                          : timeAgo(outage.reportedAt)}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
+          {rows}
         </ul>
       )}
     </div>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="px-3 pb-1 pt-3 text-[13px] font-medium text-muted-foreground">{children}</li>
+  );
+}
+
+/** One outage: who, how bad and where on the left, the figure on the right. */
+function Row({
+  outage,
+  title,
+  detail,
+  severity = false,
+  figure,
+  quietFigure = false,
+  onSelect,
+}: {
+  outage: Outage;
+  title: string;
+  detail: string;
+  /** Lead the second line with the severity. Not for a network-wide signal. */
+  severity?: boolean;
+  figure: string;
+  /** A time rather than a count: drawn as secondary text. */
+  quietFigure?: boolean;
+  onSelect: (outage: Outage) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(outage)}
+      className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-secondary focus-visible:bg-secondary focus-visible:outline-none"
+    >
+      <ServiceBadge type={outage.serviceType} />
+
+      <span className="min-w-0 flex-1">
+        <span className="flex items-baseline gap-3">
+          <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{title}</span>
+          <span
+            className={cn(
+              "shrink-0 text-sm tabular-nums",
+              quietFigure ? "text-muted-foreground" : "font-semibold",
+            )}
+          >
+            {figure}
+          </span>
+        </span>
+        <span className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+          {severity && (
+            <>
+              <SeverityLabel
+                severity={outage.severity}
+                resolved={outage.status === "resolved"}
+                short
+                className="shrink-0"
+              />
+              <span aria-hidden>·</span>
+            </>
+          )}
+          <span className="truncate">{detail}</span>
+        </span>
+      </span>
+    </button>
   );
 }
 
@@ -221,7 +286,7 @@ function FailedState({
       <div className="flex flex-col items-center text-center">
         <span
           aria-hidden
-          className="mb-3 flex size-10 items-center justify-center rounded-lg bg-muted text-muted-foreground"
+          className="mb-3 flex size-10 items-center justify-center rounded-full bg-secondary text-foreground"
         >
           <TriangleAlert className="h-5 w-5" />
         </span>
@@ -277,7 +342,7 @@ function EmptyState({
       <div className="flex flex-col items-center text-center">
         <span
           aria-hidden
-          className="mb-3 flex size-10 items-center justify-center rounded-lg bg-severity-resolved/12 text-severity-resolved"
+          className="mb-3 flex size-10 items-center justify-center rounded-full bg-secondary text-foreground"
         >
           <CheckCircle2 className="h-5 w-5" />
         </span>

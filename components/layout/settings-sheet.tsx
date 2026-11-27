@@ -207,21 +207,19 @@ function SettingsForm({
 
         <div className="flex-1 space-y-6 overflow-y-auto overscroll-contain px-6 pb-4 pt-1">
           {onAccount && (
-            <div className="flex items-center gap-3 rounded-lg border bg-background p-3">
+            <div className="flex items-center gap-3 border-b pb-5">
               <span
                 aria-hidden
-                className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground"
+                className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-foreground"
               >
-                <UserRound className="size-4" />
+                <UserRound className="size-[18px]" />
               </span>
-              <p className="min-w-0 flex-1 text-[13px] leading-snug">
-                <span className="block font-medium">
-                  {isAuthenticated ? "Signed in" : "Keep this on every device"}
+              <p className="min-w-0 flex-1 leading-snug">
+                <span className="block text-[15px] font-semibold">
+                  {isAuthenticated ? "Signed in" : "Sync across devices"}
                 </span>
-                <span className="text-muted-foreground">
-                  {isAuthenticated
-                    ? "Your home, providers and alerts are on your account."
-                    : "Sign in and your home, providers and alerts follow you."}
+                <span className="block text-[13px] text-muted-foreground">
+                  {isAuthenticated ? "Saved to your account" : "Saved on this device only"}
                 </span>
               </p>
               <Button
@@ -229,6 +227,7 @@ function SettingsForm({
                 size="sm"
                 variant={isAuthenticated ? "outline" : "default"}
                 onClick={onAccount}
+                className="rounded-full px-4"
               >
                 {isAuthenticated ? "Account" : "Sign in"}
               </Button>
@@ -255,11 +254,9 @@ function SettingsForm({
             </h3>
 
             {!push.available ? (
-              <p className="flex items-start gap-2.5 rounded-lg bg-background p-3.5 text-sm leading-snug text-muted-foreground">
+              <p className="flex items-start gap-2.5 rounded-xl bg-secondary p-3.5 text-sm leading-snug text-muted-foreground">
                 <BellOff className="mt-0.5 h-4 w-4 shrink-0" />
-                Push alerts are not available here. They need a browser that
-                supports Web Push and VAPID keys configured on the server — see
-                SETUP.md.
+                Push alerts are not available in this browser.
               </p>
             ) : (
               <div className="space-y-4">
@@ -379,7 +376,7 @@ function SettingsForm({
                 {draft.savedLocations.map((location) => (
                   <li
                     key={location.id}
-                    className="flex min-h-12 items-center gap-2 rounded-lg border pr-2 pl-3.5 text-sm transition-colors hover:bg-accent"
+                    className="flex min-h-12 items-center gap-2 rounded-xl border pr-2 pl-3.5 text-sm transition-colors hover:bg-accent"
                   >
                     <button
                       type="button"
@@ -402,7 +399,7 @@ function SettingsForm({
                         })
                       }
                       aria-label={`Remove ${location.name}`}
-                      className="tap-target flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
+                      className="tap-target flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -478,7 +475,7 @@ function AppearancePicker() {
               aria-pressed={selected}
               onClick={() => setAppearance(option.value)}
               className={cn(
-                "flex min-h-14 flex-col items-start justify-center gap-1 rounded-lg border px-3 py-2 text-left transition-colors duration-150",
+                "flex min-h-14 flex-col items-start justify-center gap-1 rounded-xl border px-3 py-2 text-left transition-colors duration-150",
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                 selected ? "border-foreground bg-card shadow-[inset_0_0_0_1px_var(--foreground)]" : "border-input hover:bg-accent",
               )}
