@@ -69,6 +69,8 @@ export interface SessionInfo {
     /** Why, when write is false. */
     writeBlockedReason: string | null;
   };
+  /** City-level position from the network address, or null off Cloudflare. */
+  approxLocation?: { latitude: number; longitude: number; country: string | null } | null;
 }
 
 export function useSession() {

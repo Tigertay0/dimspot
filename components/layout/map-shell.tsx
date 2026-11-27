@@ -1,31 +1,36 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Settings2 } from "lucide-react";
+import { House, Minus, Navigation, Plus } from "lucide-react";
 import { DEFAULT_VIEW } from "@/lib/constants";
 import { useAdvisories, useOutages, useSession } from "@/lib/hooks/use-outages";
 import { activeFilterCount, useFilters } from "@/lib/store/filters";
 import type { Advisory, BoundingBox, GeocodeResult, Outage } from "@/lib/types";
 import Link from "next/link";
 import { BrandMark } from "@/components/brand-mark";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { FilterSheet } from "@/components/filters/filter-sheet";
-import { TypeChips } from "@/components/filters/type-chips";
-import { MapLegend } from "@/components/map/markers";
-import { OutageMap, type MapView } from "@/components/map/outage-map";
+import { CoverageNote, TypeTabs } from "@/components/filters/type-chips";
+import { Button } from "@/components/ui/button";
+import { SheetDockTarget } from "@/components/ui/sheet";
+import { OutageMap, type MapControls, type MapView } from "@/components/map/outage-map";
 import { NearbyPanel } from "@/components/layout/nearby-panel";
 import { AdvisorySheet } from "@/components/outage/advisory-sheet";
 import { OutageDetailSheet } from "@/components/outage/outage-detail-sheet";
+import { OutagePreview } from "@/components/outage/outage-preview";
 import { ReportSheet } from "@/components/report/report-sheet";
 import { SearchBar } from "@/components/search/search-bar";
-import { AccountButton, AuthSheet } from "@/components/auth/auth-sheet";
+import { AuthSheet } from "@/components/auth/auth-sheet";
 import { DemoBanner } from "./demo-banner";
+import { NetworkAlerts } from "./network-alerts";
 import { SettingsSheet } from "./settings-sheet";
 import { useAppearance } from "@/lib/hooks/use-appearance";
+import { usePreferences } from "@/lib/hooks/use-preferences";
 import { useHydrated } from "@/lib/hooks/use-hydrated";
+import { useIsDesktop } from "@/lib/hooks/use-is-desktop";
+import { locationAllowed, rememberLocationUse } from "@/lib/location";
 
 /**
  * The application shell.
@@ -44,6 +49,7 @@ export function MapShell() {
   });
   const [zoom, setZoom] = useState(DEFAULT_VIEW.zoom);
   const [flyTo, setFlyTo] = useState<MapView | null>(null);
+  const mapControls = useRef<MapControls | null>(null);
 
   // Deep links are read once, when state is created, rather than in an effect:
   // /map?outage=<id> comes from a push notification, /map?action=report from the
@@ -73,6 +79,11 @@ export function MapShell() {
   const [selectedAdvisory, setSelectedAdvisory] = useState<Advisory | null>(null);
   const [picking, setPicking] = useState(false);
   const [listExpanded, setListExpanded] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  // From 1024px the list is a column beside the map, and detail and report
+  // open in that column instead of over the map.
+  const desktop = useIsDesktop();
+  const [dockTarget, setDockTarget] = useState<HTMLElement | null>(null);
   /**
    * Resolved before the map mounts, not in an effect.
    *
@@ -84,7 +95,59 @@ export function MapShell() {
    */
   const { theme } = useAppearance();
 
-  const { data: session } = useSession();
+  const { data: session, isFetched: sessionKnown } = useSession();
+  const { data: saved, isFetched: preferencesKnown } = usePreferences();
+  const home = saved?.preferences.home ?? null;
+  const approx = session?.approxLocation ?? null;
+
+  /**
+   * Where the map opens, decided once.
+   *
+   * Someone opening an outage map is asking about their own street, not the
+   * country. In order: the outage a link or notification points at; the saved
+   * home; the visitor's region as the network address gives it (city-level, no
+   * prompt). After that, an effect below swaps the region for the device's
+   * real position when that will not raise a first-time permission prompt.
+   */
+  // Decided while rendering, as the report sheet does for its reset: an
+  // effect would paint the country view first and then set state from it.
+  const [opened, setOpened] = useState(false);
+  const [deepLinked] = useState(() => selectedId !== null);
+  if (!opened && (home || (sessionKnown && preferencesKnown))) {
+    setOpened(true);
+    if (!deepLinked) {
+      if (home) {
+        setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: 12 });
+      } else if (approx && approx.country === "US") {
+        setFlyTo({ latitude: approx.latitude, longitude: approx.longitude, zoom: 9 });
+      }
+    }
+  }
+
+  const [mapReady, setMapReady] = useState(false);
+  // The next location failure came from the app, not a button: say nothing.
+  const quietLocate = useRef(false);
+  const autoLocate = opened && mapReady && !deepLinked && !home;
+  useEffect(() => {
+    if (!autoLocate) return;
+    let cancelled = false;
+    void locationAllowed().then((allowed) => {
+      if (cancelled || !allowed) return;
+      quietLocate.current = true;
+      mapControls.current?.locate();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [autoLocate]);
+
+  // What a search landed on, marked when it is a street or an address; a dot
+  // on the centre of a city says nothing.
+  const [searchPin, setSearchPin] = useState<{ latitude: number; longitude: number } | null>(null);
+  const zoomRef = useRef(zoom);
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
   const {
     data: outages = [],
     isFetching,
@@ -93,6 +156,15 @@ export function MapShell() {
     isError: outagesFailed,
     refetch: refetchOutages,
   } = useOutages(bounds);
+  // Outages of a place go on the map; outages of a whole network have no place
+  // and are listed as alerts instead.
+  const { placed, networkAlerts } = useMemo(
+    () => ({
+      placed: outages.filter((o) => o.scope !== "national"),
+      networkAlerts: outages.filter((o) => o.scope === "national" && o.status === "active"),
+    }),
+    [outages],
+  );
   const showAdvisories = useFilters((s) => s.showAdvisories);
   const { data: advisories = [] } = useAdvisories(bounds, showAdvisories);
 
@@ -103,10 +175,11 @@ export function MapShell() {
   const selectedProviderIds = useFilters((s) => s.providerIds);
 
   const filterCount = activeFilterCount({
-    serviceTypes: selectedServiceTypes,
     severities: selectedSeverities,
     providerIds: selectedProviderIds,
   });
+  // One type alone: say what that layer can see, in place of the alert pill.
+  const coverageNote = selectedServiceTypes.length === 1;
 
   // Night is the default; dusk and "match system" are chosen in settings.
   const hydrated = useHydrated();
@@ -169,156 +242,321 @@ export function MapShell() {
     [],
   );
 
+  // A marker opens the preview card; the card, a list row or a network alert
+  // opens the full sheet.
+  const [previewId, setPreviewId] = useState<string | null>(null);
+
   const handlePick = useCallback((result: GeocodeResult) => {
     setFlyTo({
       latitude: result.latitude,
       longitude: result.longitude,
       zoom: result.zoom,
     });
+    setSearchPin(
+      result.zoom >= 14 ? { latitude: result.latitude, longitude: result.longitude } : null,
+    );
+    setPreviewId(null);
   }, []);
 
-  const handleUseMyLocation = useCallback(
-    (coords: { latitude: number; longitude: number }) => {
-      setFlyTo({ ...coords, zoom: 13 });
+  const handleLocate = useCallback(() => {
+    quietLocate.current = false;
+    mapControls.current?.locate();
+  }, []);
+
+  const handleLocated = useCallback(() => {
+    quietLocate.current = false;
+    rememberLocationUse(true);
+  }, []);
+
+  const handleLocateError = useCallback(
+    (message: string, denied: boolean) => {
+      if (denied) rememberLocationUse(false);
+      if (quietLocate.current) {
+        quietLocate.current = false;
+        return;
+      }
+      toast({ variant: "destructive", title: "Location unavailable", description: message });
     },
-    [],
+    [toast],
   );
+
+  /**
+   * Put the report pin somewhere sensible when the "where" step opens.
+   *
+   * At country zoom the middle of the map is a field in Kansas, and a report
+   * pinned there is wrong by a thousand miles. If the map is not already on a
+   * neighbourhood, go to the saved home, or ask the device where it is: a
+   * report is the one moment asking for a position needs no explaining.
+   */
+  const locateForReport = useCallback(
+    (always: boolean) => {
+      if (!always && zoomRef.current >= 13) return;
+      if (!always && home) {
+        setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: 16 });
+        return;
+      }
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          rememberLocationUse(true);
+          setFlyTo({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            zoom: 16,
+          });
+        },
+        (error) => {
+          if (error.code === error.PERMISSION_DENIED) rememberLocationUse(false);
+          // Pressed the button: say why nothing moved. Opening the step: the
+          // step itself already asks them to zoom in.
+          if (always) {
+            toast({
+              variant: "destructive",
+              title: "Location unavailable",
+              description: "Move the map to the spot, or search for the address.",
+            });
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
+      );
+    },
+    [home, toast],
+  );
+  const placeReportPin = useCallback(() => locateForReport(false), [locateForReport]);
+  const locateReportPin = useCallback(() => locateForReport(true), [locateForReport]);
+
+  const handleMarker = useCallback((outage: Outage) => {
+    setPreviewId(outage.id);
+    setListExpanded(false);
+  }, []);
 
   const handleSelect = useCallback((outage: Outage) => {
     setSelectedId(outage.id);
     setListExpanded(false);
   }, []);
 
+  const preview = previewId ? (placed.find((o) => o.id === previewId) ?? null) : null;
+
+  const openReport = useCallback(() => setReportOpen(true), []);
+
+  const list = (
+    <NearbyPanel
+      docked={desktop}
+      outages={placed}
+      networkAlerts={networkAlerts}
+      advisories={showAdvisories ? advisories : []}
+      loading={isFetching}
+      failed={outagesFailed}
+      onRetry={refetchOutages}
+      center={center}
+      expanded={listExpanded}
+      onExpandedChange={setListExpanded}
+      onSelect={handleSelect}
+      onSelectAdvisory={setSelectedAdvisory}
+      onReport={openReport}
+    />
+  );
+
   return (
-    <main className="fixed inset-0 overflow-hidden">
+    // data-app-shell: globals.css keeps the landing's blanket 44px touch rule
+    // out of the app, where every control sizes itself.
+    <main data-app-shell className="fixed inset-0 flex flex-col overflow-hidden bg-background">
       <h1 className="sr-only">Dimspot live outage map</h1>
-      <OutageMap
-        outages={outages}
-        advisories={showAdvisories ? advisories : []}
-        onSelectAdvisory={setSelectedAdvisory}
-        selectedId={selectedId}
-        onSelect={handleSelect}
-        onBoundsChange={handleBoundsChange}
-        flyTo={flyTo}
-        picking={picking}
-        onPickMove={setCenter}
-        theme={theme}
-      />
 
-      {/* Crosshair for report mode. Fixed to the map centre so the user aims by
-          moving the map, which is far steadier one-handed than dragging a pin. */}
-      {picking && (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-full"
+      {/* One solid header, as in the reference apps: search, then the service
+          tabs. It is in the flow, so the map starts under it and nothing on the
+          map can show through. The top inset keeps it under the status bar
+          when installed as an app. */}
+      <header className="relative z-30 shrink-0 bg-card pt-[max(0.75rem,env(safe-area-inset-top))] shadow-[0_1px_0_var(--border)]">
+        <Link
+          href="/"
+          className="absolute left-5 top-[max(0.75rem,env(safe-area-inset-top))] hidden h-14 items-center gap-2 text-base font-semibold tracking-[-0.02em] lg:flex focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
-          <svg width="34" height="42" viewBox="0 0 34 42" fill="none">
-            <path
-              d="M17 41C17 41 32 25.5 32 16.5C32 8.2 25.3 1.5 17 1.5S2 8.2 2 16.5C2 25.5 17 41 17 41Z"
-              fill="var(--severity-complete)"
-              stroke="white"
-              strokeWidth="2.5"
-            />
-            <circle cx="17" cy="16.5" r="5" fill="white" />
-          </svg>
-        </div>
-      )}
+          <BrandMark />
+          Dimspot
+        </Link>
 
-      {/* The brand, back to the landing page. Wide screens only: on a phone the
-          search bar needs the whole width. */}
-      <Link
-        href="/"
-        className="absolute top-3 left-3 z-30 hidden h-12 items-center gap-2 rounded-2xl border bg-background/85 px-4 text-[15px] font-semibold tracking-[-0.025em] shadow-lg backdrop-blur-xl xl:flex focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      >
-        <BrandMark />
-        Dimspot
-      </Link>
-
-      {/* Above the bottom bar: the search suggestions drop down over the map
-          and must not be painted on by the report button below them. */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-30 p-3">
-        <div className="pointer-events-auto mx-auto max-w-lg space-y-2">
+        <div className="mx-auto max-w-lg px-4">
           {session?.capabilities.demoData && <DemoBanner />}
           <SearchBar
             onPick={handlePick}
-            onUseMyLocation={handleUseMyLocation}
             onOpenFilters={() => setFiltersOpen(true)}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenChange={setSearchOpen}
+            onClear={() => setSearchPin(null)}
+            onLocate={handleLocate}
+            home={home}
+            bias={{ ...center, zoom }}
             activeFilterCount={filterCount}
+            signedIn={Boolean(session?.identity.email)}
           />
-          {/* Hidden while placing a report: the map is a picker then, and the
-              chips would change what is under the crosshair mid-gesture. */}
-          {!picking && <TypeChips />}
+          <TypeTabs className="mt-1" />
+        </div>
+
+        {/* On a wide screen the report button lives here; on a phone it floats
+            over the map, within thumb reach. */}
+        <div className="absolute right-5 top-[max(0.75rem,env(safe-area-inset-top))] hidden h-14 items-center lg:flex">
+          <Button onClick={openReport} className="gap-2 rounded-full pr-5 pl-4">
+            <Plus className="size-[18px]" strokeWidth={2.5} />
+            Report outage
+          </Button>
+        </div>
+      </header>
+
+      <div className="relative flex min-h-0 flex-1">
+        {/* The list column. Detail and report open inside it (Sheet dock), so
+            the map beside it is never covered. */}
+        {desktop && (
+          <aside
+            ref={setDockTarget}
+            className="relative z-20 flex w-[400px] shrink-0 flex-col border-r bg-card"
+          >
+            {list}
+          </aside>
+        )}
+
+        <div className="relative min-w-0 flex-1" data-preview={preview ? "" : undefined}>
+          <OutageMap
+            outages={placed}
+            advisories={showAdvisories ? advisories : []}
+            onSelectAdvisory={setSelectedAdvisory}
+            selectedId={previewId ?? selectedId}
+            onSelect={desktop ? handleSelect : handleMarker}
+            onBackgroundClick={() => setPreviewId(null)}
+            onBoundsChange={handleBoundsChange}
+            flyTo={flyTo}
+            picking={picking}
+            onPickMove={setCenter}
+            theme={theme}
+            controls={mapControls}
+            onLocateError={handleLocateError}
+            onLocated={handleLocated}
+            onReady={() => setMapReady(true)}
+            searchPin={searchPin}
+          />
+
+          {/* The pin for report mode, fixed over the map's centre so the user
+              aims by moving the map. On a phone the map is padded by the
+              sheet's height while picking (outage-map.tsx), so its centre is
+              the middle of the part still showing; the pin is raised by half
+              of that to sit on it. Beside the docked sheet nothing is covered. */}
+          {picking && (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute left-1/2 top-[calc(50%-min(140px,25%))] z-10 -translate-x-1/2 -translate-y-full drop-shadow-[0_4px_6px_rgba(0,0,0,0.3)] lg:top-1/2"
+            >
+              <svg width="36" height="44" viewBox="0 0 36 44" fill="none">
+                <path
+                  d="M18 42.5C18 42.5 33.5 26.6 33.5 17C33.5 8.4 26.6 1.5 18 1.5S2.5 8.4 2.5 17C2.5 26.6 18 42.5 18 42.5Z"
+                  fill="#111111"
+                  stroke="#ffffff"
+                  strokeWidth="2"
+                />
+                <circle cx="18" cy="17" r="5.5" fill="#ffffff" />
+              </svg>
+            </div>
+          )}
+
+          {/* Over the map's top edge: what the map has to say on the left (a
+              network alert, or what a layer can see: one at a time), the
+              controls on the right. Out of the way while search results show. */}
+          <div
+            className={cn(
+              "pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start gap-2 px-3 pt-3",
+              searchOpen && "invisible",
+            )}
+          >
+            <div className="min-w-0 flex-1">
+              {!picking &&
+                (coverageNote ? (
+                  <CoverageNote />
+                ) : (
+                  <NetworkAlerts
+                    alerts={networkAlerts}
+                    onSelect={handleSelect}
+                    onShowAll={() => setListExpanded(true)}
+                  />
+                ))}
+            </div>
+
+            <div className="panel pointer-events-auto flex shrink-0 flex-col overflow-hidden rounded-xl [&>button+button]:border-t">
+              {home && (
+                <ControlButton
+                  label="Go to my home"
+                  onClick={() =>
+                    // A new object each time, so pressing it again after panning
+                    // away flies back.
+                    setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: 13 })
+                  }
+                >
+                  <House />
+                </ControlButton>
+              )}
+              <ControlButton label="Show my location" onClick={handleLocate}>
+                <Navigation />
+              </ControlButton>
+              <ControlButton
+                label="Zoom in"
+                onClick={() => mapControls.current?.zoomBy(1)}
+                className="hidden [@media(pointer:fine)]:flex"
+              >
+                <Plus />
+              </ControlButton>
+              <ControlButton
+                label="Zoom out"
+                onClick={() => mapControls.current?.zoomBy(-1)}
+                className="hidden [@media(pointer:fine)]:flex"
+              >
+                <Minus />
+              </ControlButton>
+            </div>
+          </div>
+
+          {!desktop && !picking && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
+              <div className="mx-auto max-w-lg">
+                {/* Above the sheet: the preview of the tapped marker, or else
+                    the report button. Neither shows while the list is open,
+                    which rises to 62% of the screen. */}
+                {!listExpanded && (
+                  <div className="px-3 pb-3">
+                    {preview ? (
+                      <OutagePreview
+                        outage={preview}
+                        onOpen={() => setSelectedId(preview.id)}
+                        onClose={() => setPreviewId(null)}
+                      />
+                    ) : (
+                      <div className="flex justify-end">
+                        <Button
+                          onClick={openReport}
+                          className="pointer-events-auto gap-2 rounded-full pr-5 pl-4 shadow-[var(--shadow-float)]"
+                        >
+                          <Plus className="size-[18px]" strokeWidth={2.5} />
+                          Report outage
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {list}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Settings sits opposite the report button so the two primary actions
-          do not crowd the same thumb zone. */}
-      {!picking && (
-        <div className="absolute bottom-20 left-3 z-10 flex flex-col items-start gap-2">
-          <MapLegend className="hidden sm:block" />
-          <Button
-            variant="secondary"
-            size="icon"
-            onClick={() => setSettingsOpen(true)}
-            aria-label="Alerts and saved places"
-            className="h-11 w-11 rounded-full shadow-lg"
-          >
-            <Settings2 className="h-4 w-4" />
-          </Button>
-
-          {/* Only offered where accounts exist at all: the local backend has no
-              auth, and a button that cannot work is worse than no button. */}
-          {session?.capabilities.accounts && (
-            <AccountButton session={session} onClick={() => setAuthOpen(true)} />
-          )}
-        </div>
-      )}
-
-      {!picking && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
-          <div className="pointer-events-auto mx-auto max-w-lg">
-            <div className="flex justify-end px-3 pb-3">
-              {/* The landing's action button: a sodium pill with a dark chip. */}
-              <button
-                type="button"
-                onClick={() => setReportOpen(true)}
-                className={cn(
-                  "group/report inline-flex h-14 items-center gap-3 rounded-full bg-primary pr-2 pl-6 text-[16px] font-semibold tracking-[-0.01em] text-[#0c1222]",
-                  "shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_14px_32px_-12px_rgba(255,178,26,0.75)]",
-                  "transition-[background-color,transform] duration-200 hover:bg-[#ffc24d] active:scale-[0.98]",
-                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-                )}
-              >
-                Report outage
-                <span aria-hidden className="flex size-10 items-center justify-center rounded-full bg-[#0c1222] text-primary">
-                  <Plus className="h-5 w-5 transition-transform duration-300 group-hover/report:rotate-90" />
-                </span>
-              </button>
-            </div>
-
-            <NearbyPanel
-              outages={outages}
-              advisories={showAdvisories ? advisories : []}
-              loading={isFetching}
-              failed={outagesFailed}
-              onRetry={refetchOutages}
-              center={center}
-              expanded={listExpanded}
-              onExpandedChange={setListExpanded}
-              onSelect={handleSelect}
-              onSelectAdvisory={setSelectedAdvisory}
-              onReport={() => setReportOpen(true)}
-            />
-          </div>
-        </div>
-      )}
-
+      <SheetDockTarget.Provider value={dockTarget}>
       <FilterSheet open={filtersOpen} onOpenChange={setFiltersOpen} />
 
       <ReportSheet
         open={reportOpen}
         onOpenChange={setReportOpen}
         pickedLocation={center}
+        mapZoom={zoom}
+        onPlacePin={placeReportPin}
+        onLocate={locateReportPin}
         onRequestPicking={setPicking}
         onReported={setSelectedId}
       />
@@ -352,6 +590,17 @@ export function MapShell() {
             zoom: place.zoom,
           })
         }
+        onShowHome={(place) =>
+          setFlyTo({ latitude: place.latitude, longitude: place.longitude, zoom: 13 })
+        }
+        onAccount={
+          session?.capabilities.accounts
+            ? () => {
+                setSettingsOpen(false);
+                setAuthOpen(true);
+              }
+            : undefined
+        }
       />
 
       <OutageDetailSheet
@@ -360,6 +609,35 @@ export function MapShell() {
           if (!open) setSelectedId(null);
         }}
       />
+      </SheetDockTarget.Provider>
     </main>
+  );
+}
+
+/** One cell of the map-control stack. */
+function ControlButton({
+  label,
+  onClick,
+  className,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={cn(
+        "flex size-11 items-center justify-center text-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none [&_svg]:size-[18px]",
+        className,
+      )}
+    >
+      {children}
+    </button>
   );
 }

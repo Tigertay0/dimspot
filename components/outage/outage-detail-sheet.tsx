@@ -2,23 +2,23 @@
 
 import { useState } from "react";
 import {
+  ArrowUp,
   BadgeCheck,
   CheckCircle2,
-  Clock,
   Loader2,
-  MapPin,
   MessageSquare,
   RefreshCw,
-  Send,
   ThumbsUp,
-  Users,
+  X,
 } from "lucide-react";
 import {
-  SEVERITY_META,
   VERIFICATION_THRESHOLD,
+  isDetected,
   sourceAttribution,
+  sourceLabel,
 } from "@/lib/constants";
-import { clockTime, dayAndTime, locationLabel, outageDuration, pluralize, timeAgo } from "@/lib/format";
+import { dayAndTime, locationLabel, outageDuration, pluralize, timeAgo } from "@/lib/format";
+import type { OutageDetail } from "@/lib/types";
 import {
   useAddComment,
   useConfirmOutage,
@@ -26,11 +26,10 @@ import {
   useResolveOutage,
 } from "@/lib/hooks/use-outages";
 import { buildTimeline } from "@/lib/timeline";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -38,7 +37,7 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
-import { ServiceIcon } from "@/components/map/markers";
+import { ServiceBadge, SeverityLabel } from "@/components/map/markers";
 import { OutageTimeline } from "./outage-timeline";
 
 /**
@@ -94,10 +93,12 @@ export function OutageDetailSheet({
     : 0;
 
   return (
-    <Sheet open={outageId !== null} onOpenChange={onOpenChange}>
+    <Sheet dock open={outageId !== null} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="flex max-h-[85vh] flex-col sm:mx-auto sm:max-w-lg sm:rounded-t-2xl"
+        // The loaded sheet draws its own close button, in line with the
+        // provider's badge and name.
+        hideClose={Boolean(outage)}
       >
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
@@ -127,165 +128,183 @@ export function OutageDetailSheet({
           </div>
         ) : (
           <>
-            <SheetHeader className="pr-12">
-              <div className="flex items-center gap-2">
-                <span
-                  aria-hidden
-                  style={{
-                    backgroundColor: isResolved
-                      ? "var(--severity-resolved)"
-                      : SEVERITY_META[outage.severity].token,
-                  }}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white"
-                >
-                  <ServiceIcon type={outage.serviceType} className="h-4 w-4" />
-                </span>
+            <SheetHeader>
+              <div className="flex items-center gap-3">
+                <ServiceBadge type={outage.serviceType} size="lg" />
 
                 <div className="min-w-0 flex-1">
                   <SheetTitle className="truncate">
                     {outage.providerName ?? "Unknown provider"}
                   </SheetTitle>
-                  <p className="flex items-center gap-1 truncate text-sm text-muted-foreground">
-                    <MapPin className="h-3 w-3 shrink-0" />
+                  <p className="mt-1 truncate text-[15px] text-muted-foreground">
                     {locationLabel(outage)}
                   </p>
                 </div>
-              </div>
 
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                <Badge variant={isResolved ? "resolved" : outage.severity}>
-                  {isResolved
-                    ? "Resolved"
-                    : SEVERITY_META[outage.severity].label}
-                </Badge>
-
-                {outage.origin === "official" ? (
-                  <Badge variant="outline">
-                    <BadgeCheck className="h-3 w-3" />
-                    Official
-                  </Badge>
-                ) : (
-                  outage.isVerified && (
-                    <Badge variant="outline">
-                      <BadgeCheck className="h-3 w-3" />
-                      Verified
-                    </Badge>
-                  )
-                )}
-
-                {outage.customersAffected !== null && (
-                  <Badge variant="outline">
-                    <Users className="h-3 w-3" />
-                    {outage.customersAffected.toLocaleString()}{" "}
-                    {outage.customersAffected === 1 ? "customer" : "customers"}
-                  </Badge>
-                )}
-
-                <Badge variant="outline">
-                  <Clock className="h-3 w-3" />
-                  {isResolved
-                    ? `Lasted ${outageDuration(outage)}`
-                    : !outage.startKnown
-                      ? `First seen ${timeAgo(outage.reportedAt)}`
-                      : `Out for ${outageDuration(outage)}`}
-                </Badge>
-
-                {outage.estimatedRestoration && !isResolved && (
-                  <Badge variant="secondary">
-                    Back by {clockTime(outage.estimatedRestoration)}
-                  </Badge>
-                )}
+                <SheetClose className="tap-target flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <X className="size-4" />
+                  <span className="sr-only">Close</span>
+                </SheetClose>
               </div>
             </SheetHeader>
 
-            <div className="flex-1 overflow-y-auto px-5">
+            <div className="flex-1 overflow-y-auto overscroll-contain px-6">
+              {/* One line of status: what it is, and how far to trust it. */}
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 pb-4 text-[15px]">
+                <SeverityLabel
+                  severity={outage.severity}
+                  resolved={isResolved}
+                  className="font-semibold"
+                />
+                <span aria-hidden className="text-muted-foreground">·</span>
+                <span className="inline-flex items-center gap-1 text-muted-foreground">
+                  {outage.origin === "official" ? (
+                    // A utility saying so and a measurement suggesting so are
+                    // different claims; only the first gets the tick.
+                    isDetected(outage.sourceName) ? (
+                      "Detected, not confirmed"
+                    ) : (
+                      <>
+                        <BadgeCheck className="size-3.5" />
+                        Official report
+                      </>
+                    )
+                  ) : outage.isVerified ? (
+                    <>
+                      <BadgeCheck className="size-3.5" />
+                      Verified by neighbors
+                    </>
+                  ) : (
+                    "Not yet confirmed"
+                  )}
+                </span>
+              </p>
+
+              <Facts outage={outage} />
+
               {outage.description && (
-                <p className="py-3 text-sm">{outage.description}</p>
+                <p className="pt-4 text-[15px] leading-relaxed">
+                  {outage.description}
+                </p>
               )}
 
-              {outage.origin === "official" && (
-                <p className="py-2 text-sm text-muted-foreground">
+              {/* Radar's own description already says how it knows. */}
+              {outage.origin === "official" && outage.sourceName !== "radar-anomalies" && (
+                <p className="pt-2 text-sm leading-snug text-muted-foreground">
                   {sourceAttribution(outage.sourceName)}
                 </p>
               )}
 
               {!isResolved && outage.origin === "crowdsourced" && (
-                <div className="flex gap-2 py-2">
-                  <Button
-                    variant={outage.confirmedByMe ? "secondary" : "default"}
-                    onClick={() =>
-                      confirm.mutate(!outage.confirmedByMe, {
-                        onError: toastFailure("Could not update your confirmation"),
-                      })
-                    }
-                    disabled={confirm.isPending}
-                    className="flex-1"
-                  >
-                    <ThumbsUp className="h-4 w-4" />
-                    {outage.confirmedByMe
-                      ? "Confirmed"
-                      : "I'm affected too"}
-                    <span className="tabular-nums opacity-70">
-                      {outage.verificationCount}
-                    </span>
-                  </Button>
+                <div className="pt-4">
+                  <div className="flex gap-2">
+                    <Button
+                      variant={outage.confirmedByMe ? "secondary" : "default"}
+                      onClick={() =>
+                        confirm.mutate(!outage.confirmedByMe, {
+                          onError: toastFailure("Could not update your confirmation"),
+                        })
+                      }
+                      disabled={confirm.isPending}
+                      aria-pressed={outage.confirmedByMe}
+                      className="min-w-0 flex-1 px-4"
+                    >
+                      {outage.confirmedByMe ? <CheckCircle2 /> : <ThumbsUp />}
+                      <span className="truncate">
+                        {outage.confirmedByMe ? "You confirmed" : "I'm affected too"}
+                      </span>
+                    </Button>
 
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      resolve.mutate(undefined, {
-                        onError: toastFailure("Could not record that it's back"),
-                      })
-                    }
-                    disabled={resolve.isPending}
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                    It&apos;s back
-                  </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        resolve.mutate(undefined, {
+                          onError: toastFailure("Could not record that it's back"),
+                        })
+                      }
+                      disabled={resolve.isPending}
+                      className="px-4"
+                    >
+                      It&apos;s back
+                    </Button>
+                  </div>
+
+                  {remaining > 0 && (
+                    <p className="pt-2 text-xs text-muted-foreground">
+                      {remaining} more {pluralize(remaining, "confirmation")} to
+                      mark this verified.
+                    </p>
+                  )}
                 </div>
               )}
 
-              {!isResolved && outage.origin === "crowdsourced" && remaining > 0 && (
-                <p className="pb-2 text-xs text-muted-foreground">
-                  {remaining} more {pluralize(remaining, "confirmation")} to mark
-                  this verified.
-                </p>
-              )}
-
-              <Tabs defaultValue="updates" className="pb-4">
-                <TabsList className="w-full">
-                  <TabsTrigger value="updates" className="flex-1">
+              <Tabs defaultValue="updates" className="pb-6 pt-5">
+                <TabsList>
+                  <TabsTrigger value="updates">
                     Updates
                     {outage.comments.length > 0 && (
-                      <span className="ml-1 tabular-nums opacity-60">
+                      <span className="tabular-nums opacity-60">
                         {outage.comments.length}
                       </span>
                     )}
                   </TabsTrigger>
-                  <TabsTrigger value="timeline" className="flex-1">
-                    Timeline
-                  </TabsTrigger>
+                  <TabsTrigger value="timeline">Timeline</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="updates" className="pt-3">
+                <TabsContent value="updates" className="pt-4">
+                  {/* In the tab it belongs to, not pinned under the sheet:
+                      pinned, it took the room the updates need on a phone. */}
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void submitComment();
+                    }}
+                    className="flex h-12 items-center gap-1 rounded-full border border-input bg-card pr-1.5 pl-4 transition-[border-color,box-shadow] duration-150 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/15"
+                  >
+                    <input
+                      value={draft}
+                      onChange={(event) => setDraft(event.target.value)}
+                      placeholder="Add an update…"
+                      maxLength={500}
+                      aria-label="Add an update"
+                      // 16px, or iOS Safari zooms the page when the field is focused.
+                      className="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!draft.trim() || addComment.isPending}
+                      aria-label="Post update"
+                      className="tap-target flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-[background-color,opacity,transform] duration-150 hover:bg-primary/85 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:bg-secondary disabled:text-muted-foreground"
+                    >
+                      {addComment.isPending ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <ArrowUp className="size-4" strokeWidth={2.25} />
+                      )}
+                    </button>
+                  </form>
+
                   {outage.comments.length === 0 ? (
-                    <p className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-                      <MessageSquare className="h-4 w-4" />
+                    <p className="flex items-center gap-2 pt-4 text-sm text-muted-foreground">
+                      <MessageSquare className="size-4 shrink-0" />
                       No updates yet. Add the first one.
                     </p>
                   ) : (
-                    <ul className="space-y-3">
+                    <ul className="pt-2">
                       {outage.comments.map((comment) => (
-                        <li key={comment.id} className="text-sm">
+                        <li
+                          key={comment.id}
+                          className="border-b py-2.5 text-sm last:border-b-0"
+                        >
                           <div className="flex items-baseline justify-between gap-2">
                             <span className="font-medium">
                               {comment.authorLabel}
                             </span>
-                            <span className="shrink-0 text-xs text-muted-foreground">
+                            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                               {timeAgo(comment.createdAt)}
                             </span>
                           </div>
-                          <p className="text-muted-foreground">
+                          <p className="mt-0.5 leading-snug text-muted-foreground">
                             {comment.comment}
                           </p>
                         </li>
@@ -294,48 +313,82 @@ export function OutageDetailSheet({
                   )}
                 </TabsContent>
 
-                <TabsContent value="timeline" className="pt-3">
+                <TabsContent value="timeline" className="pt-4">
                   <OutageTimeline events={buildTimeline(outage)} />
                 </TabsContent>
               </Tabs>
             </div>
 
-            <div className="border-t px-5 py-3">
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void submitComment();
-                }}
-                className="flex gap-2"
-              >
-                <Input
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  placeholder="Add an update…"
-                  maxLength={500}
-                  aria-label="Add an update"
-                />
-                <Button
-                  type="submit"
-                  size="icon"
-                  disabled={!draft.trim() || addComment.isPending}
-                  aria-label="Post update"
-                >
-                  {addComment.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
-                </Button>
-              </form>
-
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
-                Reported {dayAndTime(outage.reportedAt)}
-              </p>
-            </div>
           </>
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+/**
+ * The facts, as a key and value list on hairlines: how long, how many, when,
+ * and who says so. A row only appears when there is a value for it. Figures
+ * are set in the mono face so they line up down the column.
+ */
+function Facts({ outage }: { outage: OutageDetail }) {
+  const isResolved = outage.status === "resolved";
+
+  const facts: Array<{ label: string; value: string; mono?: boolean }> = [
+    isResolved
+      ? { label: "Lasted", value: outageDuration(outage), mono: true }
+      : outage.startKnown
+        ? {
+            // "Out" claims a total loss; a slowdown or a flicker is ongoing.
+            label: outage.severity === "complete" ? "Out for" : "Ongoing for",
+            value: outageDuration(outage),
+            mono: true,
+          }
+        : { label: "First seen", value: timeAgo(outage.reportedAt), mono: true },
+  ];
+
+  if (outage.customersAffected !== null) {
+    facts.push({
+      label: "Customers affected",
+      value: outage.customersAffected.toLocaleString(),
+      mono: true,
+    });
+  } else if (outage.origin === "crowdsourced") {
+    facts.push({
+      label: "Confirmed by",
+      value: `${outage.verificationCount} ${pluralize(outage.verificationCount, "person", "people")}`,
+      mono: true,
+    });
+  }
+
+  if (outage.estimatedRestoration && !isResolved) {
+    facts.push({
+      label: "Expected back",
+      value: dayAndTime(outage.estimatedRestoration),
+      mono: true,
+    });
+  }
+
+  facts.push({
+    label: outage.startKnown ? "Started" : "Reported",
+    value: dayAndTime(outage.reportedAt),
+    mono: true,
+  });
+
+  if (outage.origin === "official") {
+    facts.push({ label: "Source", value: sourceLabel(outage.sourceName) });
+  }
+
+  return (
+    <dl className="divide-y border-y text-[15px]">
+      {facts.map((fact) => (
+        <div key={fact.label} className="flex items-baseline justify-between gap-4 py-3.5">
+          <dt className="shrink-0 text-muted-foreground">{fact.label}</dt>
+          <dd className="truncate font-semibold tabular-nums">
+            {fact.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }

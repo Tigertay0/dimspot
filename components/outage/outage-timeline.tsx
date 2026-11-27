@@ -20,15 +20,6 @@ const ICONS = {
   eta: Clock,
 } as const;
 
-const ACCENT: Record<TimelineEvent["kind"], string> = {
-  reported: "var(--severity-complete)",
-  verified: "var(--primary)",
-  comment: "var(--muted-foreground)",
-  resolution: "var(--severity-resolved)",
-  escalation: "var(--severity-degraded)",
-  eta: "var(--muted-foreground)",
-};
-
 /**
  * Vertical timeline (PRD section 4.9). The connecting rule is drawn per-item
  * rather than as one absolutely positioned line, so it stops cleanly at the
@@ -52,15 +43,14 @@ export function OutageTimeline({ events }: { events: TimelineEvent[] }) {
             <div className="flex flex-col items-center">
               <span
                 aria-hidden
-                style={{ color: ACCENT[event.kind] }}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-background"
+                className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-foreground"
               >
                 <Icon className="h-3.5 w-3.5" />
               </span>
               {!isLast && <span className="w-px flex-1 bg-border" />}
             </div>
 
-            <div className={isLast ? "pb-1" : "pb-5"}>
+            <div className={isLast ? "pb-1 pt-1" : "pb-5 pt-1"}>
               <div className="flex flex-wrap items-baseline gap-x-2">
                 <span className="text-sm font-medium">{event.title}</span>
                 <time className="text-xs text-muted-foreground">

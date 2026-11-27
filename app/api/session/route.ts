@@ -1,4 +1,5 @@
 import { ok, serverError } from "@/lib/api";
+import { approxLocation } from "@/lib/approx-location";
 import { isDatabaseConfigured } from "@/lib/db";
 import { getWritableIdentity } from "@/lib/identity";
 import { pushConfigured } from "@/lib/push";
@@ -37,6 +38,8 @@ export async function GET() {
         /** Local mode means data is demo data and resets on restart. */
         demoData: !isDatabaseConfigured(),
       },
+      /** City-level, from the network address; where the map first opens. */
+      approxLocation: approxLocation(),
     });
   } catch (error) {
     return serverError(error, "GET /api/session");

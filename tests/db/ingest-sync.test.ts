@@ -38,6 +38,8 @@ vi.mock("@/lib/ingest/nws", () => ({ NwsSource: fakeSource(feeds.names.nws) }));
 vi.mock("@/lib/ingest/odin", () => ({ OdinSource: fakeSource(feeds.names.odin) }));
 vi.mock("@/lib/ingest/ioda", () => ({ IodaSource: fakeSource(feeds.names.ioda) }));
 vi.mock("@/lib/ingest/cloudflare-radar", () => ({ CloudflareRadarSource: fakeSource(feeds.names.radar) }));
+// No utility maps: the real ones would be fetched and written to this database.
+vi.mock("@/lib/ingest/kubra", () => ({ KUBRA_UTILITIES: [], KubraSource: class {} }));
 
 import { query } from "@/lib/db";
 import { runIngest } from "@/lib/ingest/run";
@@ -45,10 +47,14 @@ import { asOwner } from "./helpers";
 
 const SOURCE = feeds.names.ioda;
 
-function feedOutage(id: string, description = `outage ${id}`): IngestedOutage {
+function feedOutage(
+  id: string,
+  description = `outage ${id}`,
+  providerSlug: string | null = null,
+): IngestedOutage {
   return {
     sourceId: id,
-    providerSlug: null,
+    providerSlug,
     utilityName: "Test Utility",
     customersAffected: 120,
     reportedAt: "2026-10-30T12:00:00.000Z",
@@ -112,5 +118,84 @@ describe("runIngest against Postgres", () => {
     const complete = await runIngest();
     expect(await statuses()).toEqual({ a: "active", b: "resolved", c: "resolved" });
     expect(complete.outagesResolved).toBeGreaterThanOrEqual(2);
+  });
+
+  it("links a feed row to the provider its slug names, and keeps the link through a truncated run", async () => {
+    const provider = async (id: string) => {
+      const [row] = await query<{ slug: string | null }>(
+        `SELECT p.slug FROM outages o LEFT JOIN providers p ON p.id = o.provider_id
+         WHERE o.source_name = $1 AND o.source_id = $2`,
+        [SOURCE, id],
+      );
+      return row?.slug ?? null;
+    };
+
+    feeds.results[SOURCE] = async () => ({
+      outages: [
+        feedOutage("linked", "pepco row", "pepco"),
+        feedOutage("unknown", "no such provider", "not-a-provider"),
+        feedOutage("plain"),
+      ],
+      truncated: false,
+    });
+    await runIngest();
+    expect(await provider("linked")).toBe("pepco");
+    // A slug that matches nothing is not an error: the row is written unlinked.
+    expect(await provider("unknown")).toBeNull();
+    expect(await provider("plain")).toBeNull();
+
+    // The catalog's name wins over the feed's spelling, and the provider
+    // filter now finds the official row.
+    const named = await query<{ provider_slug: string; provider_name: string }>(
+      `SELECT provider_slug, provider_name FROM search_outages(provider_slugs => ARRAY['pepco'])
+       WHERE source_name = $1`,
+      [SOURCE],
+    );
+    expect(named).toEqual([{ provider_slug: "pepco", provider_name: "Pepco" }]);
+
+    // Truncated page that does not include "linked": it is carried, link intact.
+    feeds.results[SOURCE] = async () => ({ outages: [feedOutage("plain")], truncated: true });
+    await runIngest();
+    expect(await provider("linked")).toBe("pepco");
+    expect((await statuses()).linked).toBe("active");
+  });
+
+  it("returns a network-wide outage to every viewport, and a placed one only to its own", async () => {
+    feeds.results[SOURCE] = async () => ({
+      outages: [
+        // Nominal point in Kansas; Oklahoma for the placed row.
+        { ...feedOutage("network"), latitude: 39.8283, longitude: -98.5795, scope: "national" as const },
+        feedOutage("placed"),
+      ],
+      truncated: false,
+    });
+    await runIngest();
+
+    // A viewport over Washington, DC: neither row's point is inside it.
+    const dc = await query<{ source_id: string; scope: string | null }>(
+      `SELECT o.source_id, s.scope
+       FROM search_outages(min_lat => 38.7, min_lng => -77.3, max_lat => 39.1, max_lng => -76.8) s
+       JOIN outages o ON o.id = s.id
+       WHERE o.source_name = $1`,
+      [SOURCE],
+    );
+    expect(dc).toEqual([{ source_id: "network", scope: "national" }]);
+
+    // The service-type filter still applies to it.
+    const power = await query<{ id: string }>(
+      `SELECT s.id FROM search_outages(service_types => ARRAY['power']) s
+       JOIN outages o ON o.id = s.id WHERE o.source_name = $1`,
+      [SOURCE],
+    );
+    expect(power).toEqual([]);
+
+    // Through the repository, as the API reads it.
+    const { getRepository } = await import("@/lib/data");
+    const listed = await getRepository().listOutages({
+      bounds: { minLat: 38.7, minLng: -77.3, maxLat: 39.1, maxLng: -76.8 },
+    });
+    const mine = listed.filter((o) => o.sourceName === SOURCE);
+    expect(mine).toHaveLength(1);
+    expect(mine[0]).toMatchObject({ scope: "national", serviceType: "internet" });
   });
 });

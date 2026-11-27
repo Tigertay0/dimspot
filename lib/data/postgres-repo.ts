@@ -36,7 +36,7 @@ function isUuid(value: string): boolean {
   return UUID.test(value);
 }
 
-/** Row shape returned by search_outages (db/migrations/0002_app.sql). */
+/** Row shape returned by search_outages (db/migrations/0007_more_providers.sql). */
 interface SearchRow {
   id: string;
   provider_id: string | null;
@@ -62,6 +62,7 @@ interface SearchRow {
   source_name: string | null;
   customers_affected: number | null;
   start_known: boolean;
+  scope: string | null;
 }
 
 interface CommentRow {
@@ -101,6 +102,7 @@ function toOutage(row: SearchRow): Outage {
     sourceName: row.source_name,
     customersAffected: row.customers_affected,
     startKnown: row.start_known,
+    scope: row.scope === "national" ? "national" : null,
   };
 }
 
@@ -164,8 +166,9 @@ export class PostgresRepository implements Repository {
       service_type: ServiceType;
       logo_url: string | null;
       official_status_url: string | null;
+      regions: string[] | null;
     }>(
-      "SELECT slug, name, service_type, logo_url, official_status_url FROM providers ORDER BY name",
+      "SELECT slug, name, service_type, logo_url, official_status_url, regions FROM providers ORDER BY name",
     );
 
     return rows.map((r) => ({
@@ -174,6 +177,7 @@ export class PostgresRepository implements Repository {
       serviceType: r.service_type,
       logoUrl: r.logo_url,
       officialStatusUrl: r.official_status_url,
+      regions: r.regions ?? [],
     }));
   }
 
@@ -412,8 +416,10 @@ export class PostgresRepository implements Repository {
       saved_providers: string[] | null;
       saved_locations: UserPreferences["savedLocations"] | null;
       notification_settings: Partial<UserPreferences["notifications"]> | null;
+      home: UserPreferences["home"];
+      my_providers: UserPreferences["myProviders"] | null;
     }>(
-      `SELECT saved_providers, saved_locations, notification_settings
+      `SELECT saved_providers, saved_locations, notification_settings, home, my_providers
        FROM user_preferences WHERE user_id = $1`,
       [identity],
     );
@@ -427,6 +433,8 @@ export class PostgresRepository implements Repository {
         ...DEFAULT_PREFERENCES.notifications,
         ...(row.notification_settings ?? {}),
       },
+      home: row.home ?? null,
+      myProviders: row.my_providers ?? {},
     };
   }
 
@@ -438,17 +446,23 @@ export class PostgresRepository implements Repository {
     // jsonb values go in as JSON text: pg would send a JS array as a Postgres
     // array literal, which jsonb rejects.
     await query(
-      `INSERT INTO user_preferences (user_id, saved_providers, saved_locations, notification_settings)
-       VALUES ($1, $2, $3::jsonb, $4::jsonb)
+      `INSERT INTO user_preferences
+         (user_id, saved_providers, saved_locations, notification_settings, home, my_providers)
+       VALUES ($1, $2, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb)
        ON CONFLICT (user_id) DO UPDATE SET
          saved_providers = EXCLUDED.saved_providers,
          saved_locations = EXCLUDED.saved_locations,
-         notification_settings = EXCLUDED.notification_settings`,
+         notification_settings = EXCLUDED.notification_settings,
+         home = EXCLUDED.home,
+         my_providers = EXCLUDED.my_providers`,
       [
         identity,
         preferences.providerIds,
         JSON.stringify(preferences.savedLocations),
         JSON.stringify(preferences.notifications),
+        // A JSON null would be stored as jsonb 'null'; SQL NULL is "no home".
+        preferences.home ? JSON.stringify(preferences.home) : null,
+        JSON.stringify(preferences.myProviders ?? {}),
       ],
     );
     return preferences;

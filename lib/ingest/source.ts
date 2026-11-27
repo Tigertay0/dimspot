@@ -51,6 +51,12 @@ export interface IngestedOutage {
   estimatedRestoration: string | null;
   /** Absent means the source no longer reports it; the runner resolves it. */
   active: boolean;
+  /**
+   * "national" for an outage of a whole network rather than of a place. Its
+   * coordinates are then nominal: the app lists it as a network alert in every
+   * viewport and keeps it off the map's pins and heat.
+   */
+  scope?: "national";
 }
 
 export interface IngestedAdvisory {

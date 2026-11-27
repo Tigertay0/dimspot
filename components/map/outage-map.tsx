@@ -1,12 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type Ref,
+} from "react";
+import type { GeolocateControl as GeolocateControlInstance } from "maplibre-gl";
 import Map, {
+  AttributionControl,
   GeolocateControl,
   Layer,
   Marker,
-  NavigationControl,
-  ScaleControl,
   Source,
   type MapRef,
   type ViewStateChangeEvent,
@@ -21,12 +29,15 @@ import { AdvisoryMarker, ClusterMarker, OutageMarker } from "./markers";
 import { useClusters, type ClusterProperties, type PointProperties } from "./use-clusters";
 import { useTintedBasemap } from "./use-tinted-basemap";
 
+/** Wide enough for the list to sit beside the map (see use-is-desktop.ts). */
+const isWide = () => window.matchMedia("(min-width: 1024px)").matches;
+
 /** Reported within this many minutes counts as "fresh" and gets a pulse ring. */
 const FRESH_MINUTES = 15;
 
 /**
- * Inset that keeps fitted content clear of the floating chrome — the search bar
- * on top, the list panel and report button below.
+ * Inset that keeps fitted content clear of what floats over the map: the alert
+ * pill and controls along the top, the list bar and report button below.
  *
  * Proportional rather than fixed: fixed pixel padding is most of the map on a
  * short viewport, which pushes a fitBounds out to hemisphere zoom.
@@ -36,17 +47,44 @@ function chromePadding(map: Pick<MapRef, "getContainer"> | null | undefined) {
   const width = map?.getContainer().clientWidth ?? 400;
 
   return {
-    top: Math.min(90, height * 0.12),
-    bottom: Math.min(130, height * 0.16),
+    // The pill and controls are about 60px; the list bar and the report
+    // button take about 130px at the bottom of a phone, and nothing sits
+    // there when the list is a column beside the map.
+    top: Math.min(72, height * 0.12),
+    bottom: isWide() ? 32 : Math.min(140, height * 0.18),
     left: Math.min(48, width * 0.08),
     right: Math.min(48, width * 0.08),
   };
+}
+
+/** "1.2k" for customers out, or the confirmation count on a report; else nothing. */
+function markerLabel(outage: Outage): string | null {
+  const customers = outage.customersAffected;
+  if (customers !== null && customers > 0) {
+    return customers >= 10_000
+      ? `${Math.round(customers / 1000)}k`
+      : customers >= 1000
+        ? `${Math.round(customers / 100) / 10}k`
+        : String(customers);
+  }
+  return outage.verificationCount > 1 ? String(outage.verificationCount) : null;
 }
 
 export interface MapView {
   latitude: number;
   longitude: number;
   zoom: number;
+}
+
+/**
+ * What the shell's own buttons can ask of the map. MapLibre's stock controls
+ * are not used: they are 29px squares styled for a light map, and they sat
+ * under the search bar on a phone. The shell draws its own and calls these.
+ */
+export interface MapControls {
+  zoomBy: (delta: number) => void;
+  /** Centre on the device's position and keep showing it. */
+  locate: () => void;
 }
 
 interface OutageMapProps {
@@ -62,6 +100,17 @@ interface OutageMapProps {
   picking: boolean;
   onPickMove?: (center: { latitude: number; longitude: number }) => void;
   theme: "light" | "dark";
+  controls?: Ref<MapControls>;
+  /** A tap on the map itself, not on a marker. */
+  onBackgroundClick?: () => void;
+  /** The device refused or failed to give a position. */
+  onLocateError?: (message: string, denied: boolean) => void;
+  /** The device gave a position. */
+  onLocated?: () => void;
+  /** The map has loaded and its controls answer. */
+  onReady?: () => void;
+  /** The place a search landed on, when it is a street or an address. */
+  searchPin?: { latitude: number; longitude: number } | null;
 }
 
 export function OutageMap({
@@ -75,8 +124,30 @@ export function OutageMap({
   picking,
   onPickMove,
   theme,
+  controls,
+  onBackgroundClick,
+  onLocateError,
+  onLocated,
+  onReady,
+  searchPin,
 }: OutageMapProps) {
   const mapRef = useRef<MapRef | null>(null);
+  const geolocateRef = useRef<GeolocateControlInstance | null>(null);
+
+  useImperativeHandle(
+    controls,
+    () => ({
+      zoomBy: (delta) => {
+        const map = mapRef.current;
+        if (!map) return;
+        map.easeTo({ zoom: map.getZoom() + delta, duration: 250 });
+      },
+      locate: () => {
+        geolocateRef.current?.trigger();
+      },
+    }),
+    [],
+  );
   const [viewport, setViewport] = useState<{
     bounds: [number, number, number, number];
     zoom: number;
@@ -85,9 +156,11 @@ export function OutageMap({
 
   const { clusters, expansionZoom, leaves } = useClusters(outages, viewport);
 
-  // Which of the two representations is live. Before the first viewport sync
-  // the map is at DEFAULT_VIEW, which is country zoom, so heat is the correct
-  // assumption rather than a flash of pins.
+  // Which of the two representations is live. Zoomed out, the map is a heat
+  // map of where service is out; counted discs at that scale were tried and
+  // read as two giant numbers on a continent. Markers take over once they can
+  // stand apart. Before the first viewport sync the map is at DEFAULT_VIEW,
+  // which is country zoom, so heat is the right assumption.
   const showMarkers = (viewport?.zoom ?? DEFAULT_VIEW.zoom) >= MARKERS_MIN_ZOOM;
 
   const heatData = useMemo(() => outagesToGeoJSON(outages), [outages]);
@@ -205,6 +278,30 @@ export function OutageMap({
   const tinted = useTintedBasemap(theme);
   const mapStyle = styleFailed ? FALLBACK_STYLE : tinted;
 
+  // The heat map goes under the place names, so a hot region does not bury
+  // the labels that say where it is.
+  const firstLabelLayer = useMemo(() => {
+    if (!mapStyle || typeof mapStyle === "string") return undefined;
+    return mapStyle.layers.find(
+      (layer) => layer.type === "symbol" && /^(place|label)/.test(layer.id),
+    )?.id;
+  }, [mapStyle]);
+
+  /**
+   * While a report location is being picked on a phone, the sheet covers the
+   * lower part of the map. Padding the map by that much moves its centre (and
+   * the pin the shell draws there) into the part that is still visible, and the
+   * centre the map reports stays the point under the pin. On a wide screen the
+   * sheet is beside the map and covers nothing.
+   */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const sheet =
+      picking && !isWide() ? Math.min(280, map.getContainer().clientHeight * 0.5) : 0;
+    map.easeTo({ padding: { top: 0, right: 0, left: 0, bottom: sheet }, duration: 250 });
+  }, [picking]);
+
   // Ticks once a minute rather than being read during render, so marker
   // freshness is stable state instead of an impure read.
   const now = useNow(60_000);
@@ -229,6 +326,13 @@ export function OutageMap({
         // assigned yet when `load` fires, and every read here would no-op.
         const map = event.target;
 
+        // MapLibre opens the compact attribution until the first drag, which
+        // on a phone lays a strip of text across the report button. Start it
+        // closed; the (i) button still opens it.
+        const attribution = map.getContainer().querySelector(".maplibregl-ctrl-attrib");
+        attribution?.classList.remove("maplibregl-compact-show");
+        attribution?.removeAttribute("open");
+
         // Fit the country to whatever viewport this actually is, then report
         // the resulting bounds. Padding keeps markers clear of the search bar
         // above and the list panel below.
@@ -247,7 +351,9 @@ export function OutageMap({
         }
 
         syncViewport(map);
+        onReady?.();
       }}
+      onClick={() => onBackgroundClick?.()}
       onMove={handleMove}
       onMoveEnd={(event) => syncViewport(event.target)}
       onError={(event) => {
@@ -257,30 +363,54 @@ export function OutageMap({
         }
       }}
       reuseMaps
-      attributionControl={{ compact: true }}
+      attributionControl={false}
       style={{ position: "absolute", inset: 0 }}
     >
-      <NavigationControl position="top-right" showCompass={false} />
+      {/* Bottom-left, where globals.css lifts it clear of the list bar. */}
+      <AttributionControl compact position="bottom-left" />
+      {/* Kept for what it does (the position dot, accuracy ring, tracking), with
+          its own button hidden: the shell's locate button calls trigger(). */}
       <GeolocateControl
+        ref={geolocateRef}
         position="top-right"
+        style={{ display: "none" }}
         trackUserLocation
-        positionOptions={{ enableHighAccuracy: true }}
+        showAccuracyCircle
+        positionOptions={{ enableHighAccuracy: true, timeout: 10_000 }}
+        fitBoundsOptions={{ maxZoom: 13 }}
+        onGeolocate={() => onLocated?.()}
+        onError={(event) =>
+          onLocateError?.(
+            event.code === 1
+              ? "Location access is blocked for this site. Allow it in your browser settings, or search for an address."
+              : "Could not get your location. Try again, or search for an address.",
+            event.code === 1,
+          )
+        }
       />
-      <ScaleControl position="bottom-left" maxWidth={90} unit="imperial" />
+
+      {/* Where the last search landed. Not interactive: it marks a spot, and
+          the outages around it are the things to tap. */}
+      {searchPin && !picking && (
+        <Marker longitude={searchPin.longitude} latitude={searchPin.latitude} style={{ pointerEvents: "none" }}>
+          <span
+            aria-hidden
+            className="block size-4 rounded-full border-[3px] border-card bg-foreground shadow-[var(--shadow-marker)]"
+          />
+        </Marker>
+      )}
 
       {/* Density first, underneath everything: at country zoom this is the whole
           picture, and by the time markers appear it has faded to nothing. */}
       {!picking && (
         <Source id="outage-heat-source" type="geojson" data={heatData}>
-          <Layer {...heatLayer} />
+          <Layer {...heatLayer} beforeId={firstLabelLayer} />
         </Source>
       )}
 
       {/* Advisories render first so outage markers sit above them: a report of
           actual lost service outranks a forecast of possible lost service.
-          They also follow the same zoom gate: scattered over the heat map at
-          country zoom they read as the louder layer, which inverts what they
-          are — weather that might cause an outage, not one that happened. */}
+          They follow the same zoom gate as the markers. */}
       {!picking &&
         showMarkers &&
         advisories.map((advisory) => (
@@ -343,6 +473,7 @@ export function OutageMap({
               <OutageMarker
                 serviceType={outage.serviceType}
                 severity={outage.severity}
+                label={markerLabel(outage)}
                 // A utility's own report needs no crowd confirmation; drawing it
                 // dashed like an unverified guess would misstate it.
                 isVerified={outage.isVerified || outage.origin === "official"}

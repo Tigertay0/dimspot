@@ -91,6 +91,13 @@ What the migrations contain:
 - `0004_seed_providers.sql`: the providers the filters and report form offer.
 - `0005_review_fixes.sql`: deadlock-free confirmation triggers, function
   privileges, index cleanup, `prune_stale_rows`.
+- `0007_more_providers.sql`: the full provider catalog (158 rows, generated
+  from [`lib/data/provider-catalog.ts`](lib/data/provider-catalog.ts)) with the
+  states each one serves, feed rows linked to providers, and network-wide
+  outages returned to every viewport. Additive: apply it before deploying the
+  code that reads it.
+- `0008_home_and_my_providers.sql`: a saved home and the person's own power,
+  internet and mobile providers on `user_preferences`. Also additive.
 
 There is no row level security. Only the app's server code reaches the database,
 and [`lib/data/postgres-repo.ts`](lib/data/postgres-repo.ts) scopes every write
@@ -349,20 +356,65 @@ This one needs a free token, and is skipped entirely without it:
    ```
 
 Radar names places instead of giving coordinates, so a US annotation is drawn
-at the first state its scope or description names, and a nationwide event is
-drawn at the centre of the country with a description that says so.
+at the first state its scope or description names. A nationwide event has no
+place: it is stored with `scope: national` and listed as a network alert (see
+below) instead of being pinned to the centre of the country.
 Only annotations with no end date are published: Radar closes one when the
 outage recovers, which is what lets the sync resolve the row automatically.
 
+**Cloudflare Radar traffic anomalies** (same token): the live signal for
+individual ISPs and mobile carriers. Radar raises an anomaly when the traffic
+it sees from one network drops well below that network's normal, and its team
+later marks the real ones verified. This is the only free feed that says
+anything about cellular: each carrier's mobile network is its own AS, so
+"T-Mobile data is down" shows up here.
+[`lib/ingest/radar-anomalies.ts`](lib/ingest/radar-anomalies.ts) maps the
+well-known AS numbers to providers in the catalog (a carrier's mobile AS is
+filed as cellular, its wireline AS as internet) and reports any other US
+network under its registered name.
+
+Two limits to know. An anomaly names a network, not a place, so these rows are
+network alerts: a strip under the filter chips and a section at the top of the
+list, in every viewport, never a pin. And a traffic drop is a signal, not a
+confirmed outage: verified anomalies are shown as degraded, unverified ones as
+intermittent and only for their first 12 hours.
+
+**Utility outage maps (Kubra StormCenter)**: off by default, on with
+`KUBRA_INGEST=on`. ODIN is voluntary and most of the largest utilities are not
+in it, so without this there is no live power data for Washington, Baltimore,
+Chicago, Detroit, Dallas or Atlanta. Their own outage maps are hosted on
+kubra.io, and [`lib/ingest/kubra.ts`](lib/ingest/kubra.ts) reads 24 of them:
+Pepco, BGE, Delmarva, Atlantic City Electric, ComEd, PECO, Dominion, PSEG Long
+Island, PSE&G, the AEP companies, DTE, Oncor, Ameren, Georgia Power, Alabama
+Power, Austin Energy, CPS Energy and OG&E. Utilities ODIN already reports are
+left out, so nothing is counted twice.
+
+It is opt-in because these are public pages, not a documented API, and a
+utility's site terms may not welcome automated reads. The adapter is gentle
+(two or three requests per utility, about once an hour, with a User-Agent that
+names this site), but whether to run it is the deployment owner's decision:
+
+```bash
+npx wrangler secret put KUBRA_INGEST    # value: on
+```
+
+Each utility is its own source (`kubra-pepco`, ...), read at the finest area
+its map offers (ZIP code where there is one, otherwise town or county), with
+areas under five customers and masked counts dropped. A Worker invocation has a
+subrequest budget (50 on the free plan), so ten maps are read per run, in
+rotation, which reaches each about once an hour. On a paid plan set
+`KUBRA_UTILITIES_PER_RUN=30` and every map is read on every run.
+
 ### What it does not pull
 
-Street-level detail, and the utilities that stay out of ODIN. PowerOutage.us
-aggregates every US utility and charges for it; the DOE's EAGLE-I is bulk
-historical. Individual utility outage maps have undocumented JSON endpoints, but
-scraping them is fragile and generally against their terms. For internet, the
-per-ISP "is Comcast down in my neighbourhood" signal is sold commercially
-(Downdetector and similar) and has no free equivalent. IODA answers a coarser
-question, and crowdsourced reports cover the rest.
+Street-level detail, and the utilities that are in neither ODIN nor the Kubra
+list (Duke, FPL, PG&E, SCE, Con Edison, Xcel, Entergy and others run their own
+or another vendor's map). PowerOutage.us aggregates every US utility and
+charges for it; the DOE's EAGLE-I is bulk historical. For internet and
+cellular, the "is Comcast down in my neighbourhood" signal is sold commercially
+(Downdetector and similar) and has no free equivalent. IODA and Radar answer
+coarser questions, a state or a whole network, and crowdsourced reports cover
+the rest.
 
 `lib/ingest/source.ts` defines the interface a feed implements, and
 `lib/ingest/run.ts` holds the registry — adding a paid source means writing an
@@ -396,20 +448,40 @@ every marker, cluster and interaction still works.
 ## Geocoding
 
 Search and reverse-geocoding proxy through
-[`app/api/geocode/route.ts`](app/api/geocode/route.ts) to Nominatim. It is
-proxied rather than called from the browser because Nominatim requires an
-identifying `User-Agent`, its usage policy caps request rate per source, and
-keeping it server-side means a typed address never leaves in a third-party
-request carrying the user's referrer.
+[`app/api/geocode/route.ts`](app/api/geocode/route.ts) to two free
+OpenStreetMap geocoders, neither needing a key:
 
-The public instance is fine for development. Before real traffic, point at a
-self-hosted instance or a commercial geocoder:
+- **Photon** (`photon.komoot.io`) answers suggestions while someone types. It
+  matches prefixes and takes the map's position as a bias. Nominatim cannot be
+  used for this: it matches whole words only, and its usage policy forbids
+  autocomplete.
+- **Nominatim** answers a submitted search (Enter on a full address, where its
+  US house-number data is better) and the reverse lookup behind the report pin.
+
+Both are proxied rather than called from the browser: they want an identifying
+`User-Agent`, their usage policies cap request rate per source, and keeping it
+server-side means a typed address never leaves in a third-party request
+carrying the user's referrer.
+
+The public instances are fine for development and for light use (Photon asks
+for fair use and throttles heavy callers). Before real traffic, point at
+self-hosted instances or a commercial geocoder:
 
 ```bash
+PHOTON_BASE_URL=https://photon.example.com
 NOMINATIM_BASE_URL=https://nominatim.example.com
 GEOCODER_USER_AGENT="YourApp/1.0 (contact@example.com)"
 GEOCODER_COUNTRY_CODES=us
 ```
+
+### Where the map opens
+
+In order: the outage a link points at; the saved home; the visitor's region
+from Cloudflare's request geolocation (`request.cf`, city-level, returned by
+`/api/session` rounded to a tenth of a degree, never stored, null off
+Cloudflare); then the device's own position, but only when the browser already
+reports the permission as granted or the visitor has used "show my location"
+here before, so nobody gets a permission prompt on first load.
 
 ---
 
@@ -446,7 +518,7 @@ Configuration lives in two places:
   `npx wrangler secret bulk file.json` from a git-ignored file):
   `BETTER_AUTH_SECRET`, `CRON_SECRET`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
   `VAPID_SUBJECT`, `RATE_LIMIT_SALT`, `CLOUDFLARE_RADAR_TOKEN`, and optionally
-  `NWS_USER_AGENT`, `NOMINATIM_BASE_URL`, `GEOCODER_USER_AGENT`,
+  `NWS_USER_AGENT`, `PHOTON_BASE_URL`, `NOMINATIM_BASE_URL`, `GEOCODER_USER_AGENT`,
   `GEOCODER_COUNTRY_CODES`.
 
 `NEXT_PUBLIC_MAP_STYLE_URL` and `NEXT_PUBLIC_MAP_STYLE_URL_DARK` are read at

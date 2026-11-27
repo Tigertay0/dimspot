@@ -1,7 +1,9 @@
 import "server-only";
 import { isDatabaseConfigured, iso, query } from "@/lib/db";
 import { CloudflareRadarSource } from "./cloudflare-radar";
+import { RadarAnomalySource } from "./radar-anomalies";
 import { IodaSource } from "./ioda";
+import { KUBRA_UTILITIES, KubraSource } from "./kubra";
 import { NwsSource } from "./nws";
 import { OdinSource } from "./odin";
 import type { IngestedAdvisory, IngestedOutage, OutageSource } from "./source";
@@ -17,12 +19,50 @@ import type { IngestedAdvisory, IngestedOutage, OutageSource } from "./source";
  * every few minutes updates in place instead of duplicating.
  */
 
-const SOURCES: OutageSource[] = [
+/** Polled on every run. */
+const CORE_SOURCES: OutageSource[] = [
   new NwsSource(),
   new OdinSource(),
   new IodaSource(),
   new CloudflareRadarSource(),
+  new RadarAnomalySource(),
 ];
+
+/** One source per utility outage map, polled in rotation; see sourcesForRun. */
+const KUBRA_SOURCES: OutageSource[] = KUBRA_UTILITIES.map((u) => new KubraSource(u));
+
+const SOURCES: OutageSource[] = [...CORE_SOURCES, ...KUBRA_SOURCES];
+
+/** The cron period in wrangler.jsonc; the rotation below advances once per run. */
+const RUN_INTERVAL_MS = 20 * 60 * 1000;
+
+/**
+ * How many utility maps one run reads.
+ *
+ * Each costs two or three requests, and a Worker invocation has a subrequest
+ * budget: 50 on the free plan, which the core sources also draw on. Ten keeps
+ * a run near 35 requests and reaches every utility about once an hour. On a
+ * paid plan set KUBRA_UTILITIES_PER_RUN to the size of the list (or more) and
+ * every map is read every run.
+ */
+const DEFAULT_KUBRA_PER_RUN = 10;
+
+/**
+ * The sources this run polls: the core ones, plus this run's share of the
+ * utility maps. Each utility is its own source, so the ones sitting a run out
+ * are untouched: their rows are neither refreshed nor resolved until their
+ * turn comes round.
+ */
+export function sourcesForRun(now: number = Date.now()): OutageSource[] {
+  const configured = Number(process.env.KUBRA_UTILITIES_PER_RUN);
+  const perRun =
+    Number.isInteger(configured) && configured > 0 ? configured : DEFAULT_KUBRA_PER_RUN;
+
+  const groups = Math.max(1, Math.ceil(KUBRA_SOURCES.length / perRun));
+  const turn = Math.floor(now / RUN_INTERVAL_MS) % groups;
+
+  return [...CORE_SOURCES, ...KUBRA_SOURCES.filter((_, index) => index % groups === turn)];
+}
 
 export interface SourceReport {
   source: string;
@@ -96,6 +136,8 @@ async function upsertAdvisories(
 
 type FeedRow = {
   source_id: string;
+  /** Links the row to a provider when it matches one (migration 0007). */
+  provider_slug: string | null;
   service_type: IngestedOutage["serviceType"];
   severity: IngestedOutage["severity"];
   latitude: number;
@@ -121,6 +163,7 @@ async function activeRowsNotIn(
 ): Promise<FeedRow[]> {
   const stored = await query<{
     source_id: string | null;
+    provider_slug: string | null;
     service_type: FeedRow["service_type"];
     severity: FeedRow["severity"];
     latitude: number | null;
@@ -132,11 +175,12 @@ async function activeRowsNotIn(
     reported_at: Date;
     metadata: unknown;
   }>(
-    `SELECT source_id, service_type, severity,
-            ST_Y(location::geometry) AS latitude, ST_X(location::geometry) AS longitude,
-            city, state, description, estimated_restoration, reported_at, metadata
-     FROM outages
-     WHERE source_name = $1 AND status = 'active'`,
+    `SELECT o.source_id, p.slug AS provider_slug, o.service_type, o.severity,
+            ST_Y(o.location::geometry) AS latitude, ST_X(o.location::geometry) AS longitude,
+            o.city, o.state, o.description, o.estimated_restoration, o.reported_at, o.metadata
+     FROM outages o
+     LEFT JOIN providers p ON p.id = o.provider_id
+     WHERE o.source_name = $1 AND o.status = 'active'`,
     [sourceName],
   );
 
@@ -148,6 +192,7 @@ async function activeRowsNotIn(
     }
     rows.push({
       source_id: row.source_id,
+      provider_slug: row.provider_slug,
       service_type: row.service_type,
       severity: row.severity,
       latitude: row.latitude as number,
@@ -191,6 +236,7 @@ async function syncOutages(
 
   const rows: FeedRow[] = [...unique.values()].map((o) => ({
     source_id: o.sourceId,
+    provider_slug: o.providerSlug,
     service_type: o.serviceType,
     severity: o.severity,
     latitude: o.latitude,
@@ -205,6 +251,7 @@ async function syncOutages(
       customers_affected: o.customersAffected,
       // Without a feed start time, reported_at is only when we first saw it.
       start_known: o.reportedAt !== null,
+      ...(o.scope ? { scope: o.scope } : {}),
     },
   }));
 
@@ -227,7 +274,7 @@ export async function runIngest(): Promise<IngestReport> {
   const reports: SourceReport[] = [];
   let outagesResolved = 0;
 
-  for (const source of SOURCES) {
+  for (const source of sourcesForRun()) {
     if (!source.isConfigured()) {
       reports.push({
         source: source.name,

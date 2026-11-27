@@ -38,6 +38,9 @@ export const commentSchema = z.object({
   commentType: z.enum(["update", "resolution", "escalation"]).default("update"),
 });
 
+/** A provider slug or nothing. The repository checks it names a real provider. */
+const providerSlugSchema = z.string().regex(/^[a-z0-9-]{1,64}$/).nullable().optional();
+
 export const savedLocationSchema = z.object({
   id: z.string(),
   name: z.string().trim().min(1).max(60),
@@ -68,6 +71,23 @@ export const preferencesSchema = z.object({
       zoom: z.number().min(0).max(22),
     })
     .nullable(),
+  // Both default, so a client loaded before these existed still saves cleanly.
+  home: z
+    .object({
+      label: z.string().trim().min(1).max(160),
+      latitude: latitudeSchema,
+      longitude: longitudeSchema,
+      state: z.string().regex(/^[A-Z]{2}$/).nullable(),
+    })
+    .nullable()
+    .default(null),
+  myProviders: z
+    .object({
+      power: providerSlugSchema,
+      internet: providerSlugSchema,
+      cellular: providerSlugSchema,
+    })
+    .default({}),
 });
 
 /**

@@ -63,3 +63,26 @@ Severity tokens (`--severity-*`) stay as they are, plus lightened night variants
 | Vertical Cut Reveal | https://21st.dev/@cnippet-dev/components/vertical-cut-reveal | |
 | Expanded Map | https://21st.dev/@dev.shejanmahamud/components/expanded-map | |
 | Wave Lines | https://21st.dev/@balick/components/wave-lines | |
+
+## App (/map)
+The app follows the Airbnb and Uber map screens the user chose as references (brief section 12), not Lights Out. Tokens live in `app/globals.css`.
+- **Theme:** light by default (`dimspot-appearance` "dusk"); dark ("night") is the same system inverted.
+- **Colour:** light: white surfaces, ink #1a1a1a, secondary #6a6a6a, hairline #ebebeb, primary #111111. Dark: #111111 / #1a1a1a / #242424, hairline #2a2a2a, ink #ededed, secondary #a1a1a1. Amber (`--brand`) is the mark only. Severity tokens are the only other colour.
+- **Type:** Geist. Sheet titles 22 / 600; row titles 15 to 17 / 600; body 15; secondary 14. Figures use `tabular-nums`, not the mono face.
+- **Shape:** pills for the search bar, markers, chips and the report button; `rounded-xl` (12) for buttons, inputs and tiles; `rounded-2xl` (16) for cards over the map; `rounded-3xl` (24) for sheets.
+- **Depth:** the `panel` utility for anything over the map: solid card colour and `--shadow-float`, plus a hairline in the dark theme. No blur, no glow.
+- **Layout:** the header is in the flow, with the map under it. Below 1024px the list is a bottom sheet over the map. From 1024px (`useIsDesktop`) the list is a 400px column beside the map, and Report outage sits in the header.
+- **Header:** solid, with the pill search bar (filters and account buttons inside it) and `TypeTabs`, icon tabs with an underline for the selected one. The tabs are the only service-type filter.
+- **Markers:** pills in `--marker` with a `--marker-edge` border and `--shadow-marker` (white with a hairline on the light map, #303030 with a #5a5a5a edge on the dark one), the service icon in the severity colour and a short figure: customers out, or confirmations. Selected is ink. Unconfirmed has a dashed edge. Below zoom 6 the map is a heat map of where service is out, drawn under the place names; counted discs at that scale were tried and rejected by the user as "big numbers". From zoom 6, markers, with clusters as a small counted disc on the same surface with a 2px severity-mix ring.
+- **Logo:** `BrandMark`, a flat D in the text colour whose counter is a spot in the brand amber. Master file `public/brand/dimspot-mark.svg`; `node scripts/gen-brand-icons.mjs` draws every icon from it, ink on a white ground.
+- **Search:** suggestions from the second letter (Photon), arrow keys and Enter, and before typing: "Use my location", Home and recent searches. A street or address result is marked with an ink dot.
+- **Over the map:** one message at a time, top left: the network-alert pill, or the coverage note when a single type is selected. Controls top right. Both hide while search results are open.
+- **Marker to detail:** on a phone a marker tap opens `OutagePreview` above the bottom sheet, and the card or a list row opens the detail sheet. On desktop a marker opens the detail directly in the list column.
+- **Bottom sheet:** a handle and one centred line; tap to open the list.
+- **Selection:** a 2px ink outline (tiles, severity rows, `Chip` tone `tint`); checkboxes and switches for anything that is a list of on/off choices (filters, settings).
+- **Touch targets:** every control sets its own size. A control drawn under 44px adds the `tap-target` utility, which grows the hit area with a pseudo-element and leaves layout alone. The blanket `min-height: 44px` rule applies to the landing pages only; in the app it stretched tabs, switches and checkboxes out of shape.
+- **Sheets:** `max-h-[88dvh]` (dvh, not vh, so iOS toolbars do not cover the footer) and `pb-safe` for the home indicator. The report sheet is non-modal on its location step, so the map under it can be dragged. From 1024px a sheet is a centred dialog, unless its `Sheet` has `dock`: then it opens in the list column, non-modal, and the map stays usable (detail, report, advisory).
+- **Toasts:** ink with white text for every variant. No red blocks.
+- **Copy:** American spelling.
+- **Sizes:** buttons 48 / 36 (`sm`) / 56 (`lg`); inputs 48; chips 36; search bar 56; map controls 44.
+- **Basemap:** OpenFreeMap recoloured per layer in `lib/map/brand-style.ts`. Labels are mixed case in both themes.

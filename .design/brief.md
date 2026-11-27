@@ -239,3 +239,20 @@ The user asked that the app and the landing feel like the same product. Someone 
 - **Same motion.** One easing (`--ease-lights`), 160-220ms for sheets and menus, and a short "lights out" pulse when a new outage appears. Reduced motion keeps every state, minus the movement.
 - **Dusk light mode.** The landing's opening and closing palette (dusk ground, ink text, horizon accent, sodium Action) on a light basemap, so both modes are scenes from the landing.
 - **Check before review.** Put the /map screenshots next to landing frames 11-16. A reviewer must not be able to tell where the landing ends and the app begins, apart from the map itself.
+
+## 12. App (/map), revised 2026-11-27: the Airbnb and Uber map screens
+
+Section 11 tied the app to the Lights Out landing, and the user called that styling "slop" twice. A first revision moved the app onto the homepage's minimal system (dark, square, mono figures); the user then sent two references, the Airbnb map search and the Uber ride picker, and said that look and that simplicity is what they want. Those references govern the app now. Section 11's palette, glow and glass rules no longer apply to it.
+
+- **Character:** plain, light, friendly. A white surface, a light map, black for the one action. Nothing decorative.
+- **The rut we refuse:** navy with an amber glow, frosted glass, tinted icon tiles, cards inside cards, a row of badges where a sentence would do.
+- **From Airbnb:** a pill search bar in a solid white header, a row of icon tabs under it with the selected one underlined, white pill markers that carry a number and turn black when selected, a preview card over the map for the tapped marker, a white bottom sheet with a handle and one centred line.
+- **From Uber:** large plain sheet titles, list rows with a bold name and a bold figure on the right, a 2px black outline for the selected option, one full-width black button at the bottom.
+- **Colour:** white surfaces, ink #1a1a1a text, #6a6a6a secondary, #ebebeb hairlines, #111111 for the primary button and the selected marker. Light is the default theme; dark is the same system inverted. Colour belongs to data: the severity of the icon in a marker, a severity dot beside its name, the heat map. Amber is the brand mark only.
+- **Type:** Geist. Sheet titles 22 / 600, row titles 15 to 17 / 600, body 15, secondary 14. Figures in the same face with tabular numerals.
+- **Shape:** pills for the search bar, markers, chips and the report button; 12 for buttons, inputs and tiles; 16 for cards over the map; 24 for sheets.
+- **Depth:** soft shadows instead of borders in the light theme; a hairline as well in the dark one. No blur, no glow.
+- **Layout:** one solid header (search with filters and account, then the tabs). Under it, at most one small alert pill on the left and the map controls on the right. At the bottom, the sheet, with the report button or the preview card above it. Nothing else floats.
+- **Marker to detail:** a tap on a marker opens the preview card; a tap on the card, or on a list row, opens the full sheet.
+- **Acceptance:** an independent review scores it 85 or more with no defect open; every text pair holds 4.5:1; placing a report pin works with the map visible and undimmed.
+

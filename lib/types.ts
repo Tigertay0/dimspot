@@ -23,6 +23,8 @@ export interface Provider {
   serviceType: ServiceType;
   logoUrl: string | null;
   officialStatusUrl: string | null;
+  /** Two-letter state codes where it operates; empty means nationwide. */
+  regions: string[];
 }
 
 export interface Outage {
@@ -55,6 +57,12 @@ export interface Outage {
    * reporting this, rather than when it actually began.
    */
   startKnown: boolean;
+  /**
+   * "national" when a whole network is affected rather than a place. The
+   * coordinates are then nominal and the outage is shown as a network alert,
+   * not as a pin.
+   */
+  scope: "national" | null;
 }
 
 export interface OutageComment {
@@ -137,7 +145,23 @@ export interface UserPreferences {
   savedLocations: SavedLocation[];
   notifications: NotificationSettings;
   defaultCenter: { latitude: number; longitude: number; zoom: number } | null;
+  /** Where the person lives: the map opens here and alerts are aimed here. */
+  home: HomeLocation | null;
+  /** Who supplies them, per service. Pre-fills the report form. */
+  myProviders: MyProviders;
 }
+
+export interface HomeLocation {
+  /** A short address or place name, for display. */
+  label: string;
+  latitude: number;
+  longitude: number;
+  /** Two-letter state code, when known: narrows the provider lists. */
+  state: string | null;
+}
+
+/** Provider slugs, one per service a household has. */
+export type MyProviders = Partial<Record<"power" | "internet" | "cellular", string | null>>;
 
 export interface SavedLocation {
   id: string;

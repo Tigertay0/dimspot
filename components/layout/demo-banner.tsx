@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Info, X } from "lucide-react";
+import { FlaskConical, X } from "lucide-react";
 
 /**
  * Shown only when the app is running on the local seeded store. Being explicit
@@ -13,25 +13,22 @@ export function DemoBanner() {
   if (dismissed) return null;
 
   return (
-    // Colours are set against the card surface rather than a tinted background,
-    // so the text keeps its contrast in both themes.
-    <div className="flex items-start gap-2 rounded-xl border border-severity-intermittent/40 bg-card px-3 py-2 text-xs shadow-lg">
-      <Info
+    <div className="mb-2 flex items-center gap-2.5 rounded-xl bg-secondary py-2 pr-2 pl-3 text-xs">
+      <FlaskConical
         aria-hidden
-        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-severity-intermittent"
+        className="size-3.5 shrink-0 text-severity-intermittent"
       />
-      <p className="flex-1 text-card-foreground">
-        <span className="font-semibold">Demo data.</span> No database connected —
-        these outages are samples, and anything you report resets when the server
-        restarts. See SETUP.md to connect a database.
+      <p className="min-w-0 flex-1 leading-snug text-muted-foreground">
+        <span className="font-semibold text-foreground">Demo data.</span> No
+        database connected, so these outages are samples. See SETUP.md.
       </p>
       <button
         type="button"
         onClick={() => setDismissed(true)}
         aria-label="Dismiss"
-        className="-m-1 min-h-0 rounded p-1 text-muted-foreground hover:text-foreground"
+        className="tap-target flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       >
-        <X className="h-3.5 w-3.5" />
+        <X className="size-3.5" />
       </button>
     </div>
   );

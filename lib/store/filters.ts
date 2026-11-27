@@ -105,7 +105,7 @@ export const useFilters = create<FilterState>()(
        * loads empty with no indication that a saved filter is the reason. It
        * is cleared on rehydrate, so a stored blank selection cannot outlive the
        * session that made it. Within a session the state is still allowed, and
-       * the map says so — see TypeChips.
+       * the map says so — see TypeTabs.
        */
       onRehydrateStorage: () => (state) => {
         if (!state) return;
@@ -135,12 +135,12 @@ export function isDefaultFilter(state: {
 
 /** How many dimensions are narrowed, for the badge on the filter button. */
 export function activeFilterCount(state: {
-  serviceTypes: ServiceType[];
   severities: Severity[];
   providerIds: string[];
 }): number {
+  // The service type is not counted: the tabs under the search bar show it,
+  // and a badge on the filter button would mark the same choice twice.
   let count = 0;
-  if (state.serviceTypes.length !== SERVICE_TYPES.length) count += 1;
   if (state.severities.length !== SEVERITIES.length) count += 1;
   if (state.providerIds.length > 0) count += 1;
   return count;

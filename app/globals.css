@@ -13,64 +13,76 @@
    maps them onto utility classes (bg-card, text-muted-foreground, ...).
 --------------------------------------------------------------------------- */
 
-/* Dimspot app palette, shared with the landing page (design-system.md).
-   Night is the default (html.dark is set in the root layout); :root is the
-   dusk light mode. Sodium is the one action colour in both. */
+/* Dimspot app palette. The references are the Airbnb and Uber map screens:
+   white surfaces on a light map, near-black ink for text and for the one
+   primary action, soft shadows instead of borders, and colour kept for data
+   (severity). Light is the default; dark is the same system inverted. */
 :root {
-  --background: #f4e9dc; /* dusk */
-  --foreground: #161a26; /* ink */
-  --card: #fbf6ef;
-  --card-foreground: #161a26;
-  --popover: #fbf6ef;
-  --popover-foreground: #161a26;
-  --primary: #ffb21a; /* sodium: report, selection */
-  --primary-foreground: #161a26;
-  --secondary: #eadccb; /* dusk-deep */
-  --secondary-foreground: #161a26;
-  --muted: #eadccb;
-  --muted-foreground: #4a4f5e; /* ink-soft, 6.5:1 on dusk-deep */
-  --accent: #eadccb;
-  --accent-foreground: #161a26;
-  --destructive: hsl(0 72% 45%);
-  --destructive-foreground: #fff6e5;
-  --border: rgb(22 26 38 / 0.1);
-  --input: rgb(22 26 38 / 0.16);
-  --ring: #161a26; /* sodium would vanish on cream */
-  --radius: 1rem;
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+  --primary: #111111; /* ink: the primary button, the selected marker */
+  --primary-foreground: #ffffff;
+  --secondary: #f5f5f5;
+  --secondary-foreground: #1a1a1a;
+  --muted: #f5f5f5;
+  --muted-foreground: #6a6a6a; /* 5.4:1 on white, 4.9:1 on secondary */
+  --accent: #efefef;
+  --accent-foreground: #1a1a1a;
+  --destructive: #c81e1e;
+  --destructive-foreground: #ffffff;
+  --border: #ebebeb;
+  --input: #d9d9d9;
+  --ring: #111111;
+  --brand: #ffb21a;
+  --radius: 0.75rem;
+  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.08), 0 4px 12px rgb(0 0 0 / 0.1);
+  --shadow-marker: 0 1px 2px rgb(0 0 0 / 0.14), 0 3px 8px rgb(0 0 0 / 0.18);
+  --marker: #ffffff;
+  --marker-edge: rgb(0 0 0 / 0.14);
+  --shadow-sheet: 0 -2px 16px rgb(0 0 0 / 0.1);
 
-  /* Severity scale. Darkened enough to hold 4.5:1 as text on the dusk surfaces. */
+  /* Severity. Dark enough to hold 4.5:1 as text on white. */
   --severity-complete: hsl(0 72% 45%);
-  --severity-degraded: hsl(24 90% 40%);
-  --severity-intermittent: hsl(38 92% 33%);
-  --severity-resolved: hsl(142 55% 32%);
+  --severity-degraded: hsl(24 90% 38%);
+  --severity-intermittent: hsl(38 92% 31%);
+  --severity-resolved: hsl(142 60% 30%);
 }
 
 .dark {
-  --background: #0c1222; /* night */
-  --foreground: #fff6e5; /* lamp */
-  --card: #151c30; /* night-raised */
-  --card-foreground: #fff6e5;
-  --popover: #151c30;
-  --popover-foreground: #fff6e5;
-  --primary: #ffb21a; /* sodium */
-  --primary-foreground: #0c1222;
-  --secondary: #1e2740; /* night-high */
-  --secondary-foreground: #fff6e5;
-  --muted: #1e2740;
-  --muted-foreground: #b9bbc6; /* lamp-soft */
-  --accent: #232d4a;
-  --accent-foreground: #fff6e5;
-  --destructive: hsl(0 72% 52%);
-  --destructive-foreground: #fff6e5;
-  --border: rgb(255 246 229 / 0.1);
-  --input: rgb(255 246 229 / 0.14);
-  --ring: #ffb21a;
+  --background: #111111;
+  --foreground: #ededed;
+  --card: #1a1a1a;
+  --card-foreground: #ededed;
+  --popover: #1a1a1a;
+  --popover-foreground: #ededed;
+  --primary: #ededed;
+  --primary-foreground: #111111;
+  --secondary: #242424;
+  --secondary-foreground: #ededed;
+  --muted: #242424;
+  --muted-foreground: #a1a1a1; /* 6.6:1 on card */
+  --accent: #2b2b2b;
+  --accent-foreground: #ededed;
+  --destructive: #e5484d;
+  --destructive-foreground: #ffffff;
+  --border: #2a2a2a;
+  --input: #3a3a3a;
+  --ring: #ededed;
+  --brand: #ffb21a;
+  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 16px rgb(0 0 0 / 0.45);
+  --shadow-marker: 0 1px 2px rgb(0 0 0 / 0.6), 0 3px 10px rgb(0 0 0 / 0.6);
+  --marker: #303030;
+  --marker-edge: #5a5a5a;
+  --shadow-sheet: 0 -2px 16px rgb(0 0 0 / 0.5);
 
-  /* The landing's severity tones: they glow like lamps on the night map. */
-  --severity-complete: hsl(0 80% 68%);
-  --severity-degraded: hsl(24 90% 62%);
-  --severity-intermittent: hsl(42 92% 60%);
-  --severity-resolved: hsl(142 55% 55%);
+  --severity-complete: hsl(0 84% 67%);
+  --severity-degraded: hsl(27 92% 60%);
+  --severity-intermittent: hsl(45 93% 58%);
+  --severity-resolved: hsl(142 60% 52%);
 }
 
 @theme inline {
@@ -93,6 +105,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-brand: var(--brand);
 
   --color-severity-complete: var(--severity-complete);
   --color-severity-degraded: var(--severity-degraded);
@@ -119,30 +132,95 @@
     overscroll-behavior: none;
   }
 
-  /* Touch targets: the PRD asks for 44px minimum. */
+  /* Touch targets on the landing pages: 44px minimum, as the PRD asks.
+     The app shell is excluded. This rule used to apply everywhere, and it
+     stretched every small control that sets its own size: a 40px tab strip
+     got 44px tabs that spilled out of it, a 24px switch and a 20px checkbox
+     became 44px tall. Inside the app each control sizes itself and reaches
+     44px with the tap-target utility below, which grows the hit area without
+     touching the layout. */
   @media (pointer: coarse) {
-    button,
-    [role="button"],
-    a[href] {
+    body:not(:has([data-app-shell])) :is(button, [role="button"], a[href]) {
       min-height: 44px;
     }
   }
 }
 
-/* MapLibre's default controls are styled for a light basemap; nudge them so the
-   dark theme doesn't produce white-on-white buttons. */
-.dark .maplibregl-ctrl-group {
-  background: var(--card);
-}
-.dark .maplibregl-ctrl-group button + button {
-  border-top-color: var(--border);
-}
-.dark .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
-  filter: invert(1);
+/* A 44px hit area for a control that is drawn smaller. The pseudo-element is
+   part of the control, so a tap on it is a tap on the control, and it takes no
+   space in the layout. */
+@utility tap-target {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
 }
 
-.maplibregl-ctrl-attrib {
+/* Anything floating over the map: a solid surface lifted by a soft shadow,
+   as the reference apps do it. No border in the light theme (the shadow is the
+   edge); a hairline in the dark one, where a shadow on a dark map does not
+   read. No blur. */
+@utility panel {
+  background-color: var(--card);
+  box-shadow: var(--shadow-float);
+  border: 1px solid transparent;
+  :where(.dark) & {
+    border-color: var(--border);
+  }
+}
+
+/* The home indicator and browser toolbars: nothing tappable sits under them. */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* MapLibre's own chrome. The zoom and locate buttons are the shell's (see
+   map-shell.tsx), so only the attribution is left to style: a small panel
+   in the app's palette, lifted clear of the list bar that covers the bottom
+   edge on a phone. OpenStreetMap's licence needs it reachable at all times. */
+.maplibregl-ctrl-bottom-left {
+  bottom: calc(3.75rem + env(safe-area-inset-bottom, 0px));
+  left: 0.5rem;
+}
+/* A marker's preview card sits where the button is; move above the card. */
+[data-preview] .maplibregl-ctrl-bottom-left {
+  bottom: calc(11.75rem + env(safe-area-inset-bottom, 0px));
+}
+/* Beside the list column there is no bar to clear. */
+@media (min-width: 1024px) {
+  .maplibregl-ctrl-bottom-left {
+    bottom: 0.25rem;
+  }
+}
+.maplibregl-ctrl.maplibregl-ctrl-attrib {
+  background-color: var(--card);
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
   font-size: 10px;
+}
+.maplibregl-ctrl-attrib a {
+  color: inherit;
+}
+.maplibregl-ctrl-attrib.maplibregl-compact {
+  min-height: 24px;
+  border-radius: 6px;
+}
+.maplibregl-ctrl-attrib-button {
+  border-radius: 999px;
+  background-color: transparent !important;
+}
+.dark .maplibregl-ctrl-attrib-button {
+  filter: invert(1) opacity(0.7);
+}
+.maplibregl-user-location-dot,
+.maplibregl-user-location-dot::before {
+  background-color: #4c8dff;
 }
 
 @keyframes pulse-ring {

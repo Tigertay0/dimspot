@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Loader2, MapPin } from "lucide-react";
+import { Loader2, MapPin, Navigation } from "lucide-react";
+import { shortAddress } from "@/lib/format";
+import { stateCode } from "@/lib/us-states";
+import { cn } from "@/lib/utils";
 import { SERVICE_META, SEVERITY_META } from "@/lib/constants";
 import { useCreateOutage, useProviders } from "@/lib/hooks/use-outages";
+import { usePreferences } from "@/lib/hooks/use-preferences";
 import { useToast } from "@/components/ui/use-toast";
 import { SERVICE_TYPES, SEVERITIES } from "@/lib/types";
 import type { GeocodeResult, ServiceType, Severity } from "@/lib/types";
@@ -19,6 +23,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { ServiceIcon } from "@/components/map/markers";
+import { ProviderPicker } from "./provider-picker";
 
 /**
  * Report flow (PRD section 4.5): three steps, each one screen, no typing
@@ -28,12 +33,18 @@ import { ServiceIcon } from "@/components/map/markers";
 
 type Step = "service" | "location" | "severity";
 
+/** From here in, the pin is on a street someone could mean. */
+const PIN_MIN_ZOOM = 12;
+
 const STEP_ORDER: Step[] = ["service", "location", "severity"];
 
 export function ReportSheet({
   open,
   onOpenChange,
   pickedLocation,
+  mapZoom,
+  onPlacePin,
+  onLocate,
   onRequestPicking,
   onReported,
 }: {
@@ -41,19 +52,30 @@ export function ReportSheet({
   onOpenChange: (open: boolean) => void;
   /** Live map centre while the user is positioning the pin. */
   pickedLocation: { latitude: number; longitude: number } | null;
+  /** How close the map is: a pin placed from country zoom is a guess. */
+  mapZoom: number;
+  /** The "where" step opened: move the map to the reporter if it is far out. */
+  onPlacePin: () => void;
+  /** "Use my location" on the "where" step. */
+  onLocate: () => void;
   onRequestPicking: (picking: boolean) => void;
   onReported: (outageId: string) => void;
 }) {
   const { data: providers = [], isError: providersFailed } = useProviders();
   const createOutage = useCreateOutage();
   const { toast } = useToast();
+  // The person's own providers and home state, when they have saved them:
+  // choosing "Power" then pre-selects their power company.
+  const { data: saved } = usePreferences();
+  const myProviders = saved?.preferences.myProviders ?? {};
+  const homeState = saved?.preferences.home?.state ?? null;
 
   const [step, setStep] = useState<Step>("service");
   const [serviceType, setServiceType] = useState<ServiceType | null>(null);
   const [providerId, setProviderId] = useState<string | null>(null);
   const [severity, setSeverity] = useState<Severity | null>(null);
   const [description, setDescription] = useState("");
-  const [place, setPlace] = useState<GeocodeResult | null>(null);
+  const [resolvedPlace, setPlace] = useState<GeocodeResult | null>(null);
   const [resolvingPlace, setResolvingPlace] = useState(false);
 
   const providerOptions = useMemo(
@@ -77,14 +99,23 @@ export function ReportSheet({
     }
   }
 
+  const placing = open && step === "location";
   useEffect(() => {
-    onRequestPicking(open && step === "location");
-  }, [open, step, onRequestPicking]);
+    onRequestPicking(placing);
+    if (placing) onPlacePin();
+  }, [placing, onRequestPicking, onPlacePin]);
+
+  // Zoomed out past a neighbourhood, the middle of the map is nobody's
+  // address: no lookup, no provider guess from it, and no moving on.
+  const tooFar = mapZoom < PIN_MIN_ZOOM;
 
   // Reverse-geocode once the pin settles, so the confirmation screen can name a
-  // street rather than showing raw coordinates.
+  // street rather than showing raw coordinates. It starts on the first step,
+  // not the second: the state it returns is what lets the provider list lead
+  // with the companies that serve this spot.
+  const locating = open && step !== "severity" && !tooFar;
   useEffect(() => {
-    if (step !== "location" || !pickedLocation) return;
+    if (!locating || !pickedLocation) return;
 
     // Dragging the pin again supersedes this lookup. Clearing the timer alone
     // left an in-flight request running, and whichever reply landed last won —
@@ -115,13 +146,15 @@ export function ReportSheet({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [step, pickedLocation]);
+  }, [locating, pickedLocation]);
 
   const stepIndex = STEP_ORDER.indexOf(step);
+  // A lookup from before the map was zoomed out describes somewhere else.
+  const place = tooFar ? null : resolvedPlace;
 
   const canAdvance =
     (step === "service" && serviceType !== null) ||
-    (step === "location" && pickedLocation !== null) ||
+    (step === "location" && pickedLocation !== null && !tooFar) ||
     (step === "severity" && severity !== null);
 
   async function submit() {
@@ -135,7 +168,7 @@ export function ReportSheet({
         latitude: pickedLocation.latitude,
         longitude: pickedLocation.longitude,
         description: description.trim() || null,
-        address: place?.label.split(",").slice(0, 2).join(",").trim() ?? null,
+        address: place ? shortAddress(place.label) : null,
         city: place?.city ?? null,
         state: place?.state ?? null,
         zipCode: place?.zipCode ?? null,
@@ -159,27 +192,34 @@ export function ReportSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    // Not modal while the pin is being placed: that step is done on the map,
+    // and a modal sheet dims the map and swallows the drag meant for it.
+    <Sheet dock open={open} onOpenChange={onOpenChange} modal={step !== "location"}>
       <SheetContent
         side="bottom"
-        // Content-sized, capped at 85vh. The location step's content is short,
-        // so the sheet stays out of the way of the crosshair at the map centre
-        // without needing a separate height rule that squeezes it into a
-        // scrollbar.
-        className="flex max-h-[85vh] flex-col sm:mx-auto sm:max-w-lg sm:rounded-t-2xl"
+        noOverlay={step === "location"}
+        // The steps that are answered in the sheet share one height, so the
+        // sheet does not jump as the answers change length. Placing the pin is
+        // the exception: it stays short to leave the map in view.
+        className={step === "location" ? undefined : "min-h-[min(540px,82dvh)]"}
+        // The map is part of this step, so touching it is not "outside".
+        onInteractOutside={(event) => {
+          if (step === "location") event.preventDefault();
+        }}
       >
         <SheetHeader>
-          <SheetTitle>
-            {step === "service" && "What is out?"}
-            {step === "location" && "Where?"}
-            {step === "severity" && "How bad is it?"}
-          </SheetTitle>
-          <SheetDescription>
+          {/* Radix wants a description; the progress bar below says it visually. */}
+          <SheetDescription className="sr-only">
             Step {stepIndex + 1} of {STEP_ORDER.length}
           </SheetDescription>
+          <SheetTitle className="pr-12">
+            {step === "service" && "What is out?"}
+            {step === "location" && "Where is it?"}
+            {step === "severity" && "How bad is it?"}
+          </SheetTitle>
 
           <div
-            className="mt-2 flex gap-1.5"
+            className="mt-4 flex gap-1.5"
             role="progressbar"
             aria-valuenow={stepIndex + 1}
             aria-valuemin={1}
@@ -188,39 +228,55 @@ export function ReportSheet({
             {STEP_ORDER.map((s, index) => (
               <span
                 key={s}
-                className={`h-1 flex-1 rounded-full ${
-                  index <= stepIndex ? "bg-primary" : "bg-muted"
-                }`}
+                className={cn(
+                  "h-1 flex-1 rounded-full transition-colors duration-300",
+                  index <= stepIndex ? "bg-foreground" : "bg-secondary",
+                )}
               />
             ))}
           </div>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-5 py-2">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-6 pb-4 pt-1">
           {step === "service" && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-2">
-                {SERVICE_TYPES.map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => {
-                      setServiceType(type);
-                      setProviderId(null);
-                    }}
-                    aria-pressed={serviceType === type}
-                    className={`flex flex-col items-center gap-2 rounded-xl border p-4 transition-colors ${
-                      serviceType === type
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-input hover:bg-accent"
-                    }`}
-                  >
-                    <ServiceIcon type={type} className="h-6 w-6" />
-                    <span className="text-sm font-medium">
-                      {SERVICE_META[type].shortLabel}
-                    </span>
-                  </button>
-                ))}
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-3">
+                {SERVICE_TYPES.map((type) => {
+                  const selected = serviceType === type;
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => {
+                        setServiceType(type);
+                        const mine = type === "other" ? null : (myProviders[type] ?? null);
+                        // Only if it is still in the list: a provider can be
+                        // retired after someone saved it.
+                        setProviderId(
+                          mine && providers.some((p) => p.id === mine) ? mine : null,
+                        );
+                      }}
+                      aria-pressed={selected}
+                      className={cn(
+                        "flex h-[84px] flex-col items-start justify-between rounded-2xl border border-input bg-card p-3.5 transition-[background-color,border-color,transform] duration-150 active:scale-[0.98]",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
+                        // An ink outline on a quiet fill, not an ink fill: the
+                        // Next button below is the one solid ink on screen.
+                        selected
+                          ? "border-foreground bg-card text-foreground shadow-[inset_0_0_0_1px_var(--foreground)]"
+                          : "text-foreground hover:border-foreground",
+                      )}
+                    >
+                      <ServiceIcon
+                        type={type}
+                        className="size-6 stroke-[1.75]"
+                      />
+                      <span className="text-[15px] font-semibold leading-none">
+                        {SERVICE_META[type].shortLabel}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
               {/* The field is optional, so a failed list does not block the
@@ -233,101 +289,107 @@ export function ReportSheet({
               )}
 
               {serviceType && providerOptions.length > 0 && (
-                <div>
-                  <Label className="mb-2 block text-[13px] text-muted-foreground">
-                    Provider (optional)
-                  </Label>
-                  <div className="flex flex-wrap gap-2">
-                    {providerOptions.map((provider) => (
-                      <button
-                        key={provider.id}
-                        type="button"
-                        onClick={() =>
-                          setProviderId((current) =>
-                            current === provider.id ? null : provider.id,
-                          )
-                        }
-                        aria-pressed={providerId === provider.id}
-                        className={`rounded-full border px-3 py-2 text-sm transition-colors ${
-                          providerId === provider.id
-                            ? "border-primary bg-secondary"
-                            : "border-input hover:bg-accent"
-                        }`}
-                      >
-                        {provider.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <ProviderPicker
+                  // Remounted per service type so a search for "pepco" does
+                  // not carry over into the cellular list.
+                  key={serviceType}
+                  providers={providerOptions}
+                  // The pin's state once the address resolves; the saved
+                  // home's until then, which is usually the same place.
+                  stateCode={stateCode(place?.state) ?? homeState}
+                  value={providerId}
+                  onChange={setProviderId}
+                  preferred={
+                    serviceType === "other" ? null : (myProviders[serviceType] ?? null)
+                  }
+                />
               )}
             </div>
           )}
 
           {step === "location" && (
-            <div className="space-y-3 text-sm">
-              <p className="text-muted-foreground">
-                Drag the map to move the pin.
-              </p>
-              <div className="flex items-start gap-2 rounded-lg border bg-muted/40 p-3">
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                <div className="min-w-0">
-                  {resolvingPlace ? (
-                    <span className="text-muted-foreground">
-                      Finding address…
-                    </span>
-                  ) : place ? (
-                    <span className="break-words">{place.label}</span>
-                  ) : pickedLocation ? (
-                    <span className="text-muted-foreground">
-                      {pickedLocation.latitude.toFixed(4)},{" "}
-                      {pickedLocation.longitude.toFixed(4)}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">
-                      Move the map to set a location
-                    </span>
-                  )}
+            <div className="space-y-4 pb-1">
+              <div className="flex items-center gap-3">
+                <span
+                  aria-hidden
+                  className="flex size-12 shrink-0 items-center justify-center rounded-full bg-secondary text-foreground"
+                >
+                  <MapPin className="size-5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[15px] font-semibold">
+                    {tooFar ? (
+                      "Zoom in to your street"
+                    ) : resolvingPlace ? (
+                      <span className="font-normal text-muted-foreground">Finding address…</span>
+                    ) : place ? (
+                      shortAddress(place.label)
+                    ) : pickedLocation ? (
+                      <span className="tabular-nums">
+                        {pickedLocation.latitude.toFixed(4)}, {pickedLocation.longitude.toFixed(4)}
+                      </span>
+                    ) : (
+                      "Move the map to set a location"
+                    )}
+                  </p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    {tooFar
+                      ? "The pin has to sit on the place that is out."
+                      : "Drag the map until the pin sits on the spot."}
+                  </p>
                 </div>
               </div>
+
+              <Button type="button" variant="outline" size="sm" onClick={onLocate} className="rounded-full px-4">
+                <Navigation />
+                Use my location
+              </Button>
             </div>
           )}
 
           {step === "severity" && (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div className="space-y-2">
-                {SEVERITIES.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => setSeverity(option)}
-                    aria-pressed={severity === option}
-                    className={`flex w-full items-center gap-3 rounded-xl border p-3.5 text-left transition-colors ${
-                      severity === option
-                        ? "border-primary bg-accent"
-                        : "border-input hover:bg-accent"
-                    }`}
-                  >
-                    <span
-                      aria-hidden
-                      style={{ backgroundColor: SEVERITY_META[option].token }}
-                      className="h-3.5 w-3.5 shrink-0 rounded-full"
-                    />
-                    <span className="flex-1">
-                      <span className="block text-sm font-medium">
-                        {SEVERITY_META[option].label}
+                {SEVERITIES.map((option) => {
+                  const selected = severity === option;
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setSeverity(option)}
+                      aria-pressed={selected}
+                      className={cn(
+                        "flex min-h-16 w-full items-center gap-3 rounded-2xl border border-input bg-card px-4 py-3 text-left transition-[background-color,border-color] duration-150",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
+                        selected
+                          ? "border-foreground bg-card shadow-[inset_0_0_0_1px_var(--foreground)]"
+                          : "hover:border-foreground",
+                      )}
+                    >
+                      <span
+                        aria-hidden
+                        style={{ backgroundColor: SEVERITY_META[option].token }}
+                        className="size-2.5 shrink-0 rounded-full"
+                      />
+                      <span className="flex-1">
+                        <span className="block text-[15px] font-semibold">
+                          {SEVERITY_META[option].label}
+                        </span>
+                        <span className="mt-0.5 block text-sm text-muted-foreground">
+                          {SEVERITY_META[option].description}
+                        </span>
                       </span>
-                      <span className="block text-xs text-muted-foreground">
-                        {SEVERITY_META[option].description}
-                      </span>
-                    </span>
-                    {severity === option && <Check className="h-4 w-4" />}
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
 
               <div>
-                <Label htmlFor="report-description" className="mb-1.5 block">
-                  Anything else? (optional)
+                <Label
+                  htmlFor="report-description"
+                  className="mb-2 block text-[13px] text-muted-foreground"
+                >
+                  Anything else? <span className="font-normal">(optional)</span>
                 </Label>
                 <Textarea
                   id="report-description"

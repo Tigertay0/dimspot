@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { ChevronDown, Search, X } from "lucide-react";
 import { SERVICE_META, SEVERITY_META } from "@/lib/constants";
 import { useProviders } from "@/lib/hooks/use-outages";
 import { useFilters } from "@/lib/store/filters";
@@ -9,6 +10,8 @@ import type { Provider, ServiceType } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import {
   Sheet,
@@ -37,11 +40,9 @@ export function FilterSheet({
 }) {
   const { data: providers = [], isError: providersFailed } = useProviders();
 
-  const serviceTypes = useFilters((s) => s.serviceTypes);
   const severities = useFilters((s) => s.severities);
   const providerIds = useFilters((s) => s.providerIds);
   const resolvedHours = useFilters((s) => s.resolvedHours);
-  const toggleServiceType = useFilters((s) => s.toggleServiceType);
   const toggleSeverity = useFilters((s) => s.toggleSeverity);
   const toggleProvider = useFilters((s) => s.toggleProvider);
   const setProviders = useFilters((s) => s.setProviders);
@@ -49,7 +50,6 @@ export function FilterSheet({
   const showAdvisories = useFilters((s) => s.showAdvisories);
   const setShowAdvisories = useFilters((s) => s.setShowAdvisories);
   const selectAll = useFilters((s) => s.selectAll);
-  const deselectAll = useFilters((s) => s.deselectAll);
 
   const byService = useMemo(() => {
     const grouped = new Map<ServiceType, Provider[]>();
@@ -61,6 +61,12 @@ export function FilterSheet({
   }, [providers]);
 
   const allSelected = providerIds.length === 0;
+
+  // The provider list is over a hundred long: groups start closed, and a
+  // search opens whichever ones hold a match.
+  const [providerQuery, setProviderQuery] = useState("");
+  const [openGroups, setOpenGroups] = useState<ServiceType[]>([]);
+  const needle = providerQuery.trim().toLowerCase();
 
   /** Selecting every provider in a group is the same as clearing that group. */
   function toggleGroup(type: ServiceType) {
@@ -79,92 +85,87 @@ export function FilterSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="flex max-h-[85vh] flex-col sm:mx-auto sm:max-w-lg sm:rounded-t-2xl"
+        
       >
         <SheetHeader>
           <SheetTitle>Filters</SheetTitle>
-          <SheetDescription>
+          <SheetDescription className="sr-only">
             Choose what appears on the map.
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-5 pb-4">
-          <section className="py-3">
-            <h3 className="mb-2 text-[13px] font-semibold text-muted-foreground">
-              Service
-            </h3>
-            <div className="grid grid-cols-2 gap-2">
-              {SERVICE_TYPES.map((type) => {
-                const active = serviceTypes.includes(type);
-                return (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => toggleServiceType(type)}
-                    aria-pressed={active}
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition-colors ${
-                      active
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-input bg-background hover:bg-accent"
-                    }`}
-                  >
-                    <ServiceIcon type={type} className="h-4 w-4 shrink-0" />
-                    <span className="truncate">
-                      {SERVICE_META[type].shortLabel}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="py-3">
-            <h3 className="mb-2 text-[13px] font-semibold text-muted-foreground">
-              Severity
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {SEVERITIES.map((severity) => {
-                const active = severities.includes(severity);
-                return (
-                  <button
-                    key={severity}
-                    type="button"
-                    onClick={() => toggleSeverity(severity)}
-                    aria-pressed={active}
-                    className={`flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors ${
-                      active
-                        ? "border-transparent bg-secondary"
-                        : "border-input bg-background text-muted-foreground hover:bg-accent"
-                    }`}
-                  >
+        <div className="flex-1 overflow-y-auto overscroll-contain px-6 pb-4 pt-1">
+          {/* Service type is not here: the tabs under the search bar are that
+              filter, and two controls for one choice disagree sooner or later. */}
+          <section className="pb-2">
+            <h3 className="mb-1 text-[13px] font-medium text-muted-foreground">Severity</h3>
+            <ul>
+              {SEVERITIES.map((severity) => (
+                <li key={severity}>
+                  <Label className="flex min-h-12 cursor-pointer items-center gap-3">
+                    <Checkbox
+                      checked={severities.includes(severity)}
+                      onCheckedChange={() => toggleSeverity(severity)}
+                    />
                     <span
                       aria-hidden
                       style={{ backgroundColor: SEVERITY_META[severity].token }}
-                      className="h-2.5 w-2.5 rounded-full"
+                      className="size-2 shrink-0 rounded-full"
                     />
-                    {SEVERITY_META[severity].label}
-                  </button>
-                );
-              })}
-            </div>
+                    <span className="text-[15px] font-medium">
+                      {SEVERITY_META[severity].label}
+                    </span>
+                  </Label>
+                </li>
+              ))}
+            </ul>
           </section>
 
-          <section className="py-3">
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-[13px] font-semibold text-muted-foreground">
+          <section className="border-t py-2">
+            <Label className="flex min-h-14 cursor-pointer items-center justify-between gap-4 py-2">
+              <span>
+                <span className="block text-[15px] font-medium">
+                  Show recently resolved
+                </span>
+                <span className="mt-1 block text-[13px] font-normal leading-snug text-muted-foreground">
+                  Outages fixed in the last 6 hours
+                </span>
+              </span>
+              <Switch
+                checked={resolvedHours > 0}
+                onCheckedChange={(checked) => setResolvedHours(checked ? 6 : 0)}
+              />
+            </Label>
+
+            <Label className="flex min-h-14 cursor-pointer items-center justify-between gap-4 py-2">
+              <span>
+                <span className="block text-[15px] font-medium">Storm warnings</span>
+                <span className="mt-1 block text-[13px] font-normal leading-snug text-muted-foreground">
+                  Weather that tends to cause outages, from the National Weather
+                  Service
+                </span>
+              </span>
+              <Switch
+                checked={showAdvisories}
+                onCheckedChange={(checked) => setShowAdvisories(Boolean(checked))}
+              />
+            </Label>
+          </section>
+          <section className="border-t pt-4">
+            <div className="mb-2.5 flex h-6 items-center justify-between">
+              <h3 className="text-[13px] font-medium text-muted-foreground">
                 Providers
               </h3>
               {allSelected ? (
-                <Badge variant="secondary">All providers</Badge>
+                <Badge variant="muted">All providers</Badge>
               ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8"
+                <button
+                  type="button"
                   onClick={() => setProviders([])}
+                  className="tap-target text-[13px] font-medium underline underline-offset-4 hover:text-foreground"
                 >
                   Show all
-                </Button>
+                </button>
               )}
             </div>
 
@@ -177,105 +178,150 @@ export function FilterSheet({
               </p>
             )}
 
-            <div className="space-y-4">
+            {providers.length > 0 && (
+              <div className="relative mb-2">
+                <Search
+                  aria-hidden
+                  className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                />
+                <input
+                  value={providerQuery}
+                  onChange={(event) => setProviderQuery(event.target.value)}
+                  placeholder={`Search ${providers.length} providers`}
+                  aria-label="Search providers"
+                  autoComplete="off"
+                  enterKeyHint="search"
+                  // 16px, or iOS Safari zooms the page when the field is focused.
+                  className="h-11 w-full rounded-full border border-input bg-card pr-9 pl-10 text-base outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/80 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15"
+                />
+                {providerQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setProviderQuery("")}
+                    aria-label="Clear provider search"
+                    className="tap-target absolute right-2 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div className="divide-y">
               {SERVICE_TYPES.map((type) => {
                 const group = byService.get(type) ?? [];
                 if (group.length === 0) return null;
 
+                const matches = needle
+                  ? group.filter((p) => p.name.toLowerCase().includes(needle))
+                  : group;
+                if (needle && matches.length === 0) return null;
+
+                const expanded = needle !== "" || openGroups.includes(type);
+                const picked = allSelected
+                  ? group.length
+                  : group.filter((p) => providerIds.includes(p.id)).length;
+
                 return (
                   <div key={type}>
-                    <button
-                      type="button"
-                      onClick={() => toggleGroup(type)}
-                      className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
-                    >
-                      <ServiceIcon type={type} className="h-3.5 w-3.5" />
-                      {SERVICE_META[type].label}
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        aria-label={`All ${SERVICE_META[type].label} providers`}
+                        checked={
+                          picked === group.length
+                            ? true
+                            : picked === 0
+                              ? false
+                              : "indeterminate"
+                        }
+                        onCheckedChange={() => {
+                          // Leaving "all" means materialising the list first.
+                          if (allSelected) {
+                            const ids = new Set(group.map((p) => p.id));
+                            setProviders(
+                              providers.map((p) => p.id).filter((id) => !ids.has(id)),
+                            );
+                          } else {
+                            toggleGroup(type);
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        aria-expanded={expanded}
+                        onClick={() =>
+                          setOpenGroups((open) =>
+                            open.includes(type)
+                              ? open.filter((t) => t !== type)
+                              : [...open, type],
+                          )
+                        }
+                        className="flex h-12 min-w-0 flex-1 items-center gap-2 text-left text-[15px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                      >
+                        <ServiceIcon type={type} className="size-4 shrink-0 text-muted-foreground" />
+                        <span className="flex-1 truncate">{SERVICE_META[type].label}</span>
+                        <span className="text-xs font-normal tabular-nums text-muted-foreground">
+                          {allSelected ? group.length : `${picked} of ${group.length}`}
+                        </span>
+                        <ChevronDown
+                          className={cn(
+                            "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                            expanded && "rotate-180",
+                          )}
+                        />
+                      </button>
+                    </div>
 
-                    <ul className="space-y-0.5">
-                      {group.map((provider) => {
-                        const checked =
-                          allSelected || providerIds.includes(provider.id);
-                        return (
-                          <li key={provider.id}>
-                            <Label className="flex cursor-pointer items-center gap-3 rounded-md px-1 py-2 hover:bg-accent">
-                              <Checkbox
-                                checked={checked}
-                                onCheckedChange={() => {
-                                  // Leaving "all" means materialising the list
-                                  // first, minus the one just unchecked.
-                                  if (allSelected) {
-                                    setProviders(
-                                      providers
-                                        .map((p) => p.id)
-                                        .filter((id) => id !== provider.id),
-                                    );
-                                  } else {
-                                    toggleProvider(provider.id);
-                                  }
-                                }}
-                              />
-                              <span className="text-sm font-normal">
-                                {provider.name}
-                              </span>
-                            </Label>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                    {expanded && (
+                      <ul className="pb-2 pl-[34px]">
+                        {matches.map((provider) => {
+                          const checked =
+                            allSelected || providerIds.includes(provider.id);
+                          return (
+                            <li key={provider.id}>
+                              <Label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 hover:bg-accent">
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={() => {
+                                    // Leaving "all" means materialising the list
+                                    // first, minus the one just unchecked.
+                                    if (allSelected) {
+                                      setProviders(
+                                        providers
+                                          .map((p) => p.id)
+                                          .filter((id) => id !== provider.id),
+                                      );
+                                    } else {
+                                      toggleProvider(provider.id);
+                                    }
+                                  }}
+                                />
+                                <span className="text-sm font-normal leading-snug">
+                                  {provider.name}
+                                </span>
+                              </Label>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
                   </div>
                 );
               })}
             </div>
           </section>
 
-          <section className="border-t py-3">
-            <Label className="flex cursor-pointer items-center justify-between gap-3 py-2">
-              <span>
-                <span className="text-sm font-medium">
-                  Show recently resolved
-                </span>
-                <span className="block text-xs font-normal text-muted-foreground">
-                  Outages fixed in the last 6 hours
-                </span>
-              </span>
-              <Checkbox
-                checked={resolvedHours > 0}
-                onCheckedChange={(checked) =>
-                  setResolvedHours(checked ? 6 : 0)
-                }
-              />
-            </Label>
-
-            <Label className="flex cursor-pointer items-center justify-between gap-3 py-2">
-              <span>
-                <span className="text-sm font-medium">Storm warnings</span>
-                <span className="block text-xs font-normal text-muted-foreground">
-                  Weather that tends to cause outages, from the National Weather
-                  Service
-                </span>
-              </span>
-              <Checkbox
-                checked={showAdvisories}
-                onCheckedChange={(checked) => setShowAdvisories(Boolean(checked))}
-              />
-            </Label>
-          </section>
         </div>
 
         {/* One row rather than the stacked default: three full-width buttons
             would eat most of a phone screen that is already short on room. */}
         <SheetFooter className="flex-row gap-2">
-          <Button variant="outline" onClick={deselectAll} className="flex-1">
-            Clear all
-          </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={() => selectAll(providers.map((p) => p.id))}
-            className="flex-1"
+            className="px-4"
           >
-            Select all
+            Reset
           </Button>
           <Button onClick={() => onOpenChange(false)} className="flex-1">
             Done

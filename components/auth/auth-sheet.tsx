@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, KeyRound, Loader2, LogOut, MailCheck, UserRound } from "lucide-react";
+import { CheckCircle2, KeyRound, Loader2, LogOut, MailCheck } from "lucide-react";
 import { MIN_PASSWORD_LENGTH } from "@/lib/constants";
 import {
   useCreateAccount,
@@ -56,7 +56,7 @@ export function AuthSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="flex max-h-[85vh] flex-col sm:mx-auto sm:max-w-lg sm:rounded-t-2xl"
+        
       >
         {resetToken ? (
           <NewPassword
@@ -502,35 +502,5 @@ function CredentialsForm({
         </Button>
       )}
     </form>
-  );
-}
-
-/** The map's entry point into all of the above. */
-export function AccountButton({
-  session,
-  onClick,
-}: {
-  session: SessionInfo | undefined;
-  onClick: () => void;
-}) {
-  const email = session?.identity.email;
-
-  return (
-    <Button
-      variant="secondary"
-      size="icon"
-      onClick={onClick}
-      aria-label={email ? `Account: ${email}` : "Sign in or create an account"}
-      title={email ?? "Account"}
-      className="relative h-11 w-11 rounded-full shadow-lg"
-    >
-      <UserRound className="h-4 w-4" />
-      {email && (
-        <span
-          aria-hidden
-          className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-background bg-severity-resolved"
-        />
-      )}
-    </Button>
   );
 }

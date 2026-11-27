@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, BellOff, Loader2, MapPin, Trash2 } from "lucide-react";
+import { Bell, BellOff, Loader2, MapPin, Trash2, UserRound } from "lucide-react";
 import { SEVERITY_META } from "@/lib/constants";
 import { usePreferences, useSavePreferences } from "@/lib/hooks/use-preferences";
 import { usePush } from "@/lib/hooks/use-push";
 import { type Appearance, useAppearance } from "@/lib/hooks/use-appearance";
-import type { SavedLocation, Severity, UserPreferences } from "@/lib/types";
+import type { HomeLocation, SavedLocation, Severity, UserPreferences } from "@/lib/types";
 import { SEVERITIES } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { Chip } from "@/components/ui/chip";
+import { HomeSettings } from "./home-settings";
 
 const RADIUS_OPTIONS = [1, 5, 10, 25];
 
@@ -37,11 +39,16 @@ export function SettingsSheet({
   onOpenChange,
   currentView,
   onGoToPlace,
+  onShowHome,
+  onAccount,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentView: { latitude: number; longitude: number; zoom: number } | null;
   onGoToPlace: (place: SavedLocation) => void;
+  onShowHome: (home: HomeLocation) => void;
+  /** Opens the account sheet. Absent where this deployment has no accounts. */
+  onAccount?: () => void;
 }) {
   const { data, isLoading } = usePreferences();
 
@@ -62,9 +69,11 @@ export function SettingsSheet({
           currentView={currentView}
           onOpenChange={onOpenChange}
           onGoToPlace={onGoToPlace}
+          onShowHome={onShowHome}
+          onAccount={onAccount}
         />
       ) : (
-        <SheetContent side="bottom" className="sm:mx-auto sm:max-w-lg">
+        <SheetContent side="bottom">
           <SheetHeader>
             <SheetTitle>Settings</SheetTitle>
             <SheetDescription>
@@ -88,12 +97,16 @@ function SettingsForm({
   currentView,
   onOpenChange,
   onGoToPlace,
+  onShowHome,
+  onAccount,
 }: {
   initial: UserPreferences;
   isAuthenticated: boolean;
   currentView: { latitude: number; longitude: number; zoom: number } | null;
   onOpenChange: (open: boolean) => void;
   onGoToPlace: (place: SavedLocation) => void;
+  onShowHome: (home: HomeLocation) => void;
+  onAccount?: () => void;
 }) {
   const savePreferences = useSavePreferences();
   const push = usePush();
@@ -103,6 +116,13 @@ function SettingsForm({
   const [placeName, setPlaceName] = useState("");
 
   const notifications = draft.notifications;
+
+  // Alerts are aimed at the home once there is one; before that, at wherever
+  // the map is pointing, as they always were.
+  const alertCentre = draft.home ?? currentView;
+  const alertPoint = alertCentre
+    ? { latitude: alertCentre.latitude, longitude: alertCentre.longitude }
+    : null;
 
   function update(patch: Partial<UserPreferences>) {
     setDraft((current) => ({ ...current, ...patch }));
@@ -125,12 +145,7 @@ function SettingsForm({
       return;
     }
 
-    const ok = await push.subscribe(
-      { ...notifications, enabled: true },
-      currentView
-        ? { latitude: currentView.latitude, longitude: currentView.longitude }
-        : null,
-    );
+    const ok = await push.subscribe({ ...notifications, enabled: true }, alertPoint);
 
     // Roll the switch back if the browser refused, rather than showing an "on"
     // toggle that sends nothing.
@@ -161,12 +176,7 @@ function SettingsForm({
       // is what the server matches outages against. Without this, a changed
       // radius or quiet-hours window saved fine and did nothing.
       if (push.subscribed && draft.notifications.enabled) {
-        await push.resync(
-          draft.notifications,
-          currentView
-            ? { latitude: currentView.latitude, longitude: currentView.longitude }
-            : null,
-        );
+        await push.resync(draft.notifications, alertPoint);
       }
 
       toast({ title: "Settings saved" });
@@ -184,31 +194,69 @@ function SettingsForm({
   return (
     <SheetContent
       side="bottom"
-      className="flex max-h-[85vh] flex-col sm:mx-auto sm:max-w-lg sm:rounded-t-2xl"
+      
     >
         <SheetHeader>
           <SheetTitle>Settings</SheetTitle>
-          <SheetDescription>
+          <SheetDescription className="sr-only">
             {isAuthenticated
               ? "Synced to your account."
-              : "Saved to this browser. Sign in later to sync across devices."}
+              : "Saved to this browser until you sign in."}
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-3">
+        <div className="flex-1 space-y-6 overflow-y-auto overscroll-contain px-6 pb-4 pt-1">
+          {onAccount && (
+            <div className="flex items-center gap-3 border-b pb-5">
+              <span
+                aria-hidden
+                className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-foreground"
+              >
+                <UserRound className="size-[18px]" />
+              </span>
+              <p className="min-w-0 flex-1 leading-snug">
+                <span className="block text-[15px] font-semibold">
+                  {isAuthenticated ? "Signed in" : "Sync across devices"}
+                </span>
+                <span className="block text-[13px] text-muted-foreground">
+                  {isAuthenticated ? "Saved to your account" : "Saved on this device only"}
+                </span>
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant={isAuthenticated ? "outline" : "default"}
+                onClick={onAccount}
+                className="rounded-full px-4"
+              >
+                {isAuthenticated ? "Account" : "Sign in"}
+              </Button>
+            </div>
+          )}
+
+          <HomeSettings
+            home={draft.home}
+            myProviders={draft.myProviders}
+            mapCentre={currentView}
+            onHomeChange={(home) => update({ home })}
+            onProvidersChange={(myProviders) => update({ myProviders })}
+            onShowHome={(home) => {
+              onShowHome(home);
+              onOpenChange(false);
+            }}
+          />
+
           <AppearancePicker />
 
           <section>
-            <h3 className="mb-2 text-[13px] font-semibold text-muted-foreground">
+            <h3 className="mb-2 text-[13px] font-medium text-muted-foreground">
               Alerts
             </h3>
 
             {!push.available ? (
-              <p className="flex items-start gap-2 rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
+              <p className="flex items-start gap-2.5 rounded-xl bg-secondary p-3.5 text-sm leading-snug text-muted-foreground">
                 <BellOff className="mt-0.5 h-4 w-4 shrink-0" />
-                Push alerts are not available here. They need a browser that
-                supports Web Push and VAPID keys configured on the server — see
-                SETUP.md.
+                Push alerts are not available in this browser.
               </p>
             ) : (
               <div className="space-y-4">
@@ -218,7 +266,7 @@ function SettingsForm({
                     <span>
                       <span className="block">Alert me about new outages</span>
                       <span className="block text-xs font-normal text-muted-foreground">
-                        Near the area you are viewing now
+                        {draft.home ? "Near your home" : "Near the area you are viewing now"}
                       </span>
                     </span>
                   </span>
@@ -241,25 +289,17 @@ function SettingsForm({
                       </Label>
                       <div className="flex flex-wrap gap-2">
                         {SEVERITIES.map((severity) => (
-                          <button
+                          <Chip
                             key={severity}
-                            type="button"
+                            active={notifications.severityThreshold === severity}
                             onClick={() =>
                               updateNotifications({
                                 severityThreshold: severity as Severity,
                               })
                             }
-                            aria-pressed={
-                              notifications.severityThreshold === severity
-                            }
-                            className={`rounded-full border px-3 py-2 text-sm ${
-                              notifications.severityThreshold === severity
-                                ? "border-primary bg-secondary"
-                                : "border-input text-muted-foreground"
-                            }`}
                           >
                             {SEVERITY_META[severity].label} and worse
-                          </button>
+                          </Chip>
                         ))}
                       </div>
                     </div>
@@ -270,21 +310,14 @@ function SettingsForm({
                       </Label>
                       <div className="flex gap-2">
                         {RADIUS_OPTIONS.map((miles) => (
-                          <button
+                          <Chip
                             key={miles}
-                            type="button"
-                            onClick={() =>
-                              updateNotifications({ radiusMiles: miles })
-                            }
-                            aria-pressed={notifications.radiusMiles === miles}
-                            className={`flex-1 rounded-lg border py-2 text-sm ${
-                              notifications.radiusMiles === miles
-                                ? "border-primary bg-secondary"
-                                : "border-input text-muted-foreground"
-                            }`}
+                            active={notifications.radiusMiles === miles}
+                            onClick={() => updateNotifications({ radiusMiles: miles })}
+                            className="flex-1"
                           >
                             {miles} mi
-                          </button>
+                          </Chip>
                         ))}
                       </div>
                     </div>
@@ -334,7 +367,7 @@ function SettingsForm({
           </section>
 
           <section className="border-t pt-4">
-            <h3 className="mb-2 text-[13px] font-semibold text-muted-foreground">
+            <h3 className="mb-2 text-[13px] font-medium text-muted-foreground">
               Saved places
             </h3>
 
@@ -343,7 +376,7 @@ function SettingsForm({
                 {draft.savedLocations.map((location) => (
                   <li
                     key={location.id}
-                    className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-accent"
+                    className="flex min-h-12 items-center gap-2 rounded-xl border pr-2 pl-3.5 text-sm transition-colors hover:bg-accent"
                   >
                     <button
                       type="button"
@@ -351,7 +384,7 @@ function SettingsForm({
                         onGoToPlace(location);
                         onOpenChange(false);
                       }}
-                      className="flex min-h-0 flex-1 items-center gap-2 truncate text-left"
+                      className="flex h-12 min-w-0 flex-1 items-center gap-2 truncate text-left"
                     >
                       <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       <span className="truncate">{location.name}</span>
@@ -366,7 +399,7 @@ function SettingsForm({
                         })
                       }
                       aria-label={`Remove ${location.name}`}
-                      className="min-h-0 rounded p-1 text-muted-foreground hover:text-destructive"
+                      className="tap-target flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -388,6 +421,7 @@ function SettingsForm({
                 variant="outline"
                 onClick={saveCurrentPlace}
                 disabled={!currentView}
+                className="h-10"
               >
                 Save
               </Button>
@@ -399,11 +433,7 @@ function SettingsForm({
         </div>
 
         <SheetFooter className="flex-row gap-2">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            className="flex-1"
-          >
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="px-4">
             Cancel
           </Button>
           <Button
@@ -422,8 +452,8 @@ function SettingsForm({
 }
 
 const APPEARANCES: { value: Appearance; label: string; hint: string }[] = [
-  { value: "night", label: "Night", hint: "Dimspot's own look" },
-  { value: "dusk", label: "Dusk", hint: "Light and warm" },
+  { value: "dusk", label: "Light", hint: "The default" },
+  { value: "night", label: "Dark", hint: "Easier at night" },
   { value: "system", label: "System", hint: "Follow this device" },
 ];
 
@@ -432,7 +462,7 @@ function AppearancePicker() {
   const { appearance, setAppearance } = useAppearance();
   return (
     <section>
-      <h3 id="appearance-label" className="mb-2 text-[13px] font-semibold text-muted-foreground">
+      <h3 id="appearance-label" className="mb-2 text-[13px] font-medium text-muted-foreground">
         Appearance
       </h3>
       <div role="group" aria-labelledby="appearance-label" className="grid grid-cols-3 gap-2">
@@ -445,13 +475,13 @@ function AppearancePicker() {
               aria-pressed={selected}
               onClick={() => setAppearance(option.value)}
               className={cn(
-                "flex flex-col items-start rounded-xl border px-3 py-2.5 text-left transition-colors duration-150",
+                "flex min-h-14 flex-col items-start justify-center gap-1 rounded-xl border px-3 py-2 text-left transition-colors duration-150",
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-                selected ? "border-primary bg-primary/10" : "hover:bg-muted/60",
+                selected ? "border-foreground bg-card shadow-[inset_0_0_0_1px_var(--foreground)]" : "border-input hover:bg-accent",
               )}
             >
-              <span className="text-sm font-semibold">{option.label}</span>
-              <span className="text-xs text-muted-foreground">{option.hint}</span>
+              <span className="text-sm font-medium leading-none">{option.label}</span>
+              <span className="text-[11px] leading-tight text-muted-foreground">{option.hint}</span>
             </button>
           );
         })}

@@ -61,11 +61,12 @@ export const viewport: Viewport = {
 };
 
 /**
- * Sets the night/dusk class before first paint from the saved appearance
- * (lib/hooks/use-appearance.ts), so Dusk users never see a dark flash. A fixed
- * string with no user input; the CSP allows inline scripts.
+ * Sets the dark class before first paint from the saved appearance
+ * (lib/hooks/use-appearance.ts). With nothing saved, the map is light and the
+ * other pages keep the dark class they were built against. A fixed string with
+ * no user input; the CSP allows inline scripts.
  */
-const APPEARANCE_SCRIPT = `try{var a=localStorage.getItem("dimspot-appearance");var d=a==="dusk"?false:a==="system"?matchMedia("(prefers-color-scheme: dark)").matches:true;document.documentElement.classList.toggle("dark",d)}catch(e){}`;
+const APPEARANCE_SCRIPT = `try{var a=localStorage.getItem("dimspot-appearance");var m=location.pathname.indexOf("/map")===0;var d=a==="night"?true:a==="dusk"?false:a==="system"?matchMedia("(prefers-color-scheme: dark)").matches:!m;document.documentElement.classList.toggle("dark",d)}catch(e){}`;
 
 export default function RootLayout({
   children,
