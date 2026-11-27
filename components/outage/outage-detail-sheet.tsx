@@ -231,7 +231,7 @@ export function OutageDetailSheet({
 
                   {remaining > 0 && (
                     <p className="pt-2 text-xs text-muted-foreground">
-                      {remaining} more {pluralize(remaining, "confirmation")} to
+                      {remaining} more {pluralize(remaining, "household")} to
                       mark this verified.
                     </p>
                   )}
@@ -356,7 +356,8 @@ function Facts({ outage }: { outage: OutageDetail }) {
   } else if (outage.origin === "crowdsourced") {
     facts.push({
       label: "Confirmed by",
-      value: `${outage.verificationCount} ${pluralize(outage.verificationCount, "person", "people")}`,
+      // Households, not people: confirmations are counted once per network.
+      value: `${outage.verificationCount} ${pluralize(outage.verificationCount, "household")}`,
       mono: true,
     });
   }

@@ -20,6 +20,16 @@
   // The public address. workers.dev stays on as a second, trusted origin.
   "routes": [{ "pattern": "dimspot.adetayo.dev", "custom_domain": true }],
   "observability": { "enabled": true },
+  // Per-address throttle on the public read endpoints (lib/read-limit.ts):
+  // 120 reads a minute, counted at the edge per Cloudflare location. The
+  // namespace id is any integer unique within the account.
+  "ratelimits": [
+    {
+      "name": "READ_LIMITER",
+      "namespace_id": "4101",
+      "simple": { "limit": 120, "period": 60 }
+    }
+  ],
   // Public feed ingest (worker.ts -> /api/ingest) every 20 minutes. NWS warnings
   // expire in hours, so this is the advisory layer's refresh rate.
   "triggers": { "crons": ["*/20 * * * *"] },

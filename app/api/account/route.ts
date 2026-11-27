@@ -8,6 +8,7 @@ import { isDatabaseConfigured } from "@/lib/db";
 import { getIdentity } from "@/lib/identity";
 import { LIMITS, consumeAddressLimit, consumeRateLimit } from "@/lib/rate-limit";
 import { fieldErrors } from "@/lib/validation";
+import { rejectCrossSite } from "@/lib/request-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,9 @@ const bodySchema = z.object({
  */
 export async function POST(request: Request) {
   try {
+    const crossSite = rejectCrossSite(request);
+    if (crossSite) return crossSite;
+
     if (!isDatabaseConfigured()) {
       return badRequest("Accounts are unavailable on this deployment.");
     }

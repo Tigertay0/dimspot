@@ -28,8 +28,10 @@ export function buildTimeline(outage: OutageDetail): TimelineEvent[] {
       id: "verified",
       at: outage.reportedAt,
       kind: "verified",
-      title: `Verified by ${outage.verificationCount} people`,
-      detail: `${VERIFICATION_THRESHOLD} confirmations needed`,
+      // Counted by household (distinct network), not by person: see
+      // db/migrations/0009_abuse_hardening.sql.
+      title: `Verified by ${outage.verificationCount} households`,
+      detail: `${VERIFICATION_THRESHOLD} needed`,
     });
   }
 

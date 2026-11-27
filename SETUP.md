@@ -98,6 +98,10 @@ What the migrations contain:
   code that reads it.
 - `0008_home_and_my_providers.sql`: a saved home and the person's own power,
   internet and mobile providers on `user_preferences`. Also additive.
+- `0009_abuse_hardening.sql`: votes counted by distinct network, official
+  outages closed only by their feed, alert gating and cooldown, expiry of
+  unconfirmed reports, removal of idle guests, and a clamp in `search_outages`
+  (see [Abuse limits](#abuse-limits)). Additive.
 
 There is no row level security. Only the app's server code reaches the database,
 and [`lib/data/postgres-repo.ts`](lib/data/postgres-repo.ts) scopes every write
@@ -485,6 +489,57 @@ here before, so nobody gets a permission prompt on first load.
 
 ---
 
+## Abuse limits
+
+Anyone can report, confirm, comment and vote without an account, and guest
+identities are free to mint, so nothing here trusts an identity count. What
+bounds a script is, in order:
+
+| Layer | Where | What it holds |
+| --- | --- | --- |
+| Not from another site | `lib/request-guard.ts` | Writes with `Sec-Fetch-Site: cross-site` (or a foreign `Origin`) are refused, and such a request never mints a guest |
+| Per address, then per identity | `lib/request-guard.ts`, `lib/rate-limit.ts` (`LIMITS`) | Counted in Postgres, failing closed. IPv6 is counted per /64 and per /48 |
+| One spot is one pin | `findNearbyReport` | A second report of the same service within 150 m and 6 hours becomes a confirmation |
+| Pins per map cell and sitewide | `createOutageByCell`, `createOutageGuestsGlobal` | 30 new pins an hour per ~11 km cell; 200 an hour from guests in total, then guests are asked to sign in |
+| Votes by network | migration `0009` | Confirmations and "it's back" votes count once per network. Verified is 3 networks. Closing takes 2 (more for a widely confirmed report) and never applies to an official outage |
+| Alerts | `lib/push.ts` | Sent once, when a second network confirms, with fixed wording; ten-minute cooldown per subscriber |
+| Expiry | `prune_stale_rows()` | A report nobody else confirmed closes after 12 hours, any report after 72; idle guests are deleted after 30 days |
+| Size | `readJson`, `lib/validation.ts` | JSON bodies over 32 KB are refused; every stored string and array has a maximum |
+| Upstreams | `LIMITS.geocode*`, `accountEmailGlobal` | App-wide budgets for Photon, Nominatim and account email, with a low per-address share of Nominatim |
+| Reads | `lib/read-limit.ts`, `READ_LIMITER` in `wrangler.jsonc` | 120 reads a minute per address per Cloudflare location, counted at the edge |
+| Feeds | `lib/ingest/sanitize.ts` | Every ingested row is bounded before it is written |
+
+Vote network hashes are a salted SHA-256 prefix (IPv4 address, IPv6 /56), kept
+30 days, and are not the hashes used for rate-limit buckets.
+
+### What only Cloudflare can do
+
+A refused request has still reached the Worker, so nothing above protects the
+plan's daily request allowance. On the free plan that is 100,000 requests a
+day: one request a second from anywhere spends it, and every page and API call
+then fails until midnight UTC. No code in this repository can prevent that.
+What can, in the Cloudflare dashboard:
+
+1. **Workers Paid** removes the daily cap (10 million requests a month are
+   included) and raises the subrequest limit the ingest runs against. This is
+   the only thing that fully closes the "anyone with a loop can take the site
+   down for the day" gap.
+2. **A rate limiting rule on the zone** (Security, Security rules, Create rule,
+   Rate limiting rules; the free plan includes one, counted per IP over 10
+   seconds, blocking for 10 seconds). Expression:
+   `http.host eq "dimspot.adetayo.dev" and starts_with(http.request.uri.path, "/api/")`,
+   60 requests per 10 seconds. It stops a burst before the Worker runs; on the
+   free plan it cannot hold a patient caller under the daily allowance.
+3. **The `workers.dev` address.** `workers_dev: true` in `wrangler.jsonc` keeps
+   a second hostname that zone rules do not cover. Set it to `false` once
+   nothing links to the old address, and drop it from
+   `BETTER_AUTH_TRUSTED_ORIGINS`.
+
+Turnstile on guest reports is the next layer if spam ever gets past the limits
+above; it is not wired in.
+
+---
+
 ## Icons
 
 App icons are generated, not checked in by hand:
@@ -504,6 +559,12 @@ and re-run to change the mark.
 ```bash
 npm run deploy
 ```
+
+Or without a machine that is logged in to Cloudflare: the **Deploy** workflow
+(`.github/workflows/deploy.yml`), run by hand from the Actions tab. It applies
+pending migrations, then builds and deploys what is on `main`. It needs two
+repository secrets, `CLOUDFLARE_API_TOKEN` (an "Edit Cloudflare Workers" token)
+and `MIGRATION_DATABASE_URL` (the Neon owner URL on the direct host).
 
 Builds with OpenNext (`node -r ./scripts/win-junctions.cjs` makes the build work
 on Windows without symlink rights) and deploys the Worker `dimspot`, its

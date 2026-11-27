@@ -268,3 +268,56 @@ export function suggestUrl(
   }
   return `${PHOTON_BASE}/api/?${params}`;
 }
+
+/** The Photon request for "what address is at this point". */
+export function reverseUrl(latitude: number, longitude: number): string {
+  const params = new URLSearchParams({
+    lat: latitude.toFixed(5),
+    lon: longitude.toFixed(5),
+    lang: "en",
+    limit: "1",
+    // Kilometres. Past that the nearest building is not where the pin is.
+    radius: "1",
+  });
+  // An address or the road, not the nearest shop's name.
+  params.append("layer", "house");
+  params.append("layer", "street");
+  return `${PHOTON_BASE}/reverse?${params}`;
+}
+
+/**
+ * The address at a point, from Photon's reverse answer, or null when it has
+ * none nearby (the caller then asks Nominatim).
+ *
+ * Built from the address fields only. The nearest object is often a business,
+ * and "Pescadeli" is not where someone's power is out; "4960 Bethesda Avenue"
+ * is.
+ */
+export function toReversePlace(
+  body: unknown,
+  { countries }: { countries: string[] },
+): GeocodeResult | null {
+  const features = z.object({ features: z.array(z.unknown()) }).safeParse(body);
+  if (!features.success) throw new Error("Photon did not return a feature list");
+
+  const parsed = featureSchema.safeParse(features.data.features[0]);
+  if (!parsed.success) return null;
+  const p = parsed.data.properties;
+  if (p.countrycode && !countries.includes(p.countrycode.toLowerCase())) return null;
+
+  const road = p.street ?? (p.type === "street" ? p.name : undefined);
+  const title = road ? (p.housenumber ? `${p.housenumber} ${road}` : road) : p.name;
+  if (!title) return null;
+
+  const [longitude, latitude] = parsed.data.geometry.coordinates;
+  return {
+    id: `photon-${p.osm_type ?? "x"}${p.osm_id ?? `${latitude},${longitude}`}`,
+    label: [title, p.city ?? countyName(p.county), p.state].filter(isText).join(", "),
+    latitude,
+    longitude,
+    zoom: 16,
+    city: p.city ?? null,
+    state: p.state ?? null,
+    zipCode: p.postcode ?? null,
+  };
+}

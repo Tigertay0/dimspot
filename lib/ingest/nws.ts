@@ -38,6 +38,21 @@ const API = "https://api.weather.gov/alerts/active";
  */
 const ZONE_LOOKUP_BUDGET = 40;
 
+/**
+ * With the utility outage maps on (KUBRA_INGEST), a run also makes two or
+ * three requests for each of about ten utilities, and a Worker invocation on
+ * the free plan gets 50 outbound requests in total. Forty zone lookups on top
+ * would starve whichever source runs last, so the lookups give way: twelve a
+ * run, and the rest are picked up by the runs that follow.
+ */
+const ZONE_LOOKUP_BUDGET_WITH_UTILITY_MAPS = 12;
+
+function zoneLookupBudget(): number {
+  return process.env.KUBRA_INGEST === "on"
+    ? ZONE_LOOKUP_BUDGET_WITH_UTILITY_MAPS
+    : ZONE_LOOKUP_BUDGET;
+}
+
 /** Zone id -> centroid. Zones are static, so this never needs invalidating. */
 const globalZones = globalThis as unknown as {
   __nwsZoneCentroids?: Map<string, [number, number] | null>;
@@ -233,7 +248,7 @@ export class NwsSource implements OutageSource {
 
     const body = (await response.json()) as { features?: NwsFeature[] };
     const advisories: IngestedAdvisory[] = [];
-    const budget = { left: ZONE_LOOKUP_BUDGET };
+    const budget = { left: zoneLookupBudget() };
 
     for (const feature of body.features ?? []) {
       const severity = OUTAGE_RELEVANT.get(feature.properties.event);

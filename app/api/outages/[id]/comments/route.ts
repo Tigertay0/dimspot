@@ -1,14 +1,8 @@
-import {
-  badRequest,
-  notFound,
-  ok,
-  readJson,
-  serverError,
-  tooMany,
-} from "@/lib/api";
+import { badRequest, notFound, ok, readJson, serverError } from "@/lib/api";
 import { getRepository } from "@/lib/data";
 import { getWritableIdentity } from "@/lib/identity";
-import { LIMITS, consumeAddressLimit, consumeRateLimit } from "@/lib/rate-limit";
+import { LIMITS } from "@/lib/rate-limit";
+import { limitWrite, rejectCrossSite } from "@/lib/request-guard";
 import { commentSchema, fieldErrors } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
@@ -19,22 +13,17 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const crossSite = rejectCrossSite(request);
+    if (crossSite) return crossSite;
+
     const { id } = await params;
     const identity = await getWritableIdentity();
 
-    const perIdentity = await consumeRateLimit(
-      `outage:comment:${identity.id}`,
-      LIMITS.comment.limit,
-      LIMITS.comment.windowMs,
-    );
-    if (!perIdentity.allowed) return tooMany(perIdentity);
-
-    const perAddress = await consumeAddressLimit(
-      "outage:comment:addr",
-      request,
-      LIMITS.commentByAddress,
-    );
-    if (perAddress) return tooMany(perAddress);
+    const blocked = await limitWrite(request, identity, "outage:comment", {
+      identity: LIMITS.comment,
+      address: LIMITS.commentByAddress,
+    });
+    if (blocked) return blocked;
 
     const parsed = commentSchema.safeParse(await readJson(request));
     if (!parsed.success) {

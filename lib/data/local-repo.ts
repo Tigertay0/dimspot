@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { VERIFICATION_THRESHOLD } from "@/lib/constants";
-import { isWithinBounds } from "@/lib/geo";
+import { haversineMeters, isWithinBounds } from "@/lib/geo";
 import type {
   Advisory,
   BoundingBox,
@@ -12,7 +12,7 @@ import type {
   Provider,
   UserPreferences,
 } from "@/lib/types";
-import { DEFAULT_PREFERENCES, type Repository } from "./repository";
+import { DEFAULT_PREFERENCES, InvalidInputError, type Repository } from "./repository";
 import { SEED_OUTAGES, SEED_PROVIDERS, commentsForSeedIndex } from "./seed";
 
 /**
@@ -230,6 +230,24 @@ export class LocalRepository implements Repository {
     };
   }
 
+  async findNearbyReport(
+    input: Pick<CreateOutageInput, "serviceType" | "latitude" | "longitude">,
+  ): Promise<string | null> {
+    const cutoff = Date.now() - 6 * 60 * 60 * 1000;
+    for (const outage of getStore().outages.values()) {
+      if (
+        outage.status === "active" &&
+        outage.origin === "crowdsourced" &&
+        outage.serviceType === input.serviceType &&
+        Date.parse(outage.reportedAt) > cutoff &&
+        haversineMeters(input, outage) <= 150
+      ) {
+        return outage.id;
+      }
+    }
+    return null;
+  }
+
   async createOutage(
     input: CreateOutageInput,
     identity: string,
@@ -332,6 +350,9 @@ export class LocalRepository implements Repository {
     const store = getStore();
     const outage = store.outages.get(id);
     if (!outage) return null;
+    if (outage.origin !== "crowdsourced") {
+      throw new InvalidInputError("This outage comes from the provider's own feed, which will close it.");
+    }
 
     const resolved: Outage = {
       ...outage,

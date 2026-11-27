@@ -1,5 +1,6 @@
 # Checks every pull request and push to main: types, lint, unit tests, and the
-# Cloudflare build. Deploying stays a manual `npm run deploy` (see SETUP.md).
+# Cloudflare build. Deploying is `npm run deploy`, or the manual Deploy workflow
+# beside this one (see SETUP.md).
 name: CI
 
 on:

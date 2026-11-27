@@ -34,10 +34,28 @@ export interface Repository {
 
   getOutage(id: string, identity: string | null): Promise<OutageDetail | null>;
 
-  createOutage(input: CreateOutageInput, identity: string): Promise<Outage>;
+  /**
+   * An active report of the same service within a block or so, filed in the
+   * last few hours: the id of the outage a new report here would duplicate.
+   * The route confirms that one instead of adding a second pin.
+   */
+  findNearbyReport(
+    input: Pick<CreateOutageInput, "serviceType" | "latitude" | "longitude">,
+  ): Promise<string | null>;
+
+  /**
+   * `network` is where the request came from (lib/client-address.ts
+   * voteNetwork): confirmations and "it's back" votes are counted by distinct
+   * network, because guest identities are free to mint.
+   */
+  createOutage(
+    input: CreateOutageInput,
+    identity: string,
+    network?: string | null,
+  ): Promise<Outage>;
 
   /** Returns the new confirmation count, or null if the outage is gone. */
-  confirmOutage(id: string, identity: string): Promise<number | null>;
+  confirmOutage(id: string, identity: string, network?: string | null): Promise<number | null>;
 
   unconfirmOutage(id: string, identity: string): Promise<number | null>;
 
@@ -48,8 +66,12 @@ export interface Repository {
     commentType: OutageComment["commentType"],
   ): Promise<OutageComment | null>;
 
-  /** Marks an outage resolved. Records who reported the restoration. */
-  resolveOutage(id: string, identity: string): Promise<Outage | null>;
+  /**
+   * Records an "it's back" vote; the outage resolves once enough distinct
+   * networks agree. Throws InvalidInputError for an official outage, which
+   * only its own feed closes.
+   */
+  resolveOutage(id: string, identity: string, network?: string | null): Promise<Outage | null>;
 
   getPreferences(identity: string): Promise<UserPreferences | null>;
 

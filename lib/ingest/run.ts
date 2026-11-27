@@ -7,6 +7,7 @@ import { KUBRA_UTILITIES, KubraSource } from "./kubra";
 import { NwsSource } from "./nws";
 import { OdinSource } from "./odin";
 import type { IngestedAdvisory, IngestedOutage, OutageSource } from "./source";
+import { sanitizeFeedRow } from "./sanitize";
 
 /**
  * Ingestion runner.
@@ -228,9 +229,12 @@ async function syncOutages(
   // with no usable coordinates would abort the whole snapshot. Keep the first
   // row per id and drop rows that cannot be placed on the map.
   const unique = new Map<string, IngestedOutage>();
-  for (const o of outages) {
-    if (!o.active || unique.has(o.sourceId)) continue;
-    if (!Number.isFinite(o.latitude) || !Number.isFinite(o.longitude)) continue;
+  for (const raw of outages) {
+    if (!raw.active || unique.has(raw.sourceId)) continue;
+    // Bounded here for every source: one out-of-range value in one row would
+    // otherwise abort the snapshot, or break every map read that includes it.
+    const o = sanitizeFeedRow(raw);
+    if (!o) continue;
     unique.set(o.sourceId, o);
   }
 

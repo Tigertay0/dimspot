@@ -118,6 +118,17 @@ function toComment(row: CommentRow, identity: string | null): OutageComment {
   };
 }
 
+/** Comments returned with an outage: the newest this many. */
+const MAX_COMMENTS = 100;
+
+/**
+ * A new report this close to an active one of the same service, this recently,
+ * is the same outage: it is recorded as a confirmation, not a second pin. A
+ * city block is 80 to 270 m; 150 m keeps neighbours together and streets apart.
+ */
+const DUPLICATE_RADIUS_METERS = 150;
+const DUPLICATE_WINDOW_HOURS = 6;
+
 /**
  * Every write is made as a real user. A cookie-only guest id (what identity
  * falls back to when no session could be created) has no users row, so the
@@ -253,8 +264,13 @@ export class PostgresRepository implements Repository {
         "SELECT * FROM search_outages(outage_ids => ARRAY[$1]::uuid[], max_results => 1)",
         [id],
       ),
+      // The newest hundred, oldest first. Unbounded, one outage's comments
+      // could be grown by anyone into a multi-megabyte response for everyone.
       query<CommentRow>(
-        `SELECT ${COMMENT_COLUMNS} FROM outage_comments WHERE outage_id = $1 ORDER BY created_at`,
+        `SELECT * FROM (
+           SELECT ${COMMENT_COLUMNS} FROM outage_comments
+           WHERE outage_id = $1 ORDER BY created_at DESC LIMIT ${MAX_COMMENTS}
+         ) newest ORDER BY created_at`,
         [id],
       ),
       identity && isUuid(identity)
@@ -275,7 +291,33 @@ export class PostgresRepository implements Repository {
     };
   }
 
-  async createOutage(input: CreateOutageInput, identity: string): Promise<Outage> {
+  async findNearbyReport(
+    input: Pick<CreateOutageInput, "serviceType" | "latitude" | "longitude">,
+  ): Promise<string | null> {
+    // The && on the geometry cast is what uses idx_outages_location_geom; the
+    // distance test then runs on the handful of rows in that box.
+    const [row] = await query<{ id: string }>(
+      `SELECT o.id
+       FROM outages o,
+            (SELECT ST_SetSRID(ST_MakePoint($2, $3), 4326) AS at) p
+       WHERE o.status = 'active'
+         AND o.origin = 'crowdsourced'
+         AND o.service_type = $1
+         AND o.reported_at > NOW() - make_interval(hours => $5)
+         AND o.location::geometry && ST_Expand(p.at, 0.005)
+         AND ST_DWithin(o.location, p.at::geography, $4)
+       ORDER BY o.reported_at DESC
+       LIMIT 1`,
+      [input.serviceType, input.longitude, input.latitude, DUPLICATE_RADIUS_METERS, DUPLICATE_WINDOW_HOURS],
+    );
+    return row?.id ?? null;
+  }
+
+  async createOutage(
+    input: CreateOutageInput,
+    identity: string,
+    network: string | null = null,
+  ): Promise<Outage> {
     owner(identity);
     const providerUuid = await this.providerUuid(input.providerId);
 
@@ -311,8 +353,8 @@ export class PostgresRepository implements Repository {
       // The reporter implicitly confirms their own report, which also fires the
       // verification trigger and sets verification_count to 1.
       await client.query(
-        "INSERT INTO outage_confirmations (outage_id, user_id) VALUES ($1, $2)",
-        [created.id, identity],
+        "INSERT INTO outage_confirmations (outage_id, user_id, network_hash) VALUES ($1, $2, $3)",
+        [created.id, identity, network],
       );
       return created.id;
     });
@@ -331,15 +373,19 @@ export class PostgresRepository implements Repository {
     return row ? (row.verification_count ?? 0) : null;
   }
 
-  async confirmOutage(id: string, identity: string): Promise<number | null> {
+  async confirmOutage(
+    id: string,
+    identity: string,
+    network: string | null = null,
+  ): Promise<number | null> {
     owner(identity);
     if (!isUuid(id)) return null;
 
     try {
       await query(
-        `INSERT INTO outage_confirmations (outage_id, user_id) VALUES ($1, $2)
+        `INSERT INTO outage_confirmations (outage_id, user_id, network_hash) VALUES ($1, $2, $3)
          ON CONFLICT (outage_id, user_id) DO NOTHING`,
-        [id, identity],
+        [id, identity, network],
       );
     } catch (error) {
       return missingOutage(error);
@@ -381,19 +427,32 @@ export class PostgresRepository implements Repository {
     }
   }
 
-  async resolveOutage(id: string, identity: string): Promise<Outage | null> {
+  async resolveOutage(
+    id: string,
+    identity: string,
+    network: string | null = null,
+  ): Promise<Outage | null> {
     owner(identity);
     if (!isUuid(id)) return null;
+
+    // A utility's own report is closed by the utility's feed. The trigger
+    // ignores votes on one as well; refusing here keeps them out of the table
+    // and tells the caller why nothing happened.
+    const [target] = await query<{ origin: string }>("SELECT origin FROM outages WHERE id = $1", [id]);
+    if (!target) return null;
+    if (target.origin !== "crowdsourced") {
+      throw new InvalidInputError("This outage comes from the provider's own feed, which will close it.");
+    }
 
     // A vote, not a unilateral flip: apply_resolution_votes decides when enough
     // people agree to actually change the status.
     try {
       await transaction(async (client) => {
         const vote = await client.query(
-          `INSERT INTO outage_resolutions (outage_id, user_id) VALUES ($1, $2)
+          `INSERT INTO outage_resolutions (outage_id, user_id, network_hash) VALUES ($1, $2, $3)
            ON CONFLICT (outage_id, user_id) DO NOTHING
            RETURNING id`,
-          [id, identity],
+          [id, identity, network],
         );
         // Only a new vote goes on the timeline; repeats would just spam it.
         if (vote.rowCount === 0) return;

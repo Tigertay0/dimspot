@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 import { getAuth } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db";
 import { LIMITS, consumeAddressLimit } from "@/lib/rate-limit";
+import { isCrossSite } from "@/lib/request-guard";
 
 /**
  * Who is acting on a request.
@@ -142,7 +143,11 @@ export async function getIdentity(
     const session = await auth.api.getSession({ headers: requestHeaders });
     if (session) return userIdentity(session.user);
 
-    if (allowSignIn) {
+    if (allowSignIn && isCrossSite(requestHeaders)) {
+      // Another site's page made this browser call us. It gets a read, not a
+      // new guest: otherwise any page could mint users on its visitors' behalf.
+      reason = "No session, and this request may not create one.";
+    } else if (allowSignIn) {
       const blocked = await consumeAddressLimit(
         "guest:create:addr",
         requestHeaders,

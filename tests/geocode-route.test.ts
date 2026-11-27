@@ -20,8 +20,13 @@ vi.mock("@/lib/identity", () => ({
 import { GET } from "@/app/api/geocode/route";
 import { LIMITS } from "@/lib/rate-limit";
 
-function geocodeRequest(address: string | null = "203.0.113.7", extra: Record<string, string> = {}) {
-  return new NextRequest("http://localhost/api/geocode?q=springfield", {
+/** A suggestion request (the path every keystroke takes), from `address`. */
+function geocodeRequest(
+  address: string | null = "203.0.113.7",
+  extra: Record<string, string> = {},
+  query = "q=springfield&suggest=1",
+) {
+  return new NextRequest(`http://localhost/api/geocode?${query}`, {
     headers: { ...(address ? { "x-forwarded-for": address } : {}), ...extra },
   });
 }
@@ -35,10 +40,23 @@ function bucketKeys(): string[] {
     .map(([, params]) => (params as unknown[])[0] as string);
 }
 
+/** Only the per-address buckets of the route's own limit. */
+function addressKeys(): string[] {
+  return bucketKeys().filter((key) => key.startsWith("geocode:addr:"));
+}
+
 beforeEach(() => {
   mocks.configured = true;
   mocks.query.mockReset().mockResolvedValue(allowedRow);
-  vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => new Response("[]", { status: 200 })));
+  // Photon answers suggestions with a feature list, Nominatim a search with an array.
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockImplementation(async (url: unknown) =>
+      String(url).includes("nominatim")
+        ? new Response("[]", { status: 200 })
+        : new Response('{"features":[]}', { status: 200 }),
+    ),
+  );
   vi.spyOn(console, "error").mockImplementation(() => {});
   // The in-memory counters live on globalThis; start each test from empty.
   delete (globalThis as { __rateBuckets?: unknown }).__rateBuckets;
@@ -55,10 +73,17 @@ describe("GET /api/geocode per-address cap — shared limiter", () => {
     const response = await GET(geocodeRequest());
 
     expect(response.status).toBe(200);
-    expect(mocks.query).toHaveBeenCalledTimes(1);
-    expect(mocks.query).toHaveBeenCalledWith(
+    // The address, then what the whole app may forward upstream.
+    expect(mocks.query).toHaveBeenCalledTimes(2);
+    expect(mocks.query).toHaveBeenNthCalledWith(
+      1,
       expect.stringContaining("consume_rate_limit"),
       [expect.stringMatching(/^geocode:addr:[0-9a-f]{32}$/), LIMITS.geocode.limit, LIMITS.geocode.windowMs / 1000],
+    );
+    expect(mocks.query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("consume_rate_limit"),
+      ["global:geocode:suggest", LIMITS.geocodeSuggestGlobal.limit, LIMITS.geocodeSuggestGlobal.windowMs / 1000],
     );
   });
 
@@ -87,12 +112,12 @@ describe("GET /api/geocode per-address cap — shared limiter", () => {
   it("uses a different bucket per address and none when the address is unknown", async () => {
     await GET(geocodeRequest("203.0.113.7"));
     await GET(geocodeRequest("198.51.100.9"));
-    expect(new Set(bucketKeys()).size).toBe(2);
+    expect(new Set(addressKeys()).size).toBe(2);
 
     mocks.query.mockClear();
     const response = await GET(geocodeRequest(null));
     expect(response.status).toBe(200);
-    expect(mocks.query).not.toHaveBeenCalled();
+    expect(addressKeys()).toEqual([]);
   });
 
   it("buckets by cf-connecting-ip and ignores a forged x-forwarded-for beside it", async () => {
@@ -100,7 +125,7 @@ describe("GET /api/geocode per-address cap — shared limiter", () => {
     await GET(geocodeRequest("198.51.100.9", { "cf-connecting-ip": "192.0.2.1" }));
     await GET(geocodeRequest("203.0.113.7"));
 
-    const [first, second, xffOnly] = bucketKeys();
+    const [first, second, xffOnly] = addressKeys();
     expect(first).toBe(second);
     expect(xffOnly).not.toBe(first);
   });
@@ -187,5 +212,89 @@ describe("GET /api/geocode?suggest=1", () => {
     );
 
     expect(response.status).toBe(500);
+  });
+});
+
+describe("GET /api/geocode upstream budgets", () => {
+  it("counts an IPv6 caller against its /48 as well, at eight times the limit", async () => {
+    await GET(geocodeRequest(null, { "cf-connecting-ip": "2001:db8:aa:1::5" }));
+
+    const address = mocks.query.mock.calls
+      .filter(([, params]) => String((params as unknown[])[0]).startsWith("geocode:addr:"))
+      .map(([, params]) => (params as unknown[])[1]);
+    expect(address).toEqual([LIMITS.geocode.limit, LIMITS.geocode.limit * 8]);
+  });
+
+  it("puts a low per-address limit and a global one in front of Nominatim", async () => {
+    const response = await GET(geocodeRequest("203.0.113.7", {}, "q=1600+pennsylvania+avenue"));
+
+    expect(response.status).toBe(200);
+    expect(bucketKeys().map((key) => key.replace(/:[0-9a-f]{32}$/, ""))).toEqual([
+      "geocode:addr",
+      "geocode:search:addr",
+      "global:geocode:search",
+    ]);
+  });
+
+  it("answers 429 without calling upstream when the app-wide budget is spent", async () => {
+    mocks.query.mockImplementation(async (_sql: unknown, params: unknown[]) =>
+      String(params[0]).startsWith("global:")
+        ? [{ allowed: false, remaining: 0, retry_after: 30 }]
+        : allowedRow,
+    );
+
+    const response = await GET(geocodeRequest());
+
+    expect(response.status).toBe(429);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("refuses a query no address is long enough to need", async () => {
+    const response = await GET(geocodeRequest("203.0.113.7", {}, `q=${"a".repeat(201)}&suggest=1`));
+
+    expect(response.status).toBe(400);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("answers a reverse lookup from Photon's address fields, not the nearest shop's name", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            features: [
+              {
+                type: "Feature",
+                geometry: { type: "Point", coordinates: [-77.1003, 38.9806] },
+                properties: {
+                  osm_type: "N", osm_id: 9, osm_key: "shop", osm_value: "deli", type: "house",
+                  name: "Pescadeli", housenumber: "4960", street: "Bethesda Avenue",
+                  city: "Bethesda", state: "Maryland", postcode: "20814", countrycode: "US",
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const response = await GET(geocodeRequest("203.0.113.7", {}, "lat=38.9807&lng=-77.1003"));
+    const body = (await response.json()) as { results: Array<{ label: string; state: string; zipCode: string }> };
+
+    expect(body.results).toHaveLength(1);
+    expect(body.results[0]).toMatchObject({
+      label: "4960 Bethesda Avenue, Bethesda, Maryland",
+      state: "Maryland",
+      zipCode: "20814",
+    });
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain("/reverse?");
+  });
+
+  it("falls back to Nominatim when Photon has nothing near the point", async () => {
+    await GET(geocodeRequest("203.0.113.7", {}, "lat=39.5&lng=-98.35"));
+
+    const hosts = vi.mocked(fetch).mock.calls.map(([url]) => new URL(String(url)).hostname);
+    expect(hosts).toEqual(["photon.komoot.io", "nominatim.openstreetmap.org"]);
   });
 });

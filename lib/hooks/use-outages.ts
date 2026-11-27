@@ -177,7 +177,9 @@ export function useCreateOutage() {
 
   return useMutation({
     mutationFn: (input: CreateOutageInput) =>
-      request<{ outage: Outage }>("/api/outages", {
+      // `merged`: the same outage was already reported within a block, so this
+      // report was added to that one as a confirmation instead of a second pin.
+      request<{ outage: Outage; merged?: boolean }>("/api/outages", {
         method: "POST",
         body: JSON.stringify(input),
       }),
