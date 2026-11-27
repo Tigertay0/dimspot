@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleHelp, Signal, Wifi, Zap } from "lucide-react";
+import { CircleHelp, Signal, Users, Wifi, Zap } from "lucide-react";
 import { SEVERITY_META, dominantSeverity } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { ServiceType, Severity } from "@/lib/types";
@@ -32,17 +32,21 @@ export function ServiceIcon({
 export function ServiceBadge({
   type,
   size = "md",
+  report = false,
   className,
 }: {
   type: ServiceType;
   size?: "md" | "lg";
+  /** A neighbor's report: drawn in the report violet, as on the map. */
+  report?: boolean;
   className?: string;
 }) {
   return (
     <span
       aria-hidden
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-full bg-secondary text-foreground",
+        "flex shrink-0 items-center justify-center rounded-full",
+        report ? "bg-[var(--report)] text-[var(--report-ink)]" : "bg-secondary text-foreground",
         size === "lg" ? "size-12" : "size-10",
         className,
       )}
@@ -122,12 +126,15 @@ export function ClusterMarker({
   severityCounts,
   serviceCounts,
   customers,
+  reports,
   onClick,
 }: {
   count: number;
   severityCounts: Record<Severity, number>;
   serviceCounts: Record<ServiceType, number>;
   customers: number;
+  /** How many of them are neighbors' reports. */
+  reports: number;
   onClick: () => void;
 }) {
   const order: Severity[] = ["complete", "degraded", "intermittent"];
@@ -140,6 +147,11 @@ export function ClusterMarker({
   );
 
   const label = customers > 0 ? shortCount(customers) : `${count} reports`;
+  // All neighbors' reports: the report violet and the people icon, as for one.
+  const allReports = reports === count;
+  const surface = allReports
+    ? "border-[var(--report-edge)] bg-[var(--report)] text-[var(--report-ink)]"
+    : "border-[var(--marker-edge)] bg-[var(--marker)] text-foreground";
 
   return (
     <button
@@ -151,22 +163,29 @@ export function ClusterMarker({
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground",
         "focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-full",
       )}
-      aria-label={`${count} outages here${
+      aria-label={`${count} ${allReports ? "neighbor reports" : "outages"} here${
         customers > 0 ? `, ${customers.toLocaleString("en-US")} customers out` : ""
       }. Zoom in to see them.`}
     >
       {/* The pill behind: offset down and right, so the edge reads as a stack. */}
       <span
         aria-hidden
-        className="absolute inset-0 translate-x-[3px] translate-y-[3px] rounded-full border border-[var(--marker-edge)] bg-[var(--marker)]"
+        className={cn("absolute inset-0 translate-x-[3px] translate-y-[3px] rounded-full border", surface)}
         style={{ boxShadow: "var(--shadow-marker)" }}
       />
       <span
-        className="relative flex h-8 items-center gap-1 rounded-full border border-[var(--marker-edge)] bg-[var(--marker)] px-2.5 text-[13px] font-semibold tabular-nums text-foreground"
+        className={cn(
+          "relative flex h-8 items-center gap-1 rounded-full border px-2.5 text-[13px] font-semibold tabular-nums",
+          surface,
+        )}
         style={{ boxShadow: "var(--shadow-marker)" }}
       >
-        <span aria-hidden style={{ color }} className="flex">
-          <ServiceIcon type={service} className="size-3.5 stroke-[2.5]" />
+        <span aria-hidden style={allReports ? undefined : { color }} className="flex">
+          {allReports ? (
+            <Users className="size-3.5 stroke-[2.5]" />
+          ) : (
+            <ServiceIcon type={service} className="size-3.5 stroke-[2.5]" />
+          )}
         </span>
         {label}
       </span>
@@ -181,6 +200,9 @@ export function ClusterMarker({
  * customers are out (or how many people confirmed a report). The selected
  * marker turns ink, so the one the preview card describes is unmistakable. An
  * unconfirmed report has a dashed edge: same shape, visibly provisional.
+ *
+ * A neighbor's report is a different thing from a utility's, and looks it:
+ * violet, a people icon, and how many households have reported it.
  */
 export function OutageMarker({
   serviceType,
@@ -190,12 +212,15 @@ export function OutageMarker({
   isResolved,
   isSelected,
   isFresh,
+  neighbors = null,
   onClick,
 }: {
   serviceType: ServiceType;
   severity: Severity;
   /** Short figure shown beside the icon, when there is one. */
   label: string | null;
+  /** Households behind a neighbor report; null for a utility or feed outage. */
+  neighbors?: number | null;
   isVerified: boolean;
   isResolved: boolean;
   isSelected: boolean;
@@ -203,11 +228,15 @@ export function OutageMarker({
   isFresh: boolean;
   onClick: () => void;
 }) {
+  const report = neighbors !== null;
   const color = isResolved
     ? "var(--severity-resolved)"
-    : SEVERITY_META[severity].token;
+    : report
+      ? "var(--report-ink)"
+      : SEVERITY_META[severity].token;
 
   const solid = isVerified || isResolved;
+  const shown = report ? String(Math.max(1, neighbors)) : label;
 
   return (
     <button
@@ -217,20 +246,28 @@ export function OutageMarker({
       className={cn(
         "tap-target group relative flex h-8 animate-marker-in items-center justify-center gap-1 rounded-full border text-[13px] font-semibold tabular-nums",
         "transition-[transform,background-color,color] duration-150 ease-out hover:scale-105 active:scale-95",
-        label ? "px-2.5" : "w-8",
+        shown ? "px-2.5" : "w-8",
         isSelected
           ? "z-10 scale-110 border-primary bg-primary text-primary-foreground"
-          : // --marker and its edge are set per theme in globals.css: white
-            // with a hairline on the light map, a lifted grey with a visible
-            // edge on the dark one, where a card-coloured pill disappears.
-            "border-[var(--marker-edge)] bg-[var(--marker)] text-foreground",
-        !solid && !isSelected && "border-dashed border-muted-foreground",
+          : report
+            ? "border-[var(--report-edge)] bg-[var(--report)] text-[var(--report-ink)]"
+            : // --marker and its edge are set per theme in globals.css: white
+              // with a hairline on the light map, a lifted grey with a visible
+              // edge on the dark one, where a card-coloured pill disappears.
+              "border-[var(--marker-edge)] bg-[var(--marker)] text-foreground",
+        !solid && !isSelected && (report ? "border-dashed" : "border-dashed border-muted-foreground"),
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground",
         "focus-visible:ring-offset-2 focus-visible:ring-offset-background",
       )}
-      aria-label={`${SEVERITY_META[severity].label}: ${serviceType}${label ? `, ${label}` : ""}${
-        solid ? "" : ", unconfirmed"
-      }`}
+      aria-label={
+        report
+          ? `Neighbor report: ${serviceType}, ${shown} ${Number(shown) === 1 ? "household" : "households"}${
+              solid ? "" : ", unconfirmed"
+            }`
+          : `${SEVERITY_META[severity].label}: ${serviceType}${label ? `, ${label}` : ""}${
+              solid ? "" : ", unconfirmed"
+            }`
+      }
     >
       {isFresh && !isResolved && !isSelected && (
         <span
@@ -240,9 +277,13 @@ export function OutageMarker({
         />
       )}
       <span aria-hidden style={{ color: isSelected ? undefined : color }} className="flex">
-        <ServiceIcon type={serviceType} className="size-3.5 stroke-[2.5]" />
+        {report ? (
+          <Users className="size-3.5 stroke-[2.5]" />
+        ) : (
+          <ServiceIcon type={serviceType} className="size-3.5 stroke-[2.5]" />
+        )}
       </span>
-      {label}
+      {shown}
     </button>
   );
 }

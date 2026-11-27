@@ -20,7 +20,7 @@ import Map, {
   type ViewStateChangeEvent,
 } from "react-map-gl/maplibre";
 import "./maplibre-worker";
-import { DEFAULT_VIEW, HOME_BOUNDS, MARKER_ZOOM } from "@/lib/constants";
+import { DEFAULT_VIEW, HOME_BOUNDS, MARKER_ZOOM, PRECISE_ZOOM } from "@/lib/constants";
 import { useNow } from "@/lib/hooks/use-now";
 import type { Advisory, BoundingBox, Outage, OutageArea } from "@/lib/types";
 import { AreaLayer, ESTIMATE_MIN_PX, areaBounds, zoomToShow } from "./area-layer";
@@ -409,7 +409,9 @@ export function OutageMap({
         trackUserLocation
         showAccuracyCircle
         positionOptions={{ enableHighAccuracy: true, timeout: 10_000 }}
-        fitBoundsOptions={{ maxZoom: 13 }}
+        // Street level when the fix is good; a poor fix (a wide accuracy
+        // circle) fits the circle instead, so it stops further out on its own.
+        fitBoundsOptions={{ maxZoom: PRECISE_ZOOM }}
         onGeolocate={() => onLocated?.()}
         onError={(event) =>
           onLocateError?.(
@@ -494,6 +496,7 @@ export function OutageMap({
                   severityCounts={cluster.severityCounts}
                   serviceCounts={cluster.serviceCounts}
                   customers={cluster.customers}
+                  reports={cluster.reports}
                   onClick={() =>
                     revealCluster(cluster.cluster_id, longitude, latitude)
                   }
@@ -527,6 +530,7 @@ export function OutageMap({
                 isResolved={outage.status === "resolved"}
                 isSelected={outage.id === selectedId}
                 isFresh={ageMinutes <= FRESH_MINUTES}
+                neighbors={outage.origin === "crowdsourced" ? outage.verificationCount : null}
                 onClick={() => onSelect(outage)}
               />
             </Marker>

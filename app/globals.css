@@ -43,6 +43,12 @@
   --shadow-marker: 0 1px 2px rgb(0 0 0 / 0.14), 0 3px 8px rgb(0 0 0 / 0.18);
   --marker: #ffffff;
   --marker-edge: rgb(0 0 0 / 0.14);
+  /* Neighbor reports: violet, kept apart from the white of a utility's own
+     report and from the blue of the person's position dot. Ink holds 7:1 on
+     the tint. */
+  --report: #f3efff;
+  --report-edge: #b9a5f7;
+  --report-ink: #5b2fc9;
   --shadow-sheet: 0 -2px 16px rgb(0 0 0 / 0.1);
 
   /* Severity. Dark enough to hold 4.5:1 as text on white. */
@@ -77,6 +83,9 @@
   --shadow-marker: 0 1px 2px rgb(0 0 0 / 0.6), 0 3px 10px rgb(0 0 0 / 0.6);
   --marker: #303030;
   --marker-edge: #5a5a5a;
+  --report: #2b2342;
+  --report-edge: #7d63d8;
+  --report-ink: #cbbcff;
   --shadow-sheet: 0 -2px 16px rgb(0 0 0 / 0.5);
 
   --severity-complete: hsl(0 84% 67%);

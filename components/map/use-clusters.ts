@@ -25,6 +25,8 @@ export interface ClusterAggregates {
   serviceCounts: Record<ServiceType, number>;
   /** Customers out across the cluster, where its members say. */
   customers: number;
+  /** How many members are neighbors' reports rather than utility or feed outages. */
+  reports: number;
 }
 
 export interface ClusterProperties extends ClusterAggregates {
@@ -78,6 +80,7 @@ export function useClusters(outages: Outage[], viewport: Viewport | null) {
         severityCounts: { ...props.severityCounts },
         serviceCounts: { ...props.serviceCounts },
         customers: props.customers,
+        reports: props.reports,
       }),
 
       reduce: (accumulated, props) => {
@@ -88,6 +91,7 @@ export function useClusters(outages: Outage[], viewport: Viewport | null) {
           accumulated.serviceCounts[key] += props.serviceCounts[key];
         }
         accumulated.customers += props.customers;
+        accumulated.reports += props.reports;
       },
     });
 
@@ -107,6 +111,7 @@ export function useClusters(outages: Outage[], viewport: Viewport | null) {
             severityCounts,
             serviceCounts,
             customers: Math.max(0, outage.customersAffected ?? 0),
+            reports: outage.origin === "crowdsourced" ? 1 : 0,
           },
           geometry: {
             type: "Point" as const,

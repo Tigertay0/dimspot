@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { House, Minus, Navigation, Plus } from "lucide-react";
-import { DEFAULT_VIEW } from "@/lib/constants";
+import { DEFAULT_VIEW, PRECISE_ZOOM } from "@/lib/constants";
 import { useAdvisories, useOutageArea, useOutages, useSession } from "@/lib/hooks/use-outages";
 import { activeFilterCount, useFilters } from "@/lib/store/filters";
 import type { Advisory, BoundingBox, GeocodeResult, Outage } from "@/lib/types";
@@ -117,7 +117,7 @@ export function MapShell() {
     setOpened(true);
     if (!deepLinked) {
       if (home) {
-        setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: 12 });
+        setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: PRECISE_ZOOM });
       } else if (approx && approx.country === "US") {
         setFlyTo({ latitude: approx.latitude, longitude: approx.longitude, zoom: 9 });
       }
@@ -522,7 +522,7 @@ export function MapShell() {
                   onClick={() =>
                     // A new object each time, so pressing it again after panning
                     // away flies back.
-                    setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: 13 })
+                    setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: PRECISE_ZOOM })
                   }
                 >
                   <House />
@@ -629,7 +629,7 @@ export function MapShell() {
           })
         }
         onShowHome={(place) =>
-          setFlyTo({ latitude: place.latitude, longitude: place.longitude, zoom: 13 })
+          setFlyTo({ latitude: place.latitude, longitude: place.longitude, zoom: PRECISE_ZOOM })
         }
         onAccount={
           session?.capabilities.accounts
