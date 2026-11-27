@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { badRequest, ok, serverError, tooMany } from "@/lib/api";
 import { getIdentity } from "@/lib/identity";
+import { suggestUrl, toSuggestions } from "@/lib/geocode/photon";
 import { LIMITS, consumeAddressLimit, rateLimit } from "@/lib/rate-limit";
 import type { GeocodeResult } from "@/lib/types";
 
@@ -10,11 +11,13 @@ export const dynamic = "force-dynamic";
 /**
  * Geocoding proxy (PRD section 4.4).
  *
- * Uses OpenStreetMap's Nominatim, which needs no API key. It is proxied rather
- * than called from the browser for three reasons: Nominatim requires an
- * identifying User-Agent, its usage policy caps request rate per source, and
- * keeping it server-side means the user's typed address never appears in a
- * third-party request that carries their referrer.
+ * Two free OpenStreetMap geocoders, neither needing a key. Photon answers
+ * suggestions while someone types (lib/geocode/photon.ts says why). Nominatim
+ * answers a submitted search and the reverse lookup. Both are proxied rather
+ * than called from the browser: they want an identifying User-Agent, their
+ * usage policies cap request rate per source, and keeping it server-side means
+ * a typed address never appears in a third-party request that carries the
+ * user's referrer.
  *
  * For production traffic, swap NOMINATIM_BASE for a self-hosted instance or a
  * commercial geocoder; nothing else in the app changes.
@@ -125,9 +128,37 @@ async function callNominatim(
   return response.json();
 }
 
+const COUNTRIES = (process.env.GEOCODER_COUNTRY_CODES ?? "us")
+  .split(",")
+  .map((code) => code.trim().toLowerCase())
+  .filter(Boolean);
+
+/** Where the map is looking, so "Springfield" means the near one. */
+function readBias(params: URLSearchParams) {
+  const latitude = Number(params.get("near_lat"));
+  const longitude = Number(params.get("near_lng"));
+  const zoom = Number(params.get("near_zoom"));
+  if (!params.get("near_lat") || !params.get("near_lng")) return null;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;
+  return { latitude, longitude, zoom: Number.isFinite(zoom) ? zoom : 10 };
+}
+
+async function suggest(query: string, params: URLSearchParams): Promise<GeocodeResult[]> {
+  const response = await fetch(suggestUrl(query, readBias(params)), {
+    headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+    next: { revalidate: 3600 },
+  });
+  if (!response.ok) throw new Error(`Photon responded ${response.status}`);
+  return toSuggestions(await response.json(), { query, countries: COUNTRIES });
+}
+
 /**
- * GET /api/geocode?q=90210        forward search, returns up to 5 suggestions
- * GET /api/geocode?lat=..&lng=..  reverse lookup, returns 0 or 1 result
+ * GET /api/geocode?q=beth&suggest=1  suggestions while typing (Photon)
+ * GET /api/geocode?q=90210           submitted search, up to 5 results (Nominatim)
+ * GET /api/geocode?lat=..&lng=..     reverse lookup, returns 0 or 1 result
+ *
+ * `near_lat`, `near_lng` and `near_zoom` bias suggestions towards the map.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -188,6 +219,10 @@ export async function GET(request: NextRequest) {
     if (!query) return badRequest("Provide q, or lat and lng");
     if (query.length < 2) return ok({ results: [] });
 
+    if (params.get("suggest")) {
+      return ok({ results: await suggest(query, params) });
+    }
+
     const places = await callNominatim(
       "/search",
       new URLSearchParams({
@@ -195,7 +230,7 @@ export async function GET(request: NextRequest) {
         format: "jsonv2",
         limit: "5",
         addressdetails: "1",
-        countrycodes: process.env.GEOCODER_COUNTRY_CODES ?? "us",
+        countrycodes: COUNTRIES.join(","),
       }),
     );
 

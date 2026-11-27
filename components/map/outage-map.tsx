@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
   type Ref,
@@ -12,7 +13,9 @@ import type { GeolocateControl as GeolocateControlInstance } from "maplibre-gl";
 import Map, {
   AttributionControl,
   GeolocateControl,
+  Layer,
   Marker,
+  Source,
   type MapRef,
   type ViewStateChangeEvent,
 } from "react-map-gl/maplibre";
@@ -21,16 +24,10 @@ import { DEFAULT_VIEW, HOME_BOUNDS, MARKER_ZOOM } from "@/lib/constants";
 import { useNow } from "@/lib/hooks/use-now";
 import type { Advisory, BoundingBox, Outage } from "@/lib/types";
 import { FALLBACK_STYLE } from "./basemap";
+import { MARKERS_MIN_ZOOM, heatLayer, outagesToGeoJSON } from "./heat-layer";
 import { AdvisoryMarker, ClusterMarker, OutageMarker } from "./markers";
 import { useClusters, type ClusterProperties, type PointProperties } from "./use-clusters";
 import { useTintedBasemap } from "./use-tinted-basemap";
-
-/**
- * Below this zoom weather advisories are not drawn. Outages cluster into a
- * handful of counted discs at country zoom; advisories do not cluster, and
- * hundreds of diamonds would bury the discs under the quieter layer.
- */
-const ADVISORY_MIN_ZOOM = 6;
 
 /** Wide enough for the list to sit beside the map (see use-is-desktop.ts). */
 const isWide = () => window.matchMedia("(min-width: 1024px)").matches;
@@ -107,7 +104,13 @@ interface OutageMapProps {
   /** A tap on the map itself, not on a marker. */
   onBackgroundClick?: () => void;
   /** The device refused or failed to give a position. */
-  onLocateError?: (message: string) => void;
+  onLocateError?: (message: string, denied: boolean) => void;
+  /** The device gave a position. */
+  onLocated?: () => void;
+  /** The map has loaded and its controls answer. */
+  onReady?: () => void;
+  /** The place a search landed on, when it is a street or an address. */
+  searchPin?: { latitude: number; longitude: number } | null;
 }
 
 export function OutageMap({
@@ -124,6 +127,9 @@ export function OutageMap({
   controls,
   onBackgroundClick,
   onLocateError,
+  onLocated,
+  onReady,
+  searchPin,
 }: OutageMapProps) {
   const mapRef = useRef<MapRef | null>(null);
   const geolocateRef = useRef<GeolocateControlInstance | null>(null);
@@ -150,7 +156,14 @@ export function OutageMap({
 
   const { clusters, expansionZoom, leaves } = useClusters(outages, viewport);
 
-  const showAdvisories = (viewport?.zoom ?? DEFAULT_VIEW.zoom) >= ADVISORY_MIN_ZOOM;
+  // Which of the two representations is live. Zoomed out, the map is a heat
+  // map of where service is out; counted discs at that scale were tried and
+  // read as two giant numbers on a continent. Markers take over once they can
+  // stand apart. Before the first viewport sync the map is at DEFAULT_VIEW,
+  // which is country zoom, so heat is the right assumption.
+  const showMarkers = (viewport?.zoom ?? DEFAULT_VIEW.zoom) >= MARKERS_MIN_ZOOM;
+
+  const heatData = useMemo(() => outagesToGeoJSON(outages), [outages]);
 
   /**
    * Reveal a cluster's contents.
@@ -265,6 +278,15 @@ export function OutageMap({
   const tinted = useTintedBasemap(theme);
   const mapStyle = styleFailed ? FALLBACK_STYLE : tinted;
 
+  // The heat map goes under the place names, so a hot region does not bury
+  // the labels that say where it is.
+  const firstLabelLayer = useMemo(() => {
+    if (!mapStyle || typeof mapStyle === "string") return undefined;
+    return mapStyle.layers.find(
+      (layer) => layer.type === "symbol" && /^(place|label)/.test(layer.id),
+    )?.id;
+  }, [mapStyle]);
+
   /**
    * While a report location is being picked on a phone, the sheet covers the
    * lower part of the map. Padding the map by that much moves its centre (and
@@ -329,6 +351,7 @@ export function OutageMap({
         }
 
         syncViewport(map);
+        onReady?.();
       }}
       onClick={() => onBackgroundClick?.()}
       onMove={handleMove}
@@ -355,19 +378,41 @@ export function OutageMap({
         showAccuracyCircle
         positionOptions={{ enableHighAccuracy: true, timeout: 10_000 }}
         fitBoundsOptions={{ maxZoom: 13 }}
+        onGeolocate={() => onLocated?.()}
         onError={(event) =>
           onLocateError?.(
             event.code === 1
               ? "Location access is blocked for this site. Allow it in your browser settings, or search for an address."
               : "Could not get your location. Try again, or search for an address.",
+            event.code === 1,
           )
         }
       />
 
+      {/* Where the last search landed. Not interactive: it marks a spot, and
+          the outages around it are the things to tap. */}
+      {searchPin && !picking && (
+        <Marker longitude={searchPin.longitude} latitude={searchPin.latitude} style={{ pointerEvents: "none" }}>
+          <span
+            aria-hidden
+            className="block size-4 rounded-full border-[3px] border-card bg-foreground shadow-[var(--shadow-marker)]"
+          />
+        </Marker>
+      )}
+
+      {/* Density first, underneath everything: at country zoom this is the whole
+          picture, and by the time markers appear it has faded to nothing. */}
+      {!picking && (
+        <Source id="outage-heat-source" type="geojson" data={heatData}>
+          <Layer {...heatLayer} beforeId={firstLabelLayer} />
+        </Source>
+      )}
+
       {/* Advisories render first so outage markers sit above them: a report of
-          actual lost service outranks a forecast of possible lost service. */}
+          actual lost service outranks a forecast of possible lost service.
+          They follow the same zoom gate as the markers. */}
       {!picking &&
-        showAdvisories &&
+        showMarkers &&
         advisories.map((advisory) => (
           <Marker
             key={`advisory-${advisory.id}`}
@@ -386,6 +431,7 @@ export function OutageMap({
         ))}
 
       {!picking &&
+        showMarkers &&
         clusters.map((feature) => {
           const [longitude, latitude] = feature.geometry.coordinates;
           const props = feature.properties;

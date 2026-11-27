@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, MapPin } from "lucide-react";
+import { Loader2, MapPin, Navigation } from "lucide-react";
 import { shortAddress } from "@/lib/format";
 import { stateCode } from "@/lib/us-states";
 import { cn } from "@/lib/utils";
@@ -33,12 +33,18 @@ import { ProviderPicker } from "./provider-picker";
 
 type Step = "service" | "location" | "severity";
 
+/** From here in, the pin is on a street someone could mean. */
+const PIN_MIN_ZOOM = 12;
+
 const STEP_ORDER: Step[] = ["service", "location", "severity"];
 
 export function ReportSheet({
   open,
   onOpenChange,
   pickedLocation,
+  mapZoom,
+  onPlacePin,
+  onLocate,
   onRequestPicking,
   onReported,
 }: {
@@ -46,6 +52,12 @@ export function ReportSheet({
   onOpenChange: (open: boolean) => void;
   /** Live map centre while the user is positioning the pin. */
   pickedLocation: { latitude: number; longitude: number } | null;
+  /** How close the map is: a pin placed from country zoom is a guess. */
+  mapZoom: number;
+  /** The "where" step opened: move the map to the reporter if it is far out. */
+  onPlacePin: () => void;
+  /** "Use my location" on the "where" step. */
+  onLocate: () => void;
   onRequestPicking: (picking: boolean) => void;
   onReported: (outageId: string) => void;
 }) {
@@ -63,7 +75,7 @@ export function ReportSheet({
   const [providerId, setProviderId] = useState<string | null>(null);
   const [severity, setSeverity] = useState<Severity | null>(null);
   const [description, setDescription] = useState("");
-  const [place, setPlace] = useState<GeocodeResult | null>(null);
+  const [resolvedPlace, setPlace] = useState<GeocodeResult | null>(null);
   const [resolvingPlace, setResolvingPlace] = useState(false);
 
   const providerOptions = useMemo(
@@ -87,15 +99,21 @@ export function ReportSheet({
     }
   }
 
+  const placing = open && step === "location";
   useEffect(() => {
-    onRequestPicking(open && step === "location");
-  }, [open, step, onRequestPicking]);
+    onRequestPicking(placing);
+    if (placing) onPlacePin();
+  }, [placing, onRequestPicking, onPlacePin]);
+
+  // Zoomed out past a neighbourhood, the middle of the map is nobody's
+  // address: no lookup, no provider guess from it, and no moving on.
+  const tooFar = mapZoom < PIN_MIN_ZOOM;
 
   // Reverse-geocode once the pin settles, so the confirmation screen can name a
   // street rather than showing raw coordinates. It starts on the first step,
   // not the second: the state it returns is what lets the provider list lead
   // with the companies that serve this spot.
-  const locating = open && step !== "severity";
+  const locating = open && step !== "severity" && !tooFar;
   useEffect(() => {
     if (!locating || !pickedLocation) return;
 
@@ -131,10 +149,12 @@ export function ReportSheet({
   }, [locating, pickedLocation]);
 
   const stepIndex = STEP_ORDER.indexOf(step);
+  // A lookup from before the map was zoomed out describes somewhere else.
+  const place = tooFar ? null : resolvedPlace;
 
   const canAdvance =
     (step === "service" && serviceType !== null) ||
-    (step === "location" && pickedLocation !== null) ||
+    (step === "location" && pickedLocation !== null && !tooFar) ||
     (step === "severity" && severity !== null);
 
   async function submit() {
@@ -288,31 +308,42 @@ export function ReportSheet({
           )}
 
           {step === "location" && (
-            <div className="flex items-center gap-3 pb-1">
-              <span
-                aria-hidden
-                className="flex size-12 shrink-0 items-center justify-center rounded-full bg-secondary text-foreground"
-              >
-                <MapPin className="size-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[15px] font-semibold">
-                  {resolvingPlace ? (
-                    <span className="font-normal text-muted-foreground">Finding address…</span>
-                  ) : place ? (
-                    shortAddress(place.label)
-                  ) : pickedLocation ? (
-                    <span className="tabular-nums">
-                      {pickedLocation.latitude.toFixed(4)}, {pickedLocation.longitude.toFixed(4)}
-                    </span>
-                  ) : (
-                    "Move the map to set a location"
-                  )}
-                </p>
-                <p className="mt-0.5 text-sm text-muted-foreground">
-                  Drag the map until the pin sits on the spot.
-                </p>
+            <div className="space-y-4 pb-1">
+              <div className="flex items-center gap-3">
+                <span
+                  aria-hidden
+                  className="flex size-12 shrink-0 items-center justify-center rounded-full bg-secondary text-foreground"
+                >
+                  <MapPin className="size-5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[15px] font-semibold">
+                    {tooFar ? (
+                      "Zoom in to your street"
+                    ) : resolvingPlace ? (
+                      <span className="font-normal text-muted-foreground">Finding address…</span>
+                    ) : place ? (
+                      shortAddress(place.label)
+                    ) : pickedLocation ? (
+                      <span className="tabular-nums">
+                        {pickedLocation.latitude.toFixed(4)}, {pickedLocation.longitude.toFixed(4)}
+                      </span>
+                    ) : (
+                      "Move the map to set a location"
+                    )}
+                  </p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    {tooFar
+                      ? "The pin has to sit on the place that is out."
+                      : "Drag the map until the pin sits on the spot."}
+                  </p>
+                </div>
               </div>
+
+              <Button type="button" variant="outline" size="sm" onClick={onLocate} className="rounded-full px-4">
+                <Navigation />
+                Use my location
+              </Button>
             </div>
           )}
 

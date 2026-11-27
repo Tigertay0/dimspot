@@ -138,3 +138,54 @@ describe("GET /api/geocode per-address cap — in-memory fallback", () => {
     expect((await GET(geocodeRequest("198.51.100.9"))).status).toBe(200);
   });
 });
+
+describe("GET /api/geocode?suggest=1", () => {
+  it("asks Photon, biased to the map, and returns places", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          features: [
+            {
+              type: "Feature",
+              geometry: { type: "Point", coordinates: [-77.09, 38.98] },
+              properties: {
+                osm_type: "N", osm_id: 1, osm_key: "place", osm_value: "city", type: "city",
+                name: "Bethesda", state: "Maryland", countrycode: "US",
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await GET(
+      new NextRequest(
+        "http://localhost/api/geocode?q=beth&suggest=1&near_lat=38.98&near_lng=-77.1&near_zoom=11",
+        { headers: { "x-forwarded-for": "203.0.113.9" } },
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { results: Array<{ label: string }> };
+    expect(body.results.map((r) => r.label)).toEqual(["Bethesda, Maryland"]);
+
+    const called = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(called.pathname).toBe("/api/");
+    expect(called.searchParams.get("q")).toBe("beth");
+    expect(called.searchParams.get("lat")).toBe("38.980");
+  });
+
+  it("answers 500 when Photon is down, so the box says search is unavailable", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("busy", { status: 503 })));
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/geocode?q=beth&suggest=1", {
+        headers: { "x-forwarded-for": "203.0.113.9" },
+      }),
+    );
+
+    expect(response.status).toBe(500);
+  });
+});

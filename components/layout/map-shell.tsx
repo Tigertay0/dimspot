@@ -30,6 +30,7 @@ import { useAppearance } from "@/lib/hooks/use-appearance";
 import { usePreferences } from "@/lib/hooks/use-preferences";
 import { useHydrated } from "@/lib/hooks/use-hydrated";
 import { useIsDesktop } from "@/lib/hooks/use-is-desktop";
+import { locationAllowed, rememberLocationUse } from "@/lib/location";
 
 /**
  * The application shell.
@@ -94,26 +95,59 @@ export function MapShell() {
    */
   const { theme } = useAppearance();
 
-  const { data: session } = useSession();
-  const { data: saved } = usePreferences();
+  const { data: session, isFetched: sessionKnown } = useSession();
+  const { data: saved, isFetched: preferencesKnown } = usePreferences();
   const home = saved?.preferences.home ?? null;
+  const approx = session?.approxLocation ?? null;
 
   /**
-   * Open on the saved home, once.
+   * Where the map opens, decided once.
    *
-   * Someone who saved where they live is asking about that street, not about
-   * the country. Skipped when the page was opened on a specific outage (a
-   * notification or a shared link), which has its own place to show.
+   * Someone opening an outage map is asking about their own street, not the
+   * country. In order: the outage a link or notification points at; the saved
+   * home; the visitor's region as the network address gives it (city-level, no
+   * prompt). After that, an effect below swaps the region for the device's
+   * real position when that will not raise a first-time permission prompt.
    */
   // Decided while rendering, as the report sheet does for its reset: an
   // effect would paint the country view first and then set state from it.
-  const [openedOnHome, setOpenedOnHome] = useState(false);
-  if (home && !openedOnHome) {
-    setOpenedOnHome(true);
-    if (selectedId === null) {
-      setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: 12 });
+  const [opened, setOpened] = useState(false);
+  const [deepLinked] = useState(() => selectedId !== null);
+  if (!opened && (home || (sessionKnown && preferencesKnown))) {
+    setOpened(true);
+    if (!deepLinked) {
+      if (home) {
+        setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: 12 });
+      } else if (approx && approx.country === "US") {
+        setFlyTo({ latitude: approx.latitude, longitude: approx.longitude, zoom: 9 });
+      }
     }
   }
+
+  const [mapReady, setMapReady] = useState(false);
+  // The next location failure came from the app, not a button: say nothing.
+  const quietLocate = useRef(false);
+  const autoLocate = opened && mapReady && !deepLinked && !home;
+  useEffect(() => {
+    if (!autoLocate) return;
+    let cancelled = false;
+    void locationAllowed().then((allowed) => {
+      if (cancelled || !allowed) return;
+      quietLocate.current = true;
+      mapControls.current?.locate();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [autoLocate]);
+
+  // What a search landed on, marked when it is a street or an address; a dot
+  // on the centre of a city says nothing.
+  const [searchPin, setSearchPin] = useState<{ latitude: number; longitude: number } | null>(null);
+  const zoomRef = useRef(zoom);
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
   const {
     data: outages = [],
     isFetching,
@@ -208,23 +242,88 @@ export function MapShell() {
     [],
   );
 
+  // A marker opens the preview card; the card, a list row or a network alert
+  // opens the full sheet.
+  const [previewId, setPreviewId] = useState<string | null>(null);
+
   const handlePick = useCallback((result: GeocodeResult) => {
     setFlyTo({
       latitude: result.latitude,
       longitude: result.longitude,
       zoom: result.zoom,
     });
+    setSearchPin(
+      result.zoom >= 14 ? { latitude: result.latitude, longitude: result.longitude } : null,
+    );
+    setPreviewId(null);
+  }, []);
+
+  const handleLocate = useCallback(() => {
+    quietLocate.current = false;
+    mapControls.current?.locate();
+  }, []);
+
+  const handleLocated = useCallback(() => {
+    quietLocate.current = false;
+    rememberLocationUse(true);
   }, []);
 
   const handleLocateError = useCallback(
-    (message: string) =>
-      toast({ variant: "destructive", title: "Location unavailable", description: message }),
+    (message: string, denied: boolean) => {
+      if (denied) rememberLocationUse(false);
+      if (quietLocate.current) {
+        quietLocate.current = false;
+        return;
+      }
+      toast({ variant: "destructive", title: "Location unavailable", description: message });
+    },
     [toast],
   );
 
-  // A marker opens the preview card; the card, a list row or a network alert
-  // opens the full sheet.
-  const [previewId, setPreviewId] = useState<string | null>(null);
+  /**
+   * Put the report pin somewhere sensible when the "where" step opens.
+   *
+   * At country zoom the middle of the map is a field in Kansas, and a report
+   * pinned there is wrong by a thousand miles. If the map is not already on a
+   * neighbourhood, go to the saved home, or ask the device where it is: a
+   * report is the one moment asking for a position needs no explaining.
+   */
+  const locateForReport = useCallback(
+    (always: boolean) => {
+      if (!always && zoomRef.current >= 13) return;
+      if (!always && home) {
+        setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: 16 });
+        return;
+      }
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          rememberLocationUse(true);
+          setFlyTo({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            zoom: 16,
+          });
+        },
+        (error) => {
+          if (error.code === error.PERMISSION_DENIED) rememberLocationUse(false);
+          // Pressed the button: say why nothing moved. Opening the step: the
+          // step itself already asks them to zoom in.
+          if (always) {
+            toast({
+              variant: "destructive",
+              title: "Location unavailable",
+              description: "Move the map to the spot, or search for the address.",
+            });
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
+      );
+    },
+    [home, toast],
+  );
+  const placeReportPin = useCallback(() => locateForReport(false), [locateForReport]);
+  const locateReportPin = useCallback(() => locateForReport(true), [locateForReport]);
 
   const handleMarker = useCallback((outage: Outage) => {
     setPreviewId(outage.id);
@@ -284,6 +383,10 @@ export function MapShell() {
             onOpenFilters={() => setFiltersOpen(true)}
             onOpenSettings={() => setSettingsOpen(true)}
             onOpenChange={setSearchOpen}
+            onClear={() => setSearchPin(null)}
+            onLocate={handleLocate}
+            home={home}
+            bias={{ ...center, zoom }}
             activeFilterCount={filterCount}
             signedIn={Boolean(session?.identity.email)}
           />
@@ -327,6 +430,9 @@ export function MapShell() {
             theme={theme}
             controls={mapControls}
             onLocateError={handleLocateError}
+            onLocated={handleLocated}
+            onReady={() => setMapReady(true)}
+            searchPin={searchPin}
           />
 
           {/* The pin for report mode, fixed over the map's centre so the user
@@ -386,7 +492,7 @@ export function MapShell() {
                   <House />
                 </ControlButton>
               )}
-              <ControlButton label="Show my location" onClick={() => mapControls.current?.locate()}>
+              <ControlButton label="Show my location" onClick={handleLocate}>
                 <Navigation />
               </ControlButton>
               <ControlButton
@@ -448,6 +554,9 @@ export function MapShell() {
         open={reportOpen}
         onOpenChange={setReportOpen}
         pickedLocation={center}
+        mapZoom={zoom}
+        onPlacePin={placeReportPin}
+        onLocate={locateReportPin}
         onRequestPicking={setPicking}
         onReported={setSelectedId}
       />

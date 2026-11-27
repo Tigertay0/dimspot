@@ -177,6 +177,10 @@ export const LIMITS = {
   /** Each attempt can email an address of the caller's choosing. */
   createAccount: { limit: 5, windowMs: 60 * 60 * 1000 },
   createAccountByAddress: { limit: 10, windowMs: 60 * 60 * 1000 },
-  /** Nominatim's usage policy is one request per second, per source. */
-  geocode: { limit: 30, windowMs: 60 * 1000 },
+  /**
+   * Suggestions while typing take several requests per search, so this is
+   * looser than Nominatim's one-per-second policy; the client debounces, and
+   * only a submitted search or a reverse lookup reaches Nominatim.
+   */
+  geocode: { limit: 60, windowMs: 60 * 1000 },
 } as const;
