@@ -65,10 +65,14 @@ Severity tokens (`--severity-*`) stay as they are, plus lightened night variants
 | Wave Lines | https://21st.dev/@balick/components/wave-lines | |
 
 ## App (/map)
-- **Touch targets:** every control sets its own size. A control drawn under 44px adds the `tap-target` utility (globals.css), which grows the hit area with a pseudo-element and leaves layout alone. The blanket `min-height: 44px` rule for buttons and links applies to the landing pages only; in the app it stretched tabs, switches and checkboxes out of shape.
-- **Glass:** floating chrome over the map (search, chips, round controls, notes) uses the `glass` utility: card colour at 86%, blur, hairline, `--shadow-float`.
-- **Sheets:** `bg-card`, 28px top radius, `max-h-[88dvh]` (dvh, not vh, so iOS toolbars do not cover the footer) and `pb-safe` for the home indicator.
-- **Selection:** on sheets, a sodium outline with a 14% sodium wash (`Chip` tone `tint`, service tiles, severity rows), so the primary button stays the only solid sodium. Over the map, chips select by filling with the text colour (`Chip` tone `solid`).
-- **Sizes:** buttons 44 / 36 (`sm`) / 48 (`lg`); inputs 48; chips 36; badges 24; segmented tabs 44 with 36px segments; round map controls 44.
-- **Basemap:** OpenFreeMap recoloured per layer in `lib/map/brand-style.ts`. Night: land `#0e1528`, water `#060b18`, roads `#19234a` to `#2f3d72`, city labels `#c9ccd9`. Dusk: land `#f3e8da`, water `#c6d6e3`.
-- **Markers:** 26px, service icon 13px, 2px ring in the page colour; hollow when unconfirmed. Clusters are a severity-mix ring around the count. A blurred circle under each marker scales with customers affected.
+The app follows the homepage's minimal system, not Lights Out (brief section 12). Tokens live in `app/globals.css`.
+- **Colour:** dark #111111 / #1a1a1a / #242424 with a #2a2a2a hairline, ink #ededed, secondary #a1a1a1. Light #fafafa / #ffffff / #f2f2f2 with a #e6e6e6 hairline, ink #171717, secondary #666666. The primary action is ink. Amber (`--brand`) is the mark and the report pin only. Severity tokens are the only other colour.
+- **Type:** Geist 14 / 13 / 12; 500 for emphasis, 600 for sheet titles. Geist Mono (`font-mono`) for every figure.
+- **Shape:** 6 chips and badges, 8 buttons, inputs and tiles, 12 search bar and dock, 16 sheets. No pills except dots and the switch.
+- **Depth:** the `panel` utility for anything over the map: solid card colour, hairline, `--shadow-float`. No blur, no glow. Hairlines separate inside sheets.
+- **Touch targets:** every control sets its own size. A control drawn under 44px adds the `tap-target` utility, which grows the hit area with a pseudo-element and leaves layout alone. The blanket `min-height: 44px` rule applies to the landing pages only; in the app it stretched tabs, switches and checkboxes out of shape.
+- **Sheets:** `max-h-[88dvh]` (dvh, not vh, so iOS toolbars do not cover the footer) and `pb-safe` for the home indicator.
+- **Selection:** `Chip` tone `solid` fills with ink (over the map); tone `tint` is an ink outline on the secondary fill (in sheets, beside an ink primary button).
+- **Sizes:** buttons 40 / 32 (`sm`) / 44 (`lg`); inputs 40; chips 32; badges 22; text tabs 40; map controls 40.
+- **Basemap:** OpenFreeMap recoloured per layer in `lib/map/brand-style.ts`, neutral greys in both themes.
+- **Markers:** flat 24px discs, service icon 12px, 2px ring in the page colour; hollow when unconfirmed. Clusters are a severity-mix ring around a mono count. A faint blurred circle under each marker scales with customers affected.

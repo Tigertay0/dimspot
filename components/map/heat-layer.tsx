@@ -168,7 +168,7 @@ export function glowLayer(theme: "light" | "dark"): LayerProps {
         MARKERS_MIN_ZOOM - 1,
         0,
         MARKERS_MIN_ZOOM + 0.5,
-        theme === "dark" ? 0.38 : 0.26,
+        theme === "dark" ? 0.24 : 0.18,
       ],
     },
   };

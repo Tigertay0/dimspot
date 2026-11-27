@@ -178,8 +178,8 @@ export function ReportSheet({
         // stays out of the way of the crosshair at the map centre.
       >
         <SheetHeader>
-          <SheetDescription className="pr-12 text-xs font-medium">
-            Step {stepIndex + 1} of {STEP_ORDER.length}
+          <SheetDescription className="pr-12 font-mono text-xs">
+            {stepIndex + 1} / {STEP_ORDER.length}
           </SheetDescription>
           <SheetTitle>
             {step === "service" && "What is out?"}
@@ -199,7 +199,7 @@ export function ReportSheet({
                 key={s}
                 className={cn(
                   "h-1 flex-1 rounded-full transition-colors duration-300",
-                  index <= stepIndex ? "bg-primary" : "bg-muted",
+                  index <= stepIndex ? "bg-foreground" : "bg-secondary",
                 )}
               />
             ))}
@@ -227,18 +227,18 @@ export function ReportSheet({
                       }}
                       aria-pressed={selected}
                       className={cn(
-                        "flex h-[76px] flex-col items-center justify-center gap-2 rounded-2xl border transition-[background-color,border-color,transform] duration-150 active:scale-[0.97]",
+                        "flex h-[68px] flex-col items-center justify-center gap-2 rounded-lg border bg-card transition-[background-color,border-color,transform] duration-150 active:scale-[0.98]",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
-                        // A sodium outline and wash, not a sodium fill: the
-                        // Next button below is the one solid sodium on screen.
+                        // An ink outline on a quiet fill, not an ink fill: the
+                        // Next button below is the one solid ink on screen.
                         selected
-                          ? "border-primary bg-primary/14 text-foreground"
+                          ? "border-foreground bg-secondary text-foreground"
                           : "border-input text-muted-foreground hover:bg-accent hover:text-foreground",
                       )}
                     >
                       <ServiceIcon
                         type={type}
-                        className={cn("size-[22px]", selected && "text-primary")}
+                        className={cn("size-5", selected && "text-foreground")}
                       />
                       <span className="text-[13px] font-medium leading-none">
                         {SERVICE_META[type].shortLabel}
@@ -281,10 +281,10 @@ export function ReportSheet({
               <p className="text-muted-foreground">
                 Drag the map until the pin sits on the spot.
               </p>
-              <div className="flex items-start gap-3 rounded-2xl bg-muted/60 p-3.5">
+              <div className="flex items-start gap-3 rounded-lg border bg-background p-3">
                 <span
                   aria-hidden
-                  className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-foreground"
                 >
                   <MapPin className="size-4" />
                 </span>
@@ -322,20 +322,20 @@ export function ReportSheet({
                       onClick={() => setSeverity(option)}
                       aria-pressed={selected}
                       className={cn(
-                        "flex min-h-[60px] w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-[background-color,border-color] duration-150",
+                        "flex min-h-14 w-full items-center gap-3 rounded-lg border bg-card px-3.5 py-2.5 text-left transition-[background-color,border-color] duration-150",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
                         selected
-                          ? "border-primary bg-primary/14"
+                          ? "border-foreground bg-secondary"
                           : "border-input hover:bg-accent",
                       )}
                     >
                       <span
                         aria-hidden
                         style={{ backgroundColor: SEVERITY_META[option].token }}
-                        className="size-3 shrink-0 rounded-full"
+                        className="size-2.5 shrink-0 rounded-full"
                       />
                       <span className="flex-1">
-                        <span className="block text-sm font-semibold">
+                        <span className="block text-sm font-medium">
                           {SEVERITY_META[option].label}
                         </span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">
@@ -345,9 +345,9 @@ export function ReportSheet({
                       <span
                         aria-hidden
                         className={cn(
-                          "flex size-5 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors",
+                          "flex size-[18px] shrink-0 items-center justify-center rounded-full border transition-colors",
                           selected
-                            ? "border-primary bg-primary text-primary-foreground"
+                            ? "border-foreground bg-foreground text-background"
                             : "border-input",
                         )}
                       >

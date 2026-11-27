@@ -170,7 +170,7 @@ export function FilterSheet({
               <div className="relative mb-2">
                 <Search
                   aria-hidden
-                  className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
                 />
                 <input
                   value={providerQuery}
@@ -180,14 +180,14 @@ export function FilterSheet({
                   autoComplete="off"
                   enterKeyHint="search"
                   // 16px, or iOS Safari zooms the page when the field is focused.
-                  className="h-11 w-full rounded-xl border border-input bg-background/60 pr-10 pl-10 text-base outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/80 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25"
+                  className="h-10 w-full rounded-lg border border-input bg-background pr-9 pl-9 text-base outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/80 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15"
                 />
                 {providerQuery && (
                   <button
                     type="button"
                     onClick={() => setProviderQuery("")}
                     aria-label="Clear provider search"
-                    className="tap-target absolute right-2 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+                    className="tap-target absolute right-2 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
                   >
                     <X className="size-4" />
                   </button>
@@ -267,7 +267,7 @@ export function FilterSheet({
                             allSelected || providerIds.includes(provider.id);
                           return (
                             <li key={provider.id}>
-                              <Label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-2 hover:bg-accent">
+                              <Label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 hover:bg-accent">
                                 <Checkbox
                                   checked={checked}
                                   onCheckedChange={() => {

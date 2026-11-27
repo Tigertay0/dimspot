@@ -31,16 +31,16 @@ export function NetworkAlerts({
     <button
       type="button"
       onClick={() => (rest.length > 0 ? onShowAll() : onSelect(first))}
-      className="glass flex min-h-11 w-full items-center gap-2.5 rounded-[14px] py-2 pr-2.5 pl-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="panel flex min-h-11 w-full items-center gap-2.5 rounded-lg py-1.5 pr-2 pl-2.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <span
         aria-hidden
-        className="flex size-7 shrink-0 items-center justify-center rounded-full bg-severity-degraded/15 text-severity-degraded"
+        className="flex size-7 shrink-0 items-center justify-center rounded-md bg-severity-degraded/12 text-severity-degraded"
       >
         <RadioTower className="size-3.5" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-semibold leading-tight">
+        <span className="block truncate text-[13px] font-medium leading-tight">
           {first.providerName ?? "A US network"}: {kind} trouble nationwide
         </span>
         <span className="block truncate text-xs leading-tight text-muted-foreground">

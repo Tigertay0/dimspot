@@ -43,7 +43,7 @@ export function AdvisorySheet({
                   style={{
                     backgroundColor: SEVERITY_META[advisory.severity].token,
                   }}
-                  className="flex size-12 shrink-0 items-center justify-center rounded-2xl text-background"
+                  className="flex size-12 shrink-0 items-center justify-center rounded-lg text-background"
                 >
                   <CloudAlert className="size-[22px]" />
                 </span>

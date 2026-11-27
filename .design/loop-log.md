@@ -10,3 +10,12 @@
 | 4 | (shown to user) | pending | n/a | acts 2+3 merged into one pinned camera move (window opens → blackout spreads from "Your street", sky kept); act 6 relights from the street outward; fake lamp dots + outline removed; header: sun-on-horizon mark, centred links, quiet solid button, one navy glass; hero globe = Natural Earth land dots + tour (Palo Alto, Austin, Chicago, Brooklyn, Miami, Denver) |
 
 | edits-1 | 77 (Senior, 100 bar) | none binding (no user sign-off yet) | User's 6 edit-mode notes applied (arrow-fill buttons, Navbar 1, street-map blackout, real app footage, calmer clip). Review fixes applied: seam fades in acts 3/6, step gaps 18vh→12vh, park block removed, duplicate "Live map" nav link removed, brief/design-system updated to Geist. Skipped: Night→Dusk tween in act 6 (user rejected it earlier; brief now says so). Open: hero sets in 3 lines (reviewer wants 2), act 5 pylon photo (asking the user). |
+
+# Loop log: app (/map)
+
+Run by hand on 2026-11-27 (the studio-loop skill was not installed in the session): brief section 12, then build, then an independent reviewer scoring screenshots each round.
+
+| Round | Score | Verdict | Top fixes |
+|---|---|---|---|
+| user | n/a | REVISE (user) | "still looks like slop": navy and amber glass, pills, stat cards |
+

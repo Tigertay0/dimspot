@@ -157,6 +157,11 @@ function utilityMapName(sourceName: string | null): string | null {
   return PROVIDER_CATALOG.find((p) => p.slug === slug)?.name ?? null;
 }
 
+/** Whether a feed measured this itself rather than being told by a provider. */
+export function isDetected(sourceName: string | null): boolean {
+  return sourceName !== null && SOURCE_LABELS[sourceName]?.provenance === "detected";
+}
+
 export function sourceLabel(sourceName: string | null, form: "name" | "short" = "name"): string {
   if (!sourceName) return form === "short" ? "feed" : "an official feed";
 

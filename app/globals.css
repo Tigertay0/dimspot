@@ -13,68 +13,71 @@
    maps them onto utility classes (bg-card, text-muted-foreground, ...).
 --------------------------------------------------------------------------- */
 
-/* Dimspot app palette, shared with the landing page (design-system.md).
-   Night is the default (html.dark is set in the root layout); :root is the
-   dusk light mode. Sodium is the one action colour in both. */
+/* Dimspot app palette: the homepage's (components/minimal/minimal.css), so
+   the map reads as the same product. Neutral surfaces, solid hairlines, ink
+   for the one primary action, and amber only as the brand's mark. Colour is
+   left to the things that are data: severity, and the map itself.
+   Dark is the default (html.dark is set in the root layout). */
 :root {
-  --background: #f4e9dc; /* dusk */
-  --foreground: #161a26; /* ink */
-  --card: #fbf6ef;
-  --card-foreground: #161a26;
-  --popover: #fbf6ef;
-  --popover-foreground: #161a26;
-  --primary: #ffb21a; /* sodium: report, selection */
-  --primary-foreground: #161a26;
-  --secondary: #eadccb; /* dusk-deep */
-  --secondary-foreground: #161a26;
-  --muted: #eadccb;
-  --muted-foreground: #4a4f5e; /* ink-soft, 6.5:1 on dusk-deep */
-  --accent: #eadccb;
-  --accent-foreground: #161a26;
-  --destructive: hsl(0 72% 45%);
-  --destructive-foreground: #fff6e5;
-  --border: rgb(22 26 38 / 0.1);
-  --input: rgb(22 26 38 / 0.16);
-  --ring: #161a26; /* sodium would vanish on cream */
-  --radius: 1rem;
-  --shadow-float: 0 1px 2px rgb(22 26 38 / 0.06), 0 10px 28px -10px rgb(22 26 38 / 0.22);
-  --shadow-sheet: 0 -12px 40px -12px rgb(22 26 38 / 0.25);
+  --background: #fafafa;
+  --foreground: #171717;
+  --card: #ffffff;
+  --card-foreground: #171717;
+  --popover: #ffffff;
+  --popover-foreground: #171717;
+  --primary: #171717; /* ink: the primary button, selection */
+  --primary-foreground: #ffffff;
+  --secondary: #f2f2f2;
+  --secondary-foreground: #171717;
+  --muted: #f2f2f2;
+  --muted-foreground: #666666; /* 5.4:1 on the page, 5.1:1 on muted */
+  --accent: #ebebeb;
+  --accent-foreground: #171717;
+  --destructive: #c81e1e;
+  --destructive-foreground: #ffffff;
+  --border: #e6e6e6;
+  --input: #d4d4d4;
+  --ring: #171717;
+  --brand: #ffb21a;
+  --radius: 0.5rem;
+  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.06), 0 8px 24px rgb(0 0 0 / 0.08);
+  --shadow-sheet: 0 -8px 32px rgb(0 0 0 / 0.1);
 
-  /* Severity scale. Darkened enough to hold 4.5:1 as text on the dusk surfaces. */
+  /* Severity. Dark enough to hold 4.5:1 as text on the light surfaces. */
   --severity-complete: hsl(0 72% 45%);
-  --severity-degraded: hsl(24 90% 40%);
-  --severity-intermittent: hsl(38 92% 33%);
-  --severity-resolved: hsl(142 55% 32%);
+  --severity-degraded: hsl(24 90% 38%);
+  --severity-intermittent: hsl(38 92% 31%);
+  --severity-resolved: hsl(142 60% 30%);
 }
 
 .dark {
-  --background: #0c1222; /* night */
-  --foreground: #fff6e5; /* lamp */
-  --card: #151c30; /* night-raised */
-  --card-foreground: #fff6e5;
-  --popover: #151c30;
-  --popover-foreground: #fff6e5;
-  --primary: #ffb21a; /* sodium */
-  --primary-foreground: #0c1222;
-  --secondary: #1e2740; /* night-high */
-  --secondary-foreground: #fff6e5;
-  --muted: #1e2740;
-  --muted-foreground: #b9bbc6; /* lamp-soft */
-  --accent: #232d4a;
-  --accent-foreground: #fff6e5;
-  --destructive: hsl(0 72% 52%);
-  --destructive-foreground: #fff6e5;
-  --border: rgb(255 246 229 / 0.1);
-  --input: rgb(255 246 229 / 0.14);
-  --ring: #ffb21a;
-  --shadow-float: 0 1px 0 rgb(255 246 229 / 0.04) inset, 0 12px 32px -10px rgb(0 0 0 / 0.6);
-  --shadow-sheet: 0 -16px 48px -12px rgb(0 0 0 / 0.65);
+  --background: #111111;
+  --foreground: #ededed;
+  --card: #1a1a1a;
+  --card-foreground: #ededed;
+  --popover: #1a1a1a;
+  --popover-foreground: #ededed;
+  --primary: #ededed;
+  --primary-foreground: #111111;
+  --secondary: #242424;
+  --secondary-foreground: #ededed;
+  --muted: #242424;
+  --muted-foreground: #a1a1a1; /* 6.6:1 on card */
+  --accent: #2b2b2b;
+  --accent-foreground: #ededed;
+  --destructive: #e5484d;
+  --destructive-foreground: #ffffff;
+  --border: #2a2a2a;
+  --input: #3a3a3a;
+  --ring: #ededed;
+  --brand: #ffb21a;
+  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.45);
+  --shadow-sheet: 0 -8px 32px rgb(0 0 0 / 0.5);
 
-  /* The landing's severity tones: they glow like lamps on the night map. */
-  --severity-complete: hsl(0 80% 68%);
-  --severity-degraded: hsl(24 90% 62%);
-  --severity-intermittent: hsl(42 92% 60%);
-  --severity-resolved: hsl(142 55% 55%);
+  --severity-complete: hsl(0 84% 67%);
+  --severity-degraded: hsl(27 92% 60%);
+  --severity-intermittent: hsl(45 93% 58%);
+  --severity-resolved: hsl(142 60% 52%);
 }
 
 @theme inline {
@@ -97,6 +100,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-brand: var(--brand);
 
   --color-severity-complete: var(--severity-complete);
   --color-severity-degraded: var(--severity-degraded);
@@ -153,14 +157,13 @@
   }
 }
 
-/* Floating chrome over the map: search, chips, controls, the list bar. One
-   recipe so they read as the same material in both themes. */
-@utility glass {
-  background-color: color-mix(in oklab, var(--card) 86%, transparent);
+/* Floating chrome over the map: search, chips, controls, the list bar. A
+   solid surface with a hairline, as on the homepage. No blur: the map behind a
+   frosted panel reads as smudge, and text on it loses its edge. */
+@utility panel {
+  background-color: var(--card);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-float);
-  -webkit-backdrop-filter: blur(18px) saturate(1.5);
-  backdrop-filter: blur(18px) saturate(1.5);
 }
 
 /* The home indicator and browser toolbars: nothing tappable sits under them. */
@@ -169,7 +172,7 @@
 }
 
 /* MapLibre's own chrome. The zoom and locate buttons are the shell's (see
-   map-shell.tsx), so only the attribution is left to style: a small glass pill
+   map-shell.tsx), so only the attribution is left to style: a small panel
    in the app's palette, lifted clear of the list bar that covers the bottom
    edge on a phone. OpenStreetMap's licence needs it reachable at all times. */
 .maplibregl-ctrl-bottom-left {
@@ -182,19 +185,17 @@
   }
 }
 .maplibregl-ctrl.maplibregl-ctrl-attrib {
-  background-color: color-mix(in oklab, var(--card) 86%, transparent);
+  background-color: var(--card);
   color: var(--muted-foreground);
   border: 1px solid var(--border);
   font-size: 10px;
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
 }
 .maplibregl-ctrl-attrib a {
   color: inherit;
 }
 .maplibregl-ctrl-attrib.maplibregl-compact {
   min-height: 24px;
-  border-radius: 12px;
+  border-radius: 6px;
 }
 .maplibregl-ctrl-attrib-button {
   border-radius: 999px;

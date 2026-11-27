@@ -22,7 +22,7 @@ const ICONS = {
 
 const ACCENT: Record<TimelineEvent["kind"], string> = {
   reported: "var(--severity-complete)",
-  verified: "var(--primary)",
+  verified: "var(--foreground)",
   comment: "var(--muted-foreground)",
   resolution: "var(--severity-resolved)",
   escalation: "var(--severity-degraded)",
@@ -53,7 +53,7 @@ export function OutageTimeline({ events }: { events: TimelineEvent[] }) {
               <span
                 aria-hidden
                 style={{ color: ACCENT[event.kind] }}
-                className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted"
+                className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted"
               >
                 <Icon className="h-3.5 w-3.5" />
               </span>

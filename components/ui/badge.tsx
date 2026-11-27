@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
  * text or icon inside, and wraps as whole pills.
  */
 const badgeVariants = cva(
-  "inline-flex h-6 shrink-0 items-center gap-1 rounded-full border px-2.5 text-xs font-medium leading-none whitespace-nowrap tabular-nums [&_svg]:size-3 [&_svg]:shrink-0",
+  "inline-flex h-[22px] shrink-0 items-center gap-1 rounded-md border px-1.5 text-xs font-medium leading-none whitespace-nowrap tabular-nums [&_svg]:size-3 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -18,7 +18,7 @@ const badgeVariants = cva(
         // Severity badges carry colour as a border and tint rather than a solid
         // fill, so a row of them does not read as three competing buttons.
         complete:
-          "border-severity-complete/30 bg-severity-complete/12 text-severity-complete",
+          "border-severity-complete/35 bg-severity-complete/10 text-severity-complete",
         degraded:
           "border-severity-degraded/30 bg-severity-degraded/12 text-severity-degraded",
         intermittent:
@@ -28,7 +28,7 @@ const badgeVariants = cva(
       },
       size: {
         default: "",
-        sm: "h-5 px-2 text-[11px]",
+        sm: "h-[18px] rounded-[5px] px-1.5 text-[11px]",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

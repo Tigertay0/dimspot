@@ -46,12 +46,12 @@ export function TypeChips({ className }: { className?: string }) {
   const lone = serviceTypes.length === 1 ? serviceTypes[0] : null;
 
   return (
-    <div className={cn("space-y-2", className)}>
+    <div className={cn("space-y-1.5", className)}>
       <div
         className={cn(
           // Bleeds to the screen edge so a row that scrolls does so under the
           // edge, not under an invisible wall 12px in from it.
-          "-mx-3 flex items-center gap-1.5 overflow-x-auto px-3 py-1",
+          "-mx-3 flex items-center gap-1.5 overflow-x-auto px-3 py-0.5",
           "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         )}
         role="group"
@@ -63,7 +63,7 @@ export function TypeChips({ className }: { className?: string }) {
           active={allSelected}
           onClick={() => setServiceTypes([...SERVICE_TYPES])}
           className={cn(
-            noneSelected && "border-primary/70 text-foreground ring-2 ring-primary/30",
+            noneSelected && "border-foreground text-foreground",
           )}
         >
           {noneSelected ? "Show all" : "All"}
@@ -99,7 +99,7 @@ function CoverageNote({ type }: { type: ServiceType }) {
   const coverage = SERVICE_COVERAGE[type];
 
   return (
-    <p className="glass flex items-start gap-2 rounded-[14px] px-3 py-2 text-xs leading-snug text-muted-foreground">
+    <p className="panel flex items-start gap-2 rounded-lg px-2.5 py-2 text-xs leading-snug text-muted-foreground">
       <Info className="mt-px size-3.5 shrink-0" aria-hidden />
       <span>{coverage.note}</span>
     </p>

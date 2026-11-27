@@ -7,9 +7,8 @@ import { cn } from "@/lib/utils";
 const Tabs = TabsPrimitive.Root;
 
 /**
- * A segmented control. The strip is a grid of equal columns and each tab fills
- * its cell, so the selected pill can never be taller or wider than the strip
- * it sits in.
+ * Text tabs on a hairline, the selected one underlined. Each tab is as tall as
+ * the row, so nothing about a tab can spill out of it.
  */
 const TabsList = React.forwardRef<
   React.ComponentRef<typeof TabsPrimitive.List>,
@@ -17,10 +16,7 @@ const TabsList = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.List
     ref={ref}
-    className={cn(
-      "grid h-11 auto-cols-fr grid-flow-col gap-1 rounded-[14px] bg-muted p-1 text-muted-foreground",
-      className,
-    )}
+    className={cn("flex h-10 items-stretch gap-5 border-b text-muted-foreground", className)}
     {...props}
   />
 ));
@@ -33,13 +29,12 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "inline-flex h-full min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[10px] px-3 text-sm font-medium leading-none",
-      "transition-[background-color,color,box-shadow] duration-150",
-      "hover:text-foreground",
+      // -mb-px lays the 2px underline over the row's hairline.
+      "-mb-px inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 border-transparent text-sm font-medium leading-none",
+      "transition-colors duration-150 hover:text-foreground",
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
       "disabled:pointer-events-none disabled:opacity-50",
-      "data-[state=active]:bg-card data-[state=active]:text-foreground",
-      "data-[state=active]:shadow-[0_1px_2px_rgb(0_0_0/0.18),inset_0_0_0_1px_var(--border)]",
+      "data-[state=active]:border-foreground data-[state=active]:text-foreground",
       className,
     )}
     {...props}

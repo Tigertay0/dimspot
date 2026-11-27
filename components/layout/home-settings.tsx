@@ -105,19 +105,19 @@ export function HomeSettings({
       <h3 className="mb-2 text-[13px] font-medium text-muted-foreground">Home</h3>
 
       {home ? (
-        <div className="flex items-center gap-3 rounded-2xl border border-input py-2.5 pr-2 pl-3.5">
+        <div className="flex items-center gap-3 rounded-lg border bg-background py-2 pr-1.5 pl-2.5">
           <span
             aria-hidden
-            className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary"
+            className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-foreground"
           >
-            <House className="size-[18px]" />
+            <House className="size-4" />
           </span>
           <button
             type="button"
             onClick={() => onShowHome(home)}
             className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:underline"
           >
-            <span className="block truncate text-sm font-semibold">{home.label}</span>
+            <span className="block truncate text-sm font-medium">{home.label}</span>
             <span className="block truncate text-xs text-muted-foreground">
               {home.state ? `${US_STATE_NAMES[home.state] ?? home.state} · ` : ""}
               Tap to show on the map
@@ -127,13 +127,13 @@ export function HomeSettings({
             type="button"
             onClick={() => onHomeChange(null)}
             aria-label="Remove home"
-            className="tap-target flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
+            className="tap-target flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
           >
             <Trash2 className="size-3.5" />
           </button>
         </div>
       ) : (
-        <p className="rounded-2xl bg-muted/60 p-3.5 text-sm leading-snug text-muted-foreground">
+        <p className="rounded-lg border bg-background p-3 text-[13px] leading-snug text-muted-foreground">
           Save where you live and the map opens there, alerts are aimed there,
           and reports start on your own providers.
         </p>

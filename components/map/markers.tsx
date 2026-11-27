@@ -25,9 +25,9 @@ export function ServiceIcon({
 }
 
 /**
- * The service icon on a severity-coloured tile: list rows and sheet headers.
- * The icon takes the page colour, as it does on the map markers, because the
- * night severity tones are light and a white icon on them does not read.
+ * The service icon on a quiet severity-tinted tile: list rows and sheet
+ * headers. Tint and coloured icon rather than a solid fill, so a list of them
+ * reads as a list and the map's markers stay the loudest thing on screen.
  */
 export function ServiceBadge({
   type,
@@ -42,21 +42,18 @@ export function ServiceBadge({
   size?: "md" | "lg";
   className?: string;
 }) {
+  const color = resolved ? "var(--severity-resolved)" : SEVERITY_META[severity].token;
   return (
     <span
       aria-hidden
-      style={{
-        backgroundColor: resolved
-          ? "var(--severity-resolved)"
-          : SEVERITY_META[severity].token,
-      }}
+      style={{ color, backgroundColor: halo(color, 0.12) }}
       className={cn(
-        "flex shrink-0 items-center justify-center text-background",
-        size === "lg" ? "size-12 rounded-2xl" : "size-9 rounded-xl",
+        "flex shrink-0 items-center justify-center",
+        size === "lg" ? "size-10 rounded-lg" : "size-8 rounded-md",
         className,
       )}
     >
-      <ServiceIcon type={type} className={size === "lg" ? "size-[22px]" : "size-4"} />
+      <ServiceIcon type={type} className={size === "lg" ? "size-5" : "size-4"} />
     </span>
   );
 }
@@ -115,7 +112,7 @@ export function ClusterMarker({
   const ring =
     arcs.length > 1 ? `conic-gradient(from -90deg, ${arcs.join(", ")})` : color;
 
-  const size = Math.round(Math.min(58, 32 + Math.log2(count + 1) * 5));
+  const size = Math.round(Math.min(52, 30 + Math.log2(count + 1) * 4));
 
   return (
     <button
@@ -125,9 +122,8 @@ export function ClusterMarker({
         width: size,
         height: size,
         background: ring,
-        // A soft halo plus a wide glow in the worst colour: on the night map
-        // clusters read as pools of streetlight, like the landing page.
-        boxShadow: `0 0 0 2px var(--background), 0 0 ${Math.round(size * 0.75)}px ${halo(color, 0.5)}`,
+        // A ring in the page colour and a short shadow lift it off the map.
+        boxShadow: "0 0 0 2px var(--background), 0 2px 6px rgb(0 0 0 / 0.35)",
       }}
       className={cn(
         "group relative flex items-center justify-center rounded-full p-[3px]",
@@ -138,8 +134,8 @@ export function ClusterMarker({
       aria-label={`${count} outages in this area. Zoom in to see them.`}
     >
       <span
-        className="flex size-full items-center justify-center rounded-full bg-background font-semibold tabular-nums text-foreground"
-        style={{ fontSize: size > 46 ? 14 : 12.5, letterSpacing: "-0.02em" }}
+        className="flex size-full items-center justify-center rounded-full bg-card font-mono font-medium text-foreground"
+        style={{ fontSize: size > 46 ? 13 : 12, letterSpacing: "-0.02em" }}
       >
         {count > 999 ? `${Math.round(count / 100) / 10}k` : count}
       </span>
@@ -212,19 +208,20 @@ export function OutageMarker({
           // Lucide strokes with currentColor, so the icon follows the fill and
           // stays legible whether the marker is solid or hollow.
           color: solid ? "var(--background)" : color,
-          // The lamp glow: confirmed outages glow, unconfirmed ones glow faintly.
+          // A ring in the page colour separates it from the map; the selected
+          // marker gets a second ring in the text colour.
           boxShadow: isSelected
-            ? `0 0 0 2px var(--background), 0 0 0 4px var(--foreground), 0 0 22px 4px ${halo(color, 0.7)}`
-            : `0 0 0 2px var(--background), 0 0 ${solid ? 16 : 10}px ${solid ? 2 : 0}px ${halo(color, solid ? 0.6 : 0.35)}`,
+            ? "0 0 0 2px var(--background), 0 0 0 4px var(--foreground)"
+            : "0 0 0 2px var(--background), 0 1px 4px rgb(0 0 0 / 0.35)",
         }}
         className={cn(
-          "relative flex size-[26px] items-center justify-center rounded-full",
+          "relative flex size-6 items-center justify-center rounded-full",
           "border-2 transition-transform duration-150 ease-out",
           "group-hover:scale-110 group-focus-visible:scale-110 group-active:scale-95",
           isSelected && "scale-[1.18]",
         )}
       >
-        <ServiceIcon type={serviceType} className="size-[13px]" />
+        <ServiceIcon type={serviceType} className="size-3" />
       </span>
     </button>
   );
@@ -283,7 +280,7 @@ export function MapLegend({ className }: { className?: string }) {
   ];
 
   return (
-    <div className={cn("glass rounded-2xl p-3.5 text-xs", className)}>
+    <div className={cn("panel rounded-lg p-3 text-xs", className)}>
       <ul className="space-y-2">
         {rows.map(([severity, label]) => (
           <li key={severity} className="flex items-center gap-2.5">

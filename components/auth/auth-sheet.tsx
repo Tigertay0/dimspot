@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, KeyRound, Loader2, LogOut, MailCheck, UserRound } from "lucide-react";
+import { CheckCircle2, KeyRound, Loader2, LogOut, MailCheck } from "lucide-react";
 import { MIN_PASSWORD_LENGTH } from "@/lib/constants";
 import {
   useCreateAccount,
@@ -12,7 +12,6 @@ import {
 } from "@/lib/hooks/use-auth";
 import type { SessionInfo } from "@/lib/hooks/use-outages";
 import { Button } from "@/components/ui/button";
-import { MapButton } from "@/components/map/map-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -503,32 +502,5 @@ function CredentialsForm({
         </Button>
       )}
     </form>
-  );
-}
-
-/** The map's entry point into all of the above. */
-export function AccountButton({
-  session,
-  onClick,
-}: {
-  session: SessionInfo | undefined;
-  onClick: () => void;
-}) {
-  const email = session?.identity.email;
-
-  return (
-    <MapButton
-      onClick={onClick}
-      aria-label={email ? `Account: ${email}` : "Sign in or create an account"}
-      title={email ?? "Account"}
-    >
-      <UserRound />
-      {email && (
-        <span
-          aria-hidden
-          className="absolute right-0 top-0 size-3 rounded-full border-2 border-background bg-severity-resolved"
-        />
-      )}
-    </MapButton>
   );
 }

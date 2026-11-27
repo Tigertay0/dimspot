@@ -239,3 +239,20 @@ The user asked that the app and the landing feel like the same product. Someone 
 - **Same motion.** One easing (`--ease-lights`), 160-220ms for sheets and menus, and a short "lights out" pulse when a new outage appears. Reduced motion keeps every state, minus the movement.
 - **Dusk light mode.** The landing's opening and closing palette (dusk ground, ink text, horizon accent, sodium Action) on a light basemap, so both modes are scenes from the landing.
 - **Check before review.** Put the /map screenshots next to landing frames 11-16. A reviewer must not be able to tell where the landing ends and the app begins, apart from the map itself.
+
+## 12. App (/map), revised 2026-11-27: the homepage's system, not Lights Out
+
+Section 11 tied the app to the Lights Out landing. The homepage has since become the minimal design (`components/minimal/`), and the user called the Lights Out styling of the app "slop" twice. The app now follows the homepage, and section 11's palette, radii, glow and glass rules no longer apply to it. What section 11 asked for still holds in spirit: someone who clicks "Open the map" must land in the same product.
+
+- **Character:** precise, quiet, an instrument. The map and the outages are the only loud things.
+- **The rut we refuse:** navy with an amber glow, frosted glass, full pills, cards inside cards, a row of badges where a sentence would do.
+- **Colour:** neutral surfaces from the homepage (dark #111111 / #1a1a1a / #242424, hairline #2a2a2a, ink #ededed, secondary #a1a1a1; light #fafafa / #ffffff / #f2f2f2, hairline #e6e6e6, ink #171717). The primary action is ink, as the homepage's "Open the map" is. Amber #ffb21a is the brand mark and the report pin, nothing else. Colour belongs to data: severity, and the heat map.
+- **Type:** Geist for UI at 14 (13 secondary, 12 meta), 500 for emphasis, 600 for sheet titles only. Geist Mono for every figure: counts, durations, times, steps. Sentence case, no eyebrows.
+- **Shape:** 6 for chips and badges, 8 for buttons, inputs and tiles, 12 for the search bar and the dock, 16 for sheets. No pills except dots and the switch. Markers stay round because they are points.
+- **Depth:** a solid surface, a 1px hairline and one short shadow for anything floating over the map. No blur, no glow. Inside a sheet, hairlines separate; boxes are for things you can press.
+- **Density:** buttons 40 (the report button 48), inputs 40, chips 32, list rows about 56. Anything drawn under 44 carries `tap-target`.
+- **Map:** OpenFreeMap in neutral greys (`lib/map/brand-style.ts`). Markers are flat 24px discs in the severity colour with a ring in the page colour; clusters are a severity-mix ring around a mono count; a faint blurred circle scales with customers affected.
+- **Layout:** one bar at the top (search, filters, account and settings), one stack of map controls bottom right, one dock at the bottom with the report button above it. Nothing else floats.
+- **Detail sheet:** a status sentence, then a key and value list on hairlines, then the description. Not a row of pills and not stat cards.
+- **Acceptance:** an independent review scores it 85 or more with no defect open; every text pair holds 4.5:1; nothing in the app uses a colour the homepage does not have, apart from severity.
+

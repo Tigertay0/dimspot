@@ -40,7 +40,7 @@ export function SettingsSheet({
   currentView,
   onGoToPlace,
   onShowHome,
-  onSignIn,
+  onAccount,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -48,7 +48,7 @@ export function SettingsSheet({
   onGoToPlace: (place: SavedLocation) => void;
   onShowHome: (home: HomeLocation) => void;
   /** Opens the account sheet. Absent where this deployment has no accounts. */
-  onSignIn?: () => void;
+  onAccount?: () => void;
 }) {
   const { data, isLoading } = usePreferences();
 
@@ -70,7 +70,7 @@ export function SettingsSheet({
           onOpenChange={onOpenChange}
           onGoToPlace={onGoToPlace}
           onShowHome={onShowHome}
-          onSignIn={onSignIn}
+          onAccount={onAccount}
         />
       ) : (
         <SheetContent side="bottom">
@@ -98,7 +98,7 @@ function SettingsForm({
   onOpenChange,
   onGoToPlace,
   onShowHome,
-  onSignIn,
+  onAccount,
 }: {
   initial: UserPreferences;
   isAuthenticated: boolean;
@@ -106,7 +106,7 @@ function SettingsForm({
   onOpenChange: (open: boolean) => void;
   onGoToPlace: (place: SavedLocation) => void;
   onShowHome: (home: HomeLocation) => void;
-  onSignIn?: () => void;
+  onAccount?: () => void;
 }) {
   const savePreferences = useSavePreferences();
   const push = usePush();
@@ -206,22 +206,31 @@ function SettingsForm({
         </SheetHeader>
 
         <div className="flex-1 space-y-6 overflow-y-auto overscroll-contain px-5 pb-4 pt-1">
-          {!isAuthenticated && onSignIn && (
-            <div className="flex items-center gap-3 rounded-2xl border border-primary/40 bg-primary/10 p-3.5">
+          {onAccount && (
+            <div className="flex items-center gap-3 rounded-lg border bg-background p-3">
               <span
                 aria-hidden
-                className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary"
+                className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground"
               >
-                <UserRound className="size-[18px]" />
+                <UserRound className="size-4" />
               </span>
               <p className="min-w-0 flex-1 text-[13px] leading-snug">
-                <span className="block font-semibold">Keep this on every device</span>
+                <span className="block font-medium">
+                  {isAuthenticated ? "Signed in" : "Keep this on every device"}
+                </span>
                 <span className="text-muted-foreground">
-                  Sign in and your home, providers and alerts follow you.
+                  {isAuthenticated
+                    ? "Your home, providers and alerts are on your account."
+                    : "Sign in and your home, providers and alerts follow you."}
                 </span>
               </p>
-              <Button type="button" size="sm" onClick={onSignIn}>
-                Sign in
+              <Button
+                type="button"
+                size="sm"
+                variant={isAuthenticated ? "outline" : "default"}
+                onClick={onAccount}
+              >
+                {isAuthenticated ? "Account" : "Sign in"}
               </Button>
             </div>
           )}
@@ -246,7 +255,7 @@ function SettingsForm({
             </h3>
 
             {!push.available ? (
-              <p className="flex items-start gap-2.5 rounded-2xl bg-muted/60 p-3.5 text-sm leading-snug text-muted-foreground">
+              <p className="flex items-start gap-2.5 rounded-lg bg-background p-3.5 text-sm leading-snug text-muted-foreground">
                 <BellOff className="mt-0.5 h-4 w-4 shrink-0" />
                 Push alerts are not available here. They need a browser that
                 supports Web Push and VAPID keys configured on the server — see
@@ -370,7 +379,7 @@ function SettingsForm({
                 {draft.savedLocations.map((location) => (
                   <li
                     key={location.id}
-                    className="flex min-h-12 items-center gap-2 rounded-xl border pr-2 pl-3.5 text-sm transition-colors hover:bg-accent"
+                    className="flex min-h-12 items-center gap-2 rounded-lg border pr-2 pl-3.5 text-sm transition-colors hover:bg-accent"
                   >
                     <button
                       type="button"
@@ -393,7 +402,7 @@ function SettingsForm({
                         })
                       }
                       aria-label={`Remove ${location.name}`}
-                      className="tap-target flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
+                      className="tap-target flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -415,7 +424,7 @@ function SettingsForm({
                 variant="outline"
                 onClick={saveCurrentPlace}
                 disabled={!currentView}
-                className="h-12"
+                className="h-10"
               >
                 Save
               </Button>
@@ -450,8 +459,8 @@ function SettingsForm({
 }
 
 const APPEARANCES: { value: Appearance; label: string; hint: string }[] = [
-  { value: "night", label: "Night", hint: "Dimspot's own look" },
-  { value: "dusk", label: "Dusk", hint: "Light and warm" },
+  { value: "night", label: "Dark", hint: "The default" },
+  { value: "dusk", label: "Light", hint: "For daylight" },
   { value: "system", label: "System", hint: "Follow this device" },
 ];
 
@@ -473,12 +482,12 @@ function AppearancePicker() {
               aria-pressed={selected}
               onClick={() => setAppearance(option.value)}
               className={cn(
-                "flex min-h-[60px] flex-col items-start justify-center gap-1 rounded-2xl border px-3 py-2.5 text-left transition-colors duration-150",
+                "flex min-h-14 flex-col items-start justify-center gap-1 rounded-lg border px-3 py-2 text-left transition-colors duration-150",
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-                selected ? "border-primary bg-primary/14" : "border-input hover:bg-accent",
+                selected ? "border-foreground bg-secondary" : "border-input hover:bg-accent",
               )}
             >
-              <span className="text-sm font-semibold leading-none">{option.label}</span>
+              <span className="text-sm font-medium leading-none">{option.label}</span>
               <span className="text-[11px] leading-tight text-muted-foreground">{option.hint}</span>
             </button>
           );

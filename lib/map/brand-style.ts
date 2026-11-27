@@ -9,7 +9,8 @@ import { type Tint, type TintOverride, tintStyle } from "./tint-style";
  * map is the backdrop and outages are the subject, so each group of layers
  * gets a colour chosen for that job:
  *
- *   - land and water are told apart by lightness alone, water darker at night;
+ *   - neutral greys, like the rest of the app, so severity is the only colour;
+ *   - land and water are told apart by lightness, water darker at night;
  *   - roads form a quiet lattice, motorways one step brighter;
  *   - place names step down from city to town to state, so a zoomed-out map
  *     reads as geography rather than as a page of text;
@@ -42,97 +43,97 @@ interface LayerLike {
   layout?: Record<string, unknown>;
 }
 
-const NIGHT_LAND = "#0e1528";
-const NIGHT_HALO = "rgba(12, 18, 34, 0.92)";
+const NIGHT_LAND = "#121212";
+const NIGHT_HALO = "rgba(17, 17, 17, 0.92)";
 
 const DARK: Rule[] = [
   { match: /^background$/, color: NIGHT_LAND },
-  { match: /^water$/, color: "#060b18" },
-  { match: /^waterway/, color: "#0a1124" },
-  { match: /^water_name/, color: "#3a4874", halo: "#060b18" },
-  { match: /landcover_(ice|glacier)/, color: "#131b33" },
-  { match: /landuse_residential/, color: "#111a31" },
-  { match: /landcover_wood|landuse_park|^park$/, color: "#0f1f2c", paint: { "fill-opacity": 0.85 } },
-  { match: /^building/, color: "#151e39", outline: "#1c2748" },
-  { match: /^aeroway/, color: "#151d36" },
+  { match: /^water$/, color: "#090a0b" },
+  { match: /^waterway/, color: "#0d0e10" },
+  { match: /^water_name/, color: "#454d57", halo: "#090a0b" },
+  { match: /landcover_(ice|glacier)/, color: "#181818" },
+  { match: /landuse_residential/, color: "#151515" },
+  { match: /landcover_wood|landuse_park|^park$/, color: "#141714" },
+  { match: /^building/, color: "#191919", outline: "#202020" },
+  { match: /^aeroway/, color: "#1a1a1a" },
   { match: /^road_.*pier/, color: NIGHT_LAND },
-  { match: /highway_path/, color: "#172142" },
-  { match: /highway_minor/, color: "#19234a" },
-  { match: /highway_major_casing/, color: "#0a1021" },
-  { match: /highway_major_inner/, color: "#222e58" },
-  { match: /highway_major_subtle/, color: "#1b2650" },
-  { match: /highway_motorway_casing/, color: "#0a1021" },
-  { match: /highway_motorway_inner/, color: "#2f3d72" },
-  { match: /highway_motorway_subtle/, color: "#1e2a55" },
+  { match: /highway_path/, color: "#1b1b1b" },
+  { match: /highway_minor/, color: "#1e1e1e" },
+  { match: /highway_major_casing/, color: "#0c0c0c" },
+  { match: /highway_major_inner/, color: "#292929" },
+  { match: /highway_major_subtle/, color: "#222222" },
+  { match: /highway_motorway_casing/, color: "#0c0c0c" },
+  { match: /highway_motorway_inner/, color: "#383838" },
+  { match: /highway_motorway_subtle/, color: "#262626" },
   { match: /railway.*dashline/, color: NIGHT_LAND },
-  { match: /^railway/, color: "#1b2547" },
-  { match: /highway_name/, color: "#5a6590", halo: NIGHT_HALO },
-  { match: /boundary_state/, color: "#2c3862", paint: { "line-dasharray": [3, 2], "line-width": 0.9 } },
-  { match: /boundary_country/, color: "#45548a" },
+  { match: /^railway/, color: "#202020" },
+  { match: /highway_name/, color: "#666666", halo: NIGHT_HALO },
+  { match: /boundary_state/, color: "#363636", paint: { "line-dasharray": [3, 2], "line-width": 0.9 } },
+  { match: /boundary_country/, color: "#525252" },
   {
     match: /place_city/,
-    color: "#c9ccd9",
+    color: "#c4c4c4",
     halo: NIGHT_HALO,
     paint: { "text-halo-width": 1.4 },
   },
-  { match: /place_(town|village|suburb|other)/, color: "#8990aa", halo: NIGHT_HALO, paint: { "text-halo-width": 1.2 } },
+  { match: /place_(town|village|suburb|other)/, color: "#858585", halo: NIGHT_HALO, paint: { "text-halo-width": 1.2 } },
   {
     match: /place_state/,
-    color: "#5d6890",
+    color: "#636363",
     halo: NIGHT_HALO,
     paint: { "text-halo-width": 1 },
     layout: { "text-transform": "uppercase", "text-letter-spacing": 0.14, "text-size": 10.5 },
   },
-  { match: /place_country/, color: "#8089ad", halo: NIGHT_HALO, layout: { "text-letter-spacing": 0.08 } },
+  { match: /place_country/, color: "#8c8c8c", halo: NIGHT_HALO, layout: { "text-letter-spacing": 0.08 } },
 ];
 
-const DUSK_LAND = "#f3e8da";
-const DUSK_HALO = "rgba(244, 233, 220, 0.92)";
+const DAY_LAND = "#f4f4f2";
+const DAY_HALO = "rgba(250, 250, 250, 0.92)";
 
 const LIGHT: Rule[] = [
-  { match: /^background$/, color: DUSK_LAND },
-  { match: /^park$|landcover_wood|landuse_park/, color: "#e1e6d0" },
-  { match: /^water$/, color: "#c6d6e3" },
-  { match: /^waterway$/, color: "#c6d6e3" },
-  { match: /landcover_(ice|glacier)/, color: "#faf5ee" },
-  { match: /landuse_residential/, color: "#efe3d3" },
-  { match: /^building/, color: "#e9dbc9", outline: "#dfcfb9" },
-  { match: /^aeroway-(area|runway)$/, color: "#fbf4e9" },
-  { match: /^aeroway/, color: "#e5d7c3" },
-  { match: /^road_.*pier/, color: DUSK_LAND },
-  { match: /highway_path/, color: "#eadfce" },
-  { match: /highway_minor/, color: "#fbf4e8" },
-  { match: /(highway_major|motorway.*)_casing/, color: "#d9c8b0" },
-  { match: /highway_major_inner/, color: "#fffaf1" },
-  { match: /highway_major_subtle/, color: "#e6d8c4" },
-  { match: /motorway.*_inner/, color: "#fff7ea" },
-  { match: /highway_motorway_subtle/, color: "#e1d2bb" },
-  { match: /railway.*dashline/, color: DUSK_LAND },
-  { match: /^railway/, color: "#d9cab5" },
-  { match: /^boundary/, color: "#b7a68f" },
-  { match: /waterway_line_label|water_name/, color: "#56738f", halo: DUSK_HALO },
-  { match: /highway-name|^airport$/, color: "#7d7669", halo: DUSK_HALO },
-  { match: /label_other/, color: "#5f6170", halo: DUSK_HALO },
-  { match: /label_(village|town)/, color: "#3f4350", halo: DUSK_HALO },
+  { match: /^background$/, color: DAY_LAND },
+  { match: /^park$|landcover_wood|landuse_park/, color: "#e5ebdf" },
+  { match: /^water$/, color: "#d5e0e8" },
+  { match: /^waterway$/, color: "#d5e0e8" },
+  { match: /landcover_(ice|glacier)/, color: "#fbfbfa" },
+  { match: /landuse_residential/, color: "#efefec" },
+  { match: /^building/, color: "#e9e9e6", outline: "#dededa" },
+  { match: /^aeroway-(area|runway)$/, color: "#fbfbfa" },
+  { match: /^aeroway/, color: "#e6e6e3" },
+  { match: /^road_.*pier/, color: DAY_LAND },
+  { match: /highway_path/, color: "#e8e8e5" },
+  { match: /highway_minor/, color: "#ffffff" },
+  { match: /(highway_major|motorway.*)_casing/, color: "#d9d9d5" },
+  { match: /highway_major_inner/, color: "#ffffff" },
+  { match: /highway_major_subtle/, color: "#e3e3e0" },
+  { match: /motorway.*_inner/, color: "#ffffff" },
+  { match: /highway_motorway_subtle/, color: "#dcdcd8" },
+  { match: /railway.*dashline/, color: DAY_LAND },
+  { match: /^railway/, color: "#d6d6d2" },
+  { match: /^boundary/, color: "#b5b5b0" },
+  { match: /waterway_line_label|water_name/, color: "#5f7d94", halo: DAY_HALO },
+  { match: /highway-name|^airport$/, color: "#7a7a7a", halo: DAY_HALO },
+  { match: /label_other/, color: "#666666", halo: DAY_HALO },
+  { match: /label_(village|town)/, color: "#4d4d4d", halo: DAY_HALO },
   {
     match: /label_state/,
-    color: "#8d8676",
-    halo: DUSK_HALO,
+    color: "#8f8f8f",
+    halo: DAY_HALO,
     layout: { "text-transform": "uppercase", "text-letter-spacing": 0.14, "text-size": 10.5 },
   },
-  { match: /label_city/, color: "#161a26", halo: DUSK_HALO, paint: { "text-halo-width": 1.4 } },
-  { match: /label_country/, color: "#4a4f5e", halo: DUSK_HALO, layout: { "text-letter-spacing": 0.08 } },
+  { match: /label_city/, color: "#171717", halo: DAY_HALO, paint: { "text-halo-width": 1.4 } },
+  { match: /label_country/, color: "#555555", halo: DAY_HALO, layout: { "text-letter-spacing": 0.08 } },
 ];
 
-/** The blanket tint for layers no rule names. */
+/** For layers no rule names: keep the style's own greys, nudged onto ours. */
 const FALLBACK: Record<Theme, { tint: Tint; overrides: TintOverride[] }> = {
   dark: {
-    tint: { hue: 224, saturation: 0.4, lightness: (l) => 4 + l * 1.05 },
-    overrides: [{ match: /water/, tint: { hue: 228, saturation: 0.45, lightness: (l) => 2 + l * 0.7 } }],
+    tint: { hue: 0, saturation: 0, lightness: (l) => 3 + l },
+    overrides: [],
   },
   light: {
-    tint: { hue: 32, saturation: 0.35, lightness: (l) => l * 0.965 },
-    overrides: [{ match: /water/, tint: { hue: 212, saturation: 0.3, lightness: (l) => l * 0.97 } }],
+    tint: { hue: 60, saturation: 0, lightness: (l) => l * 0.985 },
+    overrides: [],
   },
 };
 

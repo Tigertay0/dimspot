@@ -6,7 +6,6 @@ import {
   BadgeCheck,
   CheckCircle2,
   Loader2,
-  MapPin,
   MessageSquare,
   RefreshCw,
   ThumbsUp,
@@ -14,9 +13,11 @@ import {
 import {
   SEVERITY_META,
   VERIFICATION_THRESHOLD,
+  isDetected,
   sourceAttribution,
+  sourceLabel,
 } from "@/lib/constants";
-import { clockTime, dayAndTime, locationLabel, outageDuration, pluralize, timeAgo } from "@/lib/format";
+import { dayAndTime, locationLabel, outageDuration, pluralize, timeAgo } from "@/lib/format";
 import type { OutageDetail } from "@/lib/types";
 import {
   useAddComment,
@@ -25,7 +26,6 @@ import {
   useResolveOutage,
 } from "@/lib/hooks/use-outages";
 import { buildTimeline } from "@/lib/timeline";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -125,7 +125,7 @@ export function OutageDetailSheet({
           </div>
         ) : (
           <>
-            <SheetHeader className="pr-14">
+            <SheetHeader className="pr-12">
               <div className="flex items-center gap-3">
                 <ServiceBadge
                   type={outage.serviceType}
@@ -138,47 +138,61 @@ export function OutageDetailSheet({
                   <SheetTitle className="truncate">
                     {outage.providerName ?? "Unknown provider"}
                   </SheetTitle>
-                  <p className="mt-0.5 flex items-center gap-1 text-sm text-muted-foreground">
-                    <MapPin className="size-3.5 shrink-0" />
-                    <span className="truncate">{locationLabel(outage)}</span>
+                  <p className="mt-0.5 truncate text-[13px] text-muted-foreground">
+                    {locationLabel(outage)}
                   </p>
                 </div>
-              </div>
-
-              <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                <Badge variant={isResolved ? "resolved" : outage.severity} dot>
-                  {isResolved
-                    ? "Resolved"
-                    : SEVERITY_META[outage.severity].label}
-                </Badge>
-
-                {outage.origin === "official" ? (
-                  <Badge variant="outline">
-                    <BadgeCheck />
-                    Official
-                  </Badge>
-                ) : outage.isVerified ? (
-                  <Badge variant="outline">
-                    <BadgeCheck />
-                    Verified
-                  </Badge>
-                ) : (
-                  <Badge variant="muted">Unconfirmed</Badge>
-                )}
               </div>
             </SheetHeader>
 
             <div className="flex-1 overflow-y-auto overscroll-contain px-5">
+              {/* One line of status: what it is, and how far to trust it. */}
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 pb-3 text-[13px]">
+                <span
+                  className="inline-flex items-center gap-1.5 font-medium"
+                  style={{
+                    color: isResolved
+                      ? "var(--severity-resolved)"
+                      : SEVERITY_META[outage.severity].token,
+                  }}
+                >
+                  <span aria-hidden className="size-1.5 rounded-full bg-current" />
+                  {isResolved ? "Resolved" : SEVERITY_META[outage.severity].label}
+                </span>
+                <span aria-hidden className="text-muted-foreground/50">/</span>
+                <span className="inline-flex items-center gap-1 text-muted-foreground">
+                  {outage.origin === "official" ? (
+                    // A utility saying so and a measurement suggesting so are
+                    // different claims; only the first gets the tick.
+                    isDetected(outage.sourceName) ? (
+                      "Detected, not confirmed"
+                    ) : (
+                      <>
+                        <BadgeCheck className="size-3.5" />
+                        Official report
+                      </>
+                    )
+                  ) : outage.isVerified ? (
+                    <>
+                      <BadgeCheck className="size-3.5" />
+                      Verified by neighbours
+                    </>
+                  ) : (
+                    "Not yet confirmed"
+                  )}
+                </span>
+              </p>
+
               <Facts outage={outage} />
 
               {outage.description && (
-                <p className="pt-4 text-[15px] leading-relaxed">
+                <p className="pt-4 text-sm leading-relaxed">
                   {outage.description}
                 </p>
               )}
 
               {outage.origin === "official" && (
-                <p className="pt-3 text-[13px] leading-snug text-muted-foreground">
+                <p className="pt-2 text-[13px] leading-snug text-muted-foreground">
                   {sourceAttribution(outage.sourceName)}
                 </p>
               )}
@@ -187,7 +201,6 @@ export function OutageDetailSheet({
                 <div className="pt-4">
                   <div className="flex gap-2">
                     <Button
-                      size="lg"
                       variant={outage.confirmedByMe ? "secondary" : "default"}
                       onClick={() =>
                         confirm.mutate(!outage.confirmedByMe, {
@@ -205,7 +218,6 @@ export function OutageDetailSheet({
                     </Button>
 
                     <Button
-                      size="lg"
                       variant="outline"
                       onClick={() =>
                         resolve.mutate(undefined, {
@@ -229,7 +241,7 @@ export function OutageDetailSheet({
               )}
 
               <Tabs defaultValue="updates" className="pb-4 pt-5">
-                <TabsList className="w-full">
+                <TabsList>
                   <TabsTrigger value="updates">
                     Updates
                     {outage.comments.length > 0 && (
@@ -248,17 +260,17 @@ export function OutageDetailSheet({
                       No updates yet. Add the first one.
                     </p>
                   ) : (
-                    <ul className="space-y-2">
+                    <ul>
                       {outage.comments.map((comment) => (
                         <li
                           key={comment.id}
-                          className="rounded-2xl bg-muted/60 px-3.5 py-2.5 text-sm"
+                          className="border-b py-2.5 text-sm last:border-b-0"
                         >
                           <div className="flex items-baseline justify-between gap-2">
-                            <span className="font-semibold">
+                            <span className="font-medium">
                               {comment.authorLabel}
                             </span>
-                            <span className="shrink-0 text-xs text-muted-foreground">
+                            <span className="shrink-0 font-mono text-xs text-muted-foreground">
                               {timeAgo(comment.createdAt)}
                             </span>
                           </div>
@@ -286,7 +298,7 @@ export function OutageDetailSheet({
                   event.preventDefault();
                   void submitComment();
                 }}
-                className="flex h-12 items-center gap-1 rounded-full border border-input bg-background/60 pr-1.5 pl-4 transition-[border-color,box-shadow] duration-150 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/25"
+                className="flex h-10 items-center gap-1 rounded-lg border border-input bg-background pr-1 pl-3 transition-[border-color,box-shadow] duration-150 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/15"
               >
                 <input
                   value={draft}
@@ -295,18 +307,18 @@ export function OutageDetailSheet({
                   maxLength={500}
                   aria-label="Add an update"
                   // 16px, or iOS Safari zooms the page when the field is focused.
-                  className="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground/80"
+                  className="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
                 />
                 <button
                   type="submit"
                   disabled={!draft.trim() || addComment.isPending}
                   aria-label="Post update"
-                  className="tap-target flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-[#ffc24d] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:bg-muted disabled:text-muted-foreground"
+                  className="tap-target flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground transition-[background-color,opacity,transform] duration-150 hover:bg-primary/85 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:bg-secondary disabled:text-muted-foreground"
                 >
                   {addComment.isPending ? (
                     <Loader2 className="size-4 animate-spin" />
                   ) : (
-                    <ArrowUp className="size-[18px]" strokeWidth={2.5} />
+                    <ArrowUp className="size-4" strokeWidth={2.25} />
                   )}
                 </button>
               </form>
@@ -319,57 +331,60 @@ export function OutageDetailSheet({
 }
 
 /**
- * The numbers, as a row of cells rather than more pills: how long, how many,
- * and when it is expected back. A cell only appears when there is a value for
- * it, so the row is two or three wide and never shows a dash.
+ * The facts, as a key and value list on hairlines: how long, how many, when,
+ * and who says so. A row only appears when there is a value for it. Figures
+ * are set in the mono face so they line up down the column.
  */
 function Facts({ outage }: { outage: OutageDetail }) {
   const isResolved = outage.status === "resolved";
 
-  const facts: Array<{ label: string; value: string; hint?: string }> = [
+  const facts: Array<{ label: string; value: string; mono?: boolean }> = [
     isResolved
-      ? { label: "Lasted", value: outageDuration(outage) }
+      ? { label: "Lasted", value: outageDuration(outage), mono: true }
       : outage.startKnown
-        ? { label: "Out for", value: outageDuration(outage) }
-        : { label: "First seen", value: timeAgo(outage.reportedAt) },
+        ? { label: "Out for", value: outageDuration(outage), mono: true }
+        : { label: "First seen", value: timeAgo(outage.reportedAt), mono: true },
   ];
 
   if (outage.customersAffected !== null) {
     facts.push({
-      label: outage.customersAffected === 1 ? "Customer" : "Customers",
+      label: "Customers affected",
       value: outage.customersAffected.toLocaleString(),
+      mono: true,
     });
   } else if (outage.origin === "crowdsourced") {
     facts.push({
       label: "Confirmed by",
-      value: `${outage.verificationCount}`,
-      hint: pluralize(outage.verificationCount, "person", "people"),
+      value: `${outage.verificationCount} ${pluralize(outage.verificationCount, "person", "people")}`,
+      mono: true,
     });
   }
 
   if (outage.estimatedRestoration && !isResolved) {
-    facts.push({ label: "Back by", value: clockTime(outage.estimatedRestoration) });
-  } else {
-    facts.push({ label: "Reported", value: dayAndTime(outage.reportedAt) });
+    facts.push({
+      label: "Expected back",
+      value: dayAndTime(outage.estimatedRestoration),
+      mono: true,
+    });
+  }
+
+  facts.push({
+    label: outage.startKnown ? "Started" : "Reported",
+    value: dayAndTime(outage.reportedAt),
+    mono: true,
+  });
+
+  if (outage.origin === "official") {
+    facts.push({ label: "Source", value: sourceLabel(outage.sourceName) });
   }
 
   return (
-    <dl
-      className="grid gap-2"
-      style={{ gridTemplateColumns: `repeat(${facts.length}, minmax(0, 1fr))` }}
-    >
+    <dl className="divide-y border-y text-sm">
       {facts.map((fact) => (
-        <div key={fact.label} className="rounded-2xl bg-muted/60 px-3 py-2.5">
-          <dt className="text-[11px] font-medium text-muted-foreground">
-            {fact.label}
-          </dt>
-          <dd className="mt-0.5 truncate text-[15px] font-semibold tracking-[-0.01em] tabular-nums">
+        <div key={fact.label} className="flex items-baseline justify-between gap-4 py-2.5">
+          <dt className="shrink-0 text-muted-foreground">{fact.label}</dt>
+          <dd className={fact.mono ? "truncate font-mono text-[13px]" : "truncate font-medium"}>
             {fact.value}
-            {fact.hint && (
-              <span className="ml-1 text-xs font-normal text-muted-foreground">
-                {fact.hint}
-              </span>
-            )}
           </dd>
         </div>
       ))}

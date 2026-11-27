@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { House, LocateFixed, Minus, Plus, Settings2 } from "lucide-react";
+import { House, LocateFixed, Minus, Plus } from "lucide-react";
 import { DEFAULT_VIEW } from "@/lib/constants";
 import { useAdvisories, useOutages, useSession } from "@/lib/hooks/use-outages";
 import { activeFilterCount, useFilters } from "@/lib/store/filters";
@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { FilterSheet } from "@/components/filters/filter-sheet";
 import { TypeChips } from "@/components/filters/type-chips";
-import { MapButton } from "@/components/map/map-button";
+import { Button } from "@/components/ui/button";
 import { MapLegend } from "@/components/map/markers";
 import { OutageMap, type MapControls, type MapView } from "@/components/map/outage-map";
 import { NearbyPanel } from "@/components/layout/nearby-panel";
@@ -21,7 +21,7 @@ import { AdvisorySheet } from "@/components/outage/advisory-sheet";
 import { OutageDetailSheet } from "@/components/outage/outage-detail-sheet";
 import { ReportSheet } from "@/components/report/report-sheet";
 import { SearchBar } from "@/components/search/search-bar";
-import { AccountButton, AuthSheet } from "@/components/auth/auth-sheet";
+import { AuthSheet } from "@/components/auth/auth-sheet";
 import { DemoBanner } from "./demo-banner";
 import { NetworkAlerts } from "./network-alerts";
 import { SettingsSheet } from "./settings-sheet";
@@ -249,11 +249,11 @@ export function MapShell() {
           <svg width="36" height="44" viewBox="0 0 36 44" fill="none">
             <path
               d="M18 42.5C18 42.5 33.5 26.6 33.5 17C33.5 8.4 26.6 1.5 18 1.5S2.5 8.4 2.5 17C2.5 26.6 18 42.5 18 42.5Z"
-              fill="var(--primary)"
-              stroke="var(--background)"
+              fill="var(--brand)"
+              stroke="#111111"
               strokeWidth="2.5"
             />
-            <circle cx="18" cy="17" r="5.5" fill="var(--background)" />
+            <circle cx="18" cy="17" r="5.5" fill="#111111" />
           </svg>
         </div>
       )}
@@ -262,7 +262,7 @@ export function MapShell() {
           search bar needs the whole width. */}
       <Link
         href="/"
-        className="glass absolute top-3 left-3 z-30 hidden h-[52px] items-center gap-2 rounded-[18px] px-4 text-[15px] font-semibold tracking-[-0.025em] xl:flex focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="panel absolute top-3 left-3 z-30 hidden h-11 items-center gap-2 rounded-xl px-3.5 text-sm font-semibold tracking-[-0.02em] xl:flex focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <BrandMark />
         Dimspot
@@ -277,7 +277,9 @@ export function MapShell() {
           <SearchBar
             onPick={handlePick}
             onOpenFilters={() => setFiltersOpen(true)}
+            onOpenSettings={() => setSettingsOpen(true)}
             activeFilterCount={filterCount}
+            signedIn={Boolean(session?.identity.email)}
           />
           {/* Hidden while placing a report: the map is a picker then, and the
               chips would change what is under the crosshair mid-gesture. */}
@@ -292,79 +294,52 @@ export function MapShell() {
         </div>
       </div>
 
-      {/* Settings and account sit opposite the report button so the primary
-          action does not share a thumb zone with them. On a phone they clear
-          the list bar and the attribution above it. */}
+      {/* The legend, where there is room for it. */}
       {!picking && (
-        <div className="absolute bottom-[calc(6.5rem+env(safe-area-inset-bottom,0px))] left-3 z-10 flex flex-col items-start gap-2 sm:bottom-12">
-          <MapLegend className="hidden md:block" />
-          <MapButton
-            onClick={() => setSettingsOpen(true)}
-            aria-label="Alerts and saved places"
-            title="Alerts and saved places"
-          >
-            <Settings2 />
-          </MapButton>
-
-          {home && (
-            <MapButton
-              onClick={() =>
-                // A new object each time, so pressing it again after panning
-                // away flies back.
-                setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: 13 })
-              }
-              aria-label="Go to my home"
-              title="Go to my home"
-            >
-              <House />
-            </MapButton>
-          )}
-
-          {/* Only offered where accounts exist at all: the local backend has no
-              auth, and a button that cannot work is worse than no button. */}
-          {session?.capabilities.accounts && (
-            <AccountButton session={session} onClick={() => setAuthOpen(true)} />
-          )}
-        </div>
+        <MapLegend className="absolute bottom-6 left-3 z-10 hidden lg:block" />
       )}
 
-      {/* Map controls. Locate is always there; zoom buttons only where there
-          is a pointer, since a touch screen has pinch. Shown while picking a
-          report location too: "where am I" is most of that step. */}
+      {/* Map controls, one stack: home (once saved), locate, and zoom where
+          there is a pointer, since a touch screen has pinch. Shown while
+          picking a report location too: "where am I" is most of that step. */}
       <div
         className={cn(
-          "absolute right-3 z-10 flex flex-col items-end gap-2 sm:bottom-6",
+          "panel absolute right-3 z-10 flex flex-col overflow-hidden rounded-lg sm:bottom-6",
+          "[&>button+button]:border-t",
           picking
-            ? "top-[calc(5.5rem+env(safe-area-inset-top,0px))] sm:top-auto"
-            : "bottom-[calc(8.75rem+env(safe-area-inset-bottom,0px))]",
+            ? "top-[calc(5rem+env(safe-area-inset-top,0px))] sm:top-auto"
+            : "bottom-[calc(8rem+env(safe-area-inset-bottom,0px))]",
         )}
       >
-        <div className="glass hidden flex-col overflow-hidden rounded-full [@media(pointer:fine)]:flex">
-          <button
-            type="button"
-            onClick={() => mapControls.current?.zoomBy(1)}
-            aria-label="Zoom in"
-            className="flex size-11 items-center justify-center transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+        {home && (
+          <ControlButton
+            label="Go to my home"
+            onClick={() =>
+              // A new object each time, so pressing it again after panning
+              // away flies back.
+              setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: 13 })
+            }
           >
-            <Plus className="size-[18px]" />
-          </button>
-          <span aria-hidden className="mx-2.5 h-px bg-border" />
-          <button
-            type="button"
-            onClick={() => mapControls.current?.zoomBy(-1)}
-            aria-label="Zoom out"
-            className="flex size-11 items-center justify-center transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-          >
-            <Minus className="size-[18px]" />
-          </button>
-        </div>
-        <MapButton
-          onClick={() => mapControls.current?.locate()}
-          aria-label="Show my location"
-          title="Show my location"
-        >
+            <House />
+          </ControlButton>
+        )}
+        <ControlButton label="Show my location" onClick={() => mapControls.current?.locate()}>
           <LocateFixed />
-        </MapButton>
+        </ControlButton>
+        <ControlButton
+          label="Zoom in"
+          onClick={() => mapControls.current?.zoomBy(1)}
+          className="hidden [@media(pointer:fine)]:flex"
+        >
+          <Plus />
+        </ControlButton>
+        <ControlButton
+          label="Zoom out"
+          onClick={() => mapControls.current?.zoomBy(-1)}
+          className="hidden [@media(pointer:fine)]:flex"
+        >
+          <Minus />
+        </ControlButton>
       </div>
 
       {!picking && (
@@ -374,22 +349,14 @@ export function MapShell() {
                 screen and would push the button up into the search bar and
                 chips. The list has its own way to report when it is empty. */}
             <div className={cn("flex justify-end px-3 pb-3", listExpanded && "hidden")}>
-              {/* The landing's action button: a sodium pill with a dark chip. */}
-              <button
-                type="button"
+              <Button
+                size="lg"
                 onClick={() => setReportOpen(true)}
-                className={cn(
-                  "group/report pointer-events-auto inline-flex h-14 items-center gap-3 rounded-full bg-primary pr-2 pl-6 text-[16px] font-semibold tracking-[-0.01em] text-[#0c1222]",
-                  "shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_14px_32px_-12px_rgba(255,178,26,0.75)]",
-                  "transition-[background-color,transform] duration-200 hover:bg-[#ffc24d] active:scale-[0.97]",
-                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-                )}
+                className="pointer-events-auto h-12 gap-2 rounded-xl pr-5 pl-4 text-[15px] shadow-[var(--shadow-float)]"
               >
+                <Plus className="size-[18px]" strokeWidth={2.25} />
                 Report outage
-                <span aria-hidden className="flex size-10 items-center justify-center rounded-full bg-[#0c1222] text-primary">
-                  <Plus className="h-5 w-5 transition-transform duration-300 group-hover/report:rotate-90" />
-                </span>
-              </button>
+              </Button>
             </div>
 
             <NearbyPanel
@@ -452,7 +419,7 @@ export function MapShell() {
         onShowHome={(place) =>
           setFlyTo({ latitude: place.latitude, longitude: place.longitude, zoom: 13 })
         }
-        onSignIn={
+        onAccount={
           session?.capabilities.accounts
             ? () => {
                 setSettingsOpen(false);
@@ -469,5 +436,33 @@ export function MapShell() {
         }}
       />
     </main>
+  );
+}
+
+/** One cell of the map-control stack. 40px drawn, 44px to the finger. */
+function ControlButton({
+  label,
+  onClick,
+  className,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={cn(
+        "tap-target flex size-10 items-center justify-center text-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none [&_svg]:size-4",
+        className,
+      )}
+    >
+      {children}
+    </button>
   );
 }

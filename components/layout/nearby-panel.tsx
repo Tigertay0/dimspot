@@ -99,7 +99,7 @@ export function NearbyPanel({
   return (
     <div
       className={cn(
-        "pointer-events-auto overflow-hidden rounded-t-[24px] border border-b-0 bg-card pb-safe",
+        "pointer-events-auto overflow-hidden rounded-t-xl border border-b-0 bg-card pb-safe",
         "shadow-[var(--shadow-sheet)] transition-[max-height] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
         expanded
           ? "max-h-[62dvh]"
@@ -110,12 +110,12 @@ export function NearbyPanel({
         type="button"
         onClick={() => onExpandedChange(!expanded)}
         aria-expanded={expanded}
-        className="flex h-14 w-full items-center gap-3 px-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        className="flex h-14 w-full items-center gap-2.5 px-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
         <span
           aria-hidden
           className={cn(
-            "flex size-7 shrink-0 items-center justify-center rounded-full",
+            "flex size-7 shrink-0 items-center justify-center rounded-md",
             failed
               ? "bg-muted text-muted-foreground"
               : active > 0
@@ -138,7 +138,7 @@ export function NearbyPanel({
           )}
         </span>
 
-        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-[-0.01em]">
+        <span className="min-w-0 flex-1 truncate text-sm font-medium tracking-[-0.01em]">
           {summary}
         </span>
 
@@ -164,7 +164,7 @@ export function NearbyPanel({
               >
                 <span
                   aria-hidden
-                  className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-severity-degraded/15 text-severity-degraded"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-severity-degraded/15 text-severity-degraded"
                 >
                   <RadioTower className="size-4" />
                 </span>
@@ -225,7 +225,7 @@ export function NearbyPanel({
 
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5">
-                      <span className="truncate text-sm font-semibold">
+                      <span className="truncate text-sm font-medium">
                         {outage.providerName ?? "Unknown provider"}
                       </span>
                       {outage.origin === "official" ? (
@@ -247,7 +247,7 @@ export function NearbyPanel({
                   </span>
 
                   <span className="shrink-0 text-right">
-                    <span className="block text-xs font-medium tabular-nums">
+                    <span className="block font-mono text-xs">
                       {outage.origin === "official"
                         ? outage.customersAffected !== null
                           ? `${outage.customersAffected.toLocaleString()} out`
@@ -288,7 +288,7 @@ function FailedState({
       <div className="flex flex-col items-center text-center">
         <span
           aria-hidden
-          className="mb-3 flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground"
+          className="mb-3 flex size-10 items-center justify-center rounded-lg bg-muted text-muted-foreground"
         >
           <TriangleAlert className="h-5 w-5" />
         </span>
@@ -344,7 +344,7 @@ function EmptyState({
       <div className="flex flex-col items-center text-center">
         <span
           aria-hidden
-          className="mb-3 flex size-11 items-center justify-center rounded-full bg-severity-resolved/12 text-severity-resolved"
+          className="mb-3 flex size-10 items-center justify-center rounded-lg bg-severity-resolved/12 text-severity-resolved"
         >
           <CheckCircle2 className="h-5 w-5" />
         </span>
@@ -394,7 +394,7 @@ function EmptyState({
                 <button
                   type="button"
                   onClick={() => onSelectAdvisory(advisory)}
-                  className="flex min-h-11 w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-accent"
+                  className="flex min-h-11 w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-accent"
                 >
                   <span
                     aria-hidden

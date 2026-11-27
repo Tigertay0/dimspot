@@ -13,7 +13,7 @@ export function DemoBanner() {
   if (dismissed) return null;
 
   return (
-    <div className="glass flex items-center gap-2.5 rounded-[14px] py-2 pr-2 pl-3 text-xs">
+    <div className="panel flex items-center gap-2.5 rounded-lg py-1.5 pr-1.5 pl-2.5 text-xs">
       <FlaskConical
         aria-hidden
         className="size-3.5 shrink-0 text-severity-intermittent"
@@ -26,7 +26,7 @@ export function DemoBanner() {
         type="button"
         onClick={() => setDismissed(true)}
         aria-label="Dismiss"
-        className="tap-target flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="tap-target flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       >
         <X className="size-3.5" />
       </button>

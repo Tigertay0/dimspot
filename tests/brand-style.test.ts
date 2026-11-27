@@ -24,24 +24,24 @@ describe("brandStyle", () => {
   const layer = (id: string) => night.layers.find((l) => l.id === id)!;
 
   it("gives named layers their palette colour by layer type", () => {
-    expect(layer("background").paint).toEqual({ "background-color": "#0e1528" });
-    expect(layer("water").paint).toEqual({ "fill-color": "#060b18" });
-    expect(layer("building").paint).toMatchObject({ "fill-color": "#151e39", "fill-outline-color": "#1c2748" });
+    expect(layer("background").paint).toEqual({ "background-color": "#121212" });
+    expect(layer("water").paint).toEqual({ "fill-color": "#090a0b" });
+    expect(layer("building").paint).toMatchObject({ "fill-color": "#191919", "fill-outline-color": "#202020" });
   });
 
   it("merges extra paint and layout without dropping what was there", () => {
-    expect(layer("boundary_state").paint).toMatchObject({ "line-color": "#2c3862", "line-dasharray": [3, 2] });
+    expect(layer("boundary_state").paint).toMatchObject({ "line-color": "#363636", "line-dasharray": [3, 2] });
     expect(layer("place_state").layout).toMatchObject({
       "text-font": ["Noto Sans Regular"],
       "text-transform": "uppercase",
       "text-size": 10.5,
     });
-    expect(layer("place_state").paint).toMatchObject({ "text-color": "#5d6890" });
+    expect(layer("place_state").paint).toMatchObject({ "text-color": "#636363" });
   });
 
   it("falls back to the blanket tint for a layer no rule names", () => {
     const colour = layer("some_custom_layer").paint!["fill-color"] as string;
-    expect(colour).toMatch(/^hsl\(224 /);
+    expect(colour).toMatch(/^hsl\(0 0% /);
   });
 
   it("does not modify the style it was given", () => {
@@ -50,6 +50,6 @@ describe("brandStyle", () => {
 
   it("uses a different palette for dusk", () => {
     const dusk = brandStyle(style, "light");
-    expect(dusk.layers[0].paint).toEqual({ "background-color": "#f3e8da" });
+    expect(dusk.layers[0].paint).toEqual({ "background-color": "#f4f4f2" });
   });
 });
