@@ -9,6 +9,7 @@ import {
   MessageSquare,
   RefreshCw,
   ThumbsUp,
+  Users,
   X,
 } from "lucide-react";
 import {
@@ -18,7 +19,15 @@ import {
   sourceLabel,
 } from "@/lib/constants";
 import { sharePercent } from "@/components/map/area-layer";
-import { dayAndTime, locationLabel, outageDuration, pluralize, timeAgo } from "@/lib/format";
+import {
+  dayAndTime,
+  locationLabel,
+  neighborsLabel,
+  outageDuration,
+  outageTitle,
+  pluralize,
+  timeAgo,
+} from "@/lib/format";
 import type { OutageDetail } from "@/lib/types";
 import {
   useAddComment,
@@ -132,11 +141,15 @@ export function OutageDetailSheet({
           <>
             <SheetHeader>
               <div className="flex items-center gap-3">
-                <ServiceBadge type={outage.serviceType} size="lg" />
+                <ServiceBadge
+                  type={outage.serviceType}
+                  size="lg"
+                  report={outage.origin === "crowdsourced"}
+                />
 
                 <div className="min-w-0 flex-1">
                   <SheetTitle className="truncate">
-                    {outage.providerName ?? "Unknown provider"}
+                    {outageTitle(outage)}
                   </SheetTitle>
                   <p className="mt-1 truncate text-[15px] text-muted-foreground">
                     {locationLabel(outage)}
@@ -151,35 +164,40 @@ export function OutageDetailSheet({
             </SheetHeader>
 
             <div className="flex-1 overflow-y-auto overscroll-contain px-6">
-              {/* One line of status: what it is, and how far to trust it. */}
+              {/* One line of status: what it is, and how far to trust it. A
+                  neighbor's report says who reported it on a line of its own,
+                  in the report violet, so it never reads as the utility's. */}
               <p className="flex flex-wrap items-center gap-x-2 gap-y-1 pb-4 text-[15px]">
                 <SeverityLabel
                   severity={outage.severity}
                   resolved={isResolved}
                   className="font-semibold"
                 />
-                <span aria-hidden className="text-muted-foreground">·</span>
-                <span className="inline-flex items-center gap-1 text-muted-foreground">
-                  {outage.origin === "official" ? (
-                    // A utility saying so and a measurement suggesting so are
-                    // different claims; only the first gets the tick.
-                    isDetected(outage.sourceName) ? (
-                      "Detected, not confirmed"
-                    ) : (
-                      <>
-                        <BadgeCheck className="size-3.5" />
-                        Official report
-                      </>
-                    )
-                  ) : outage.isVerified ? (
-                    <>
-                      <BadgeCheck className="size-3.5" />
-                      Verified by neighbors
-                    </>
-                  ) : (
-                    "Not yet confirmed"
-                  )}
-                </span>
+                {outage.origin === "official" && (
+                  <>
+                    <span aria-hidden className="text-muted-foreground">·</span>
+                    <span className="inline-flex items-center gap-1 text-muted-foreground">
+                      {/* A utility saying so and a measurement suggesting so are
+                          different claims; only the first gets the tick. */}
+                      {isDetected(outage.sourceName) ? (
+                        "Detected, not confirmed"
+                      ) : (
+                        <>
+                          <BadgeCheck className="size-3.5" />
+                          Official report
+                        </>
+                      )}
+                    </span>
+                  </>
+                )}
+                {outage.origin === "crowdsourced" && (
+                  <span className="flex basis-full items-center gap-1 font-medium text-[var(--report-ink)]">
+                    <Users className="size-3.5" />
+                    {outage.isVerified
+                      ? `${neighborsLabel(outage)}, verified`
+                      : `${neighborsLabel(outage)}, not yet confirmed`}
+                  </span>
+                )}
               </p>
 
               <Facts outage={outage} />

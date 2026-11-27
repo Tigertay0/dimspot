@@ -43,6 +43,12 @@
   --shadow-marker: 0 1px 2px rgb(0 0 0 / 0.14), 0 3px 8px rgb(0 0 0 / 0.18);
   --marker: #ffffff;
   --marker-edge: rgb(0 0 0 / 0.14);
+  /* Neighbor reports: violet, kept apart from the white of a utility's own
+     report and from the blue of the person's position dot. Ink holds 7:1 on
+     the tint. */
+  --report: #f3efff;
+  --report-edge: #b9a5f7;
+  --report-ink: #5b2fc9;
   --shadow-sheet: 0 -2px 16px rgb(0 0 0 / 0.1);
 
   /* Severity. Dark enough to hold 4.5:1 as text on white. */
@@ -77,6 +83,9 @@
   --shadow-marker: 0 1px 2px rgb(0 0 0 / 0.6), 0 3px 10px rgb(0 0 0 / 0.6);
   --marker: #303030;
   --marker-edge: #5a5a5a;
+  --report: #2b2342;
+  --report-edge: #7d63d8;
+  --report-ink: #cbbcff;
   --shadow-sheet: 0 -2px 16px rgb(0 0 0 / 0.5);
 
   --severity-complete: hsl(0 84% 67%);
@@ -241,8 +250,27 @@
   animation: pulse-ring 2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
 }
 
+/* A marker arriving on the map: a quick settle rather than a pop. `backwards`
+   applies the start state before it runs and then lets go, so hover and
+   selected scaling still work once it has finished. */
+@keyframes marker-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-marker-in {
+  animation: marker-in 200ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .animate-pulse-ring {
+  .animate-pulse-ring,
+  .animate-marker-in {
     animation: none;
   }
 }

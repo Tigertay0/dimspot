@@ -14,6 +14,13 @@ export const ALERT_THRESHOLD = 2;
 /** Zoom at which clusters give way to individual markers (PRD §4.1 "Level 3"). */
 export const MARKER_ZOOM = 13;
 
+/**
+ * How close the map goes to a known position: the device's location or the
+ * saved home. Street level, so the reader sees their own block and the reports
+ * on it. Not used for the network-address guess, which is only a city.
+ */
+export const PRECISE_ZOOM = 15;
+
 export const DEFAULT_VIEW = {
   latitude: 39.8283,
   longitude: -98.5795, // Geographic centre of the contiguous US.

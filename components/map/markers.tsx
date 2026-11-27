@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleHelp, Signal, Wifi, Zap } from "lucide-react";
+import { CircleHelp, Signal, Users, Wifi, Zap } from "lucide-react";
 import { SEVERITY_META, dominantSeverity } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { ServiceType, Severity } from "@/lib/types";
@@ -32,17 +32,21 @@ export function ServiceIcon({
 export function ServiceBadge({
   type,
   size = "md",
+  report = false,
   className,
 }: {
   type: ServiceType;
   size?: "md" | "lg";
+  /** A neighbor's report: drawn in the report violet, as on the map. */
+  report?: boolean;
   className?: string;
 }) {
   return (
     <span
       aria-hidden
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-full bg-secondary text-foreground",
+        "flex shrink-0 items-center justify-center rounded-full",
+        report ? "bg-[var(--report)] text-[var(--report-ink)]" : "bg-secondary text-foreground",
         size === "lg" ? "size-12" : "size-10",
         className,
       )}
@@ -101,19 +105,36 @@ function halo(color: string, alpha: number) {
   return `color-mix(in oklab, ${color} ${Math.round(alpha * 100)}%, transparent)`;
 }
 
+/** "1.2k", "14k": short enough for a marker, exact below a thousand. */
+export function shortCount(value: number): string {
+  if (value >= 10_000) return `${Math.round(value / 1000)}k`;
+  if (value >= 1000) return `${Math.round(value / 100) / 10}k`;
+  return String(value);
+}
+
 /**
- * Cluster: a count in a white disc, the same surface as a single marker's
- * pill. A thin ring shows the severity mix of what it holds (one arc per
- * severity, in proportion), and the size is compressed so a 200-outage cluster
- * does not swamp a 3-outage one.
+ * Several outages too close to tell apart at this zoom.
+ *
+ * The same white pill as a single outage, so the map speaks one visual
+ * language, with a second pill's edge showing behind it: a stack, not a
+ * badge. It gives the customers out across the group (what a reader wants to
+ * know), or how many reports when none of them says. Tapping zooms in to
+ * pull the stack apart.
  */
 export function ClusterMarker({
   count,
   severityCounts,
+  serviceCounts,
+  customers,
+  reports,
   onClick,
 }: {
   count: number;
   severityCounts: Record<Severity, number>;
+  serviceCounts: Record<ServiceType, number>;
+  customers: number;
+  /** How many of them are neighbors' reports. */
+  reports: number;
   onClick: () => void;
 }) {
   const order: Severity[] = ["complete", "degraded", "intermittent"];
@@ -121,33 +142,52 @@ export function ClusterMarker({
   const worst = dominantSeverity(present.length > 0 ? present : ["intermittent"]);
   const color = SEVERITY_META[worst].token;
 
-  const total = present.reduce((sum, s) => sum + severityCounts[s], 0) || 1;
-  let turned = 0;
-  const arcs = present.map((s) => {
-    const from = turned;
-    turned += (severityCounts[s] / total) * 360;
-    return `${SEVERITY_META[s].token} ${from}deg ${turned}deg`;
-  });
-  const ring =
-    arcs.length > 1 ? `conic-gradient(from -90deg, ${arcs.join(", ")})` : color;
+  const service = (Object.keys(serviceCounts) as ServiceType[]).reduce((a, b) =>
+    serviceCounts[b] > serviceCounts[a] ? b : a,
+  );
 
-  const size = Math.round(Math.min(52, 34 + Math.log2(count + 1) * 2.2));
+  const label = customers > 0 ? shortCount(customers) : `${count} reports`;
+  // All neighbors' reports: the report violet and the people icon, as for one.
+  const allReports = reports === count;
+  const surface = allReports
+    ? "border-[var(--report-edge)] bg-[var(--report)] text-[var(--report-ink)]"
+    : "border-[var(--marker-edge)] bg-[var(--marker)] text-foreground";
 
   return (
     <button
       type="button"
       onClick={onClick}
-      style={{ width: size, height: size, background: ring, boxShadow: "var(--shadow-marker)" }}
       className={cn(
-        "group relative flex items-center justify-center rounded-full p-[2px]",
+        "tap-target group relative flex h-8 animate-marker-in items-center",
         "transition-transform duration-150 ease-out hover:scale-105 active:scale-95",
-        "focus-visible:outline-none focus-visible:ring-2",
-        "focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground",
+        "focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-full",
       )}
-      aria-label={`${count} outages in this area. Zoom in to see them.`}
+      aria-label={`${count} ${allReports ? "neighbor reports" : "outages"} here${
+        customers > 0 ? `, ${customers.toLocaleString("en-US")} customers out` : ""
+      }. Zoom in to see them.`}
     >
-      <span className="flex size-full items-center justify-center rounded-full bg-[var(--marker)] text-[13px] font-semibold tabular-nums text-foreground">
-        {count > 999 ? `${Math.round(count / 100) / 10}k` : count}
+      {/* The pill behind: offset down and right, so the edge reads as a stack. */}
+      <span
+        aria-hidden
+        className={cn("absolute inset-0 translate-x-[3px] translate-y-[3px] rounded-full border", surface)}
+        style={{ boxShadow: "var(--shadow-marker)" }}
+      />
+      <span
+        className={cn(
+          "relative flex h-8 items-center gap-1 rounded-full border px-2.5 text-[13px] font-semibold tabular-nums",
+          surface,
+        )}
+        style={{ boxShadow: "var(--shadow-marker)" }}
+      >
+        <span aria-hidden style={allReports ? undefined : { color }} className="flex">
+          {allReports ? (
+            <Users className="size-3.5 stroke-[2.5]" />
+          ) : (
+            <ServiceIcon type={service} className="size-3.5 stroke-[2.5]" />
+          )}
+        </span>
+        {label}
       </span>
     </button>
   );
@@ -160,6 +200,9 @@ export function ClusterMarker({
  * customers are out (or how many people confirmed a report). The selected
  * marker turns ink, so the one the preview card describes is unmistakable. An
  * unconfirmed report has a dashed edge: same shape, visibly provisional.
+ *
+ * A neighbor's report is a different thing from a utility's, and looks it:
+ * violet, a people icon, and how many households have reported it.
  */
 export function OutageMarker({
   serviceType,
@@ -169,12 +212,15 @@ export function OutageMarker({
   isResolved,
   isSelected,
   isFresh,
+  neighbors = null,
   onClick,
 }: {
   serviceType: ServiceType;
   severity: Severity;
   /** Short figure shown beside the icon, when there is one. */
   label: string | null;
+  /** Households behind a neighbor report; null for a utility or feed outage. */
+  neighbors?: number | null;
   isVerified: boolean;
   isResolved: boolean;
   isSelected: boolean;
@@ -182,11 +228,15 @@ export function OutageMarker({
   isFresh: boolean;
   onClick: () => void;
 }) {
+  const report = neighbors !== null;
   const color = isResolved
     ? "var(--severity-resolved)"
-    : SEVERITY_META[severity].token;
+    : report
+      ? "var(--report-ink)"
+      : SEVERITY_META[severity].token;
 
   const solid = isVerified || isResolved;
+  const shown = report ? String(Math.max(1, neighbors)) : label;
 
   return (
     <button
@@ -194,22 +244,30 @@ export function OutageMarker({
       onClick={onClick}
       style={{ boxShadow: "var(--shadow-marker)" }}
       className={cn(
-        "tap-target group relative flex h-8 items-center justify-center gap-1 rounded-full border text-[13px] font-semibold tabular-nums",
+        "tap-target group relative flex h-8 animate-marker-in items-center justify-center gap-1 rounded-full border text-[13px] font-semibold tabular-nums",
         "transition-[transform,background-color,color] duration-150 ease-out hover:scale-105 active:scale-95",
-        label ? "px-2.5" : "w-8",
+        shown ? "px-2.5" : "w-8",
         isSelected
           ? "z-10 scale-110 border-primary bg-primary text-primary-foreground"
-          : // --marker and its edge are set per theme in globals.css: white
-            // with a hairline on the light map, a lifted grey with a visible
-            // edge on the dark one, where a card-coloured pill disappears.
-            "border-[var(--marker-edge)] bg-[var(--marker)] text-foreground",
-        !solid && !isSelected && "border-dashed border-muted-foreground",
+          : report
+            ? "border-[var(--report-edge)] bg-[var(--report)] text-[var(--report-ink)]"
+            : // --marker and its edge are set per theme in globals.css: white
+              // with a hairline on the light map, a lifted grey with a visible
+              // edge on the dark one, where a card-coloured pill disappears.
+              "border-[var(--marker-edge)] bg-[var(--marker)] text-foreground",
+        !solid && !isSelected && (report ? "border-dashed" : "border-dashed border-muted-foreground"),
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground",
         "focus-visible:ring-offset-2 focus-visible:ring-offset-background",
       )}
-      aria-label={`${SEVERITY_META[severity].label}: ${serviceType}${label ? `, ${label}` : ""}${
-        solid ? "" : ", unconfirmed"
-      }`}
+      aria-label={
+        report
+          ? `Neighbor report: ${serviceType}, ${shown} ${Number(shown) === 1 ? "household" : "households"}${
+              solid ? "" : ", unconfirmed"
+            }`
+          : `${SEVERITY_META[severity].label}: ${serviceType}${label ? `, ${label}` : ""}${
+              solid ? "" : ", unconfirmed"
+            }`
+      }
     >
       {isFresh && !isResolved && !isSelected && (
         <span
@@ -219,9 +277,13 @@ export function OutageMarker({
         />
       )}
       <span aria-hidden style={{ color: isSelected ? undefined : color }} className="flex">
-        <ServiceIcon type={serviceType} className="size-3.5 stroke-[2.5]" />
+        {report ? (
+          <Users className="size-3.5 stroke-[2.5]" />
+        ) : (
+          <ServiceIcon type={serviceType} className="size-3.5 stroke-[2.5]" />
+        )}
       </span>
-      {label}
+      {shown}
     </button>
   );
 }

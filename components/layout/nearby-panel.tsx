@@ -7,10 +7,11 @@ import {
   Plus,
   RefreshCw,
   TriangleAlert,
+  Users,
 } from "lucide-react";
 import { SERVICE_COVERAGE, SERVICE_META, SEVERITY_META, sourceLabel } from "@/lib/constants";
 import { haversineMeters } from "@/lib/geo";
-import { locationLabel, timeAgo } from "@/lib/format";
+import { locationLabel, outageTitle, pluralize, timeAgo } from "@/lib/format";
 import { useFilters } from "@/lib/store/filters";
 import type { Advisory, Outage } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -135,14 +136,14 @@ export function NearbyPanel({
         <li key={outage.id}>
           <Row
             outage={outage}
-            title={outage.providerName ?? "Unknown provider"}
+            title={outageTitle(outage)}
             detail={locationLabel(outage)}
             severity
             figure={
               outage.customersAffected !== null
                 ? `${outage.customersAffected.toLocaleString()} out`
                 : outage.origin === "crowdsourced"
-                  ? `${outage.verificationCount} confirmed`
+                  ? `${Math.max(1, outage.verificationCount)} ${pluralize(Math.max(1, outage.verificationCount), "neighbor")}`
                   : timeAgo(outage.reportedAt)
             }
             quietFigure={outage.customersAffected === null}
@@ -233,7 +234,7 @@ function Row({
       onClick={() => onSelect(outage)}
       className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-secondary focus-visible:bg-secondary focus-visible:outline-none"
     >
-      <ServiceBadge type={outage.serviceType} />
+      <ServiceBadge type={outage.serviceType} report={outage.origin === "crowdsourced"} />
 
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline gap-3">
@@ -248,17 +249,27 @@ function Row({
           </span>
         </span>
         <span className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
-          {severity && (
-            <>
-              <SeverityLabel
-                severity={outage.severity}
-                resolved={outage.status === "resolved"}
-                short
-                className="shrink-0"
-              />
-              <span aria-hidden>·</span>
-            </>
-          )}
+          {severity &&
+            (outage.origin === "crowdsourced" ? (
+              // A neighbor's report says so before anything else.
+              <>
+                <span className="inline-flex shrink-0 items-center gap-1 font-medium text-[var(--report-ink)]">
+                  <Users aria-hidden className="size-3.5" />
+                  Neighbors
+                </span>
+                <span aria-hidden>·</span>
+              </>
+            ) : (
+              <>
+                <SeverityLabel
+                  severity={outage.severity}
+                  resolved={outage.status === "resolved"}
+                  short
+                  className="shrink-0"
+                />
+                <span aria-hidden>·</span>
+              </>
+            ))}
           <span className="truncate">{detail}</span>
         </span>
       </span>

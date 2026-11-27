@@ -183,3 +183,93 @@ export function boundsOf(geometry: AreaGeometry): [number, number, number, numbe
   }
   return [minX, minY, maxX, maxY];
 }
+
+/**
+ * The part of `geometry` inside a circle around `center`, for drawing an area
+ * as if it spreads out from a point. Works in a local plane where a degree of
+ * longitude is scaled to a degree of latitude, so the circle is round on the
+ * map. `radius` is in degrees of latitude.
+ *
+ * Sutherland-Hodgman against a 48-sided polygon: exact for the convex clip
+ * shape, and for a concave area it can leave zero-width slivers along the
+ * circle, which a fill does not show. Returns null when nothing is inside yet.
+ */
+export function clipToCircle(
+  geometry: AreaGeometry,
+  center: Position,
+  radius: number,
+): AreaGeometry | null {
+  if (radius <= 0) return null;
+  const [cx, cy] = center;
+  const k = Math.cos((cy * Math.PI) / 180) || 1;
+
+  const SIDES = 48;
+  const clip: Position[] = [];
+  for (let i = 0; i < SIDES; i++) {
+    const a = (i / SIDES) * 2 * Math.PI;
+    clip.push([radius * Math.cos(a), radius * Math.sin(a)]);
+  }
+
+  const toLocal = ([x, y]: Position): Position => [(x - cx) * k, y - cy];
+  const toWorld = ([x, y]: Position): Position => [x / k + cx, y + cy];
+
+  function clipRing(ring: Position[]): Position[] | null {
+    let output = ring.slice(0, -1).map(toLocal);
+    for (let i = 0; i < SIDES && output.length > 0; i++) {
+      const a = clip[i];
+      const b = clip[(i + 1) % SIDES];
+      // Inside is the left of a -> b, since the clip polygon is anticlockwise.
+      const inside = (p: Position) => (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]) >= 0;
+      const cross = (p: Position, q: Position): Position => {
+        const dx = q[0] - p[0];
+        const dy = q[1] - p[1];
+        const ex = b[0] - a[0];
+        const ey = b[1] - a[1];
+        const t = (ex * (a[1] - p[1]) - ey * (a[0] - p[0])) / (ex * dy - ey * dx);
+        return [p[0] + t * dx, p[1] + t * dy];
+      };
+      const input = output;
+      output = [];
+      for (let j = 0; j < input.length; j++) {
+        const current = input[j];
+        const previous = input[(j + input.length - 1) % input.length];
+        if (inside(current)) {
+          if (!inside(previous)) output.push(cross(previous, current));
+          output.push(current);
+        } else if (inside(previous)) {
+          output.push(cross(previous, current));
+        }
+      }
+    }
+    if (output.length < 3) return null;
+    const world = output.map(toWorld);
+    return [...world, world[0]];
+  }
+
+  const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
+  const pieces: Position[][][] = [];
+  for (const polygon of polygons) {
+    const outer = clipRing(polygon[0]);
+    if (!outer) continue;
+    const holes = polygon.slice(1).map(clipRing).filter((ring): ring is Position[] => ring !== null);
+    pieces.push([outer, ...holes]);
+  }
+
+  if (pieces.length === 0) return null;
+  return pieces.length === 1
+    ? { type: "Polygon", coordinates: pieces[0] }
+    : { type: "MultiPolygon", coordinates: pieces };
+}
+
+/** Distance from `center` to the farthest corner of `bounds`, in degrees of latitude. */
+export function reachOf(bounds: [number, number, number, number], [cx, cy]: Position): number {
+  const k = Math.cos((cy * Math.PI) / 180) || 1;
+  const [west, south, east, north] = bounds;
+  let max = 0;
+  for (const x of [west, east]) {
+    for (const y of [south, north]) {
+      max = Math.max(max, Math.hypot((x - cx) * k, y - cy));
+    }
+  }
+  return max;
+}

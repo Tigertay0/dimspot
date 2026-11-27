@@ -1,8 +1,8 @@
 "use client";
 
-import { X } from "lucide-react";
+import { Users, X } from "lucide-react";
 import { areaNote } from "@/components/map/area-layer";
-import { locationLabel, outageDuration, timeAgo } from "@/lib/format";
+import { locationLabel, neighborsLabel, outageDuration, outageTitle, timeAgo } from "@/lib/format";
 import { useOutageArea } from "@/lib/hooks/use-outages";
 import type { Outage } from "@/lib/types";
 import { ServiceBadge, SeverityLabel } from "@/components/map/markers";
@@ -24,14 +24,17 @@ export function OutagePreview({
   onClose: () => void;
 }) {
   const resolved = outage.status === "resolved";
+  const report = outage.origin === "crowdsourced";
   // Same query the map draws from, so this is a cache read, not a second fetch.
   const note = areaNote(useOutageArea(outage.id).data);
 
   const figure =
     outage.customersAffected !== null
       ? `${outage.customersAffected.toLocaleString()} ${outage.customersAffected === 1 ? "customer" : "customers"}`
-      : outage.origin === "crowdsourced"
-        ? `${outage.verificationCount} confirmed`
+      : report
+        ? outage.isVerified
+          ? "Verified"
+          : "Not yet confirmed"
         : null;
 
   const time = resolved
@@ -41,22 +44,32 @@ export function OutagePreview({
       : `first seen ${timeAgo(outage.reportedAt)}`;
 
   return (
-    <div className="panel pointer-events-auto relative rounded-2xl">
+    // Rises into place rather than appearing (tailwindcss-animate), and simply
+    // appears for anyone who has asked for less motion.
+    <div className="panel pointer-events-auto relative rounded-2xl animate-in fade-in-0 slide-in-from-bottom-3 duration-200 ease-out motion-reduce:animate-none">
       <button
         type="button"
         onClick={onOpen}
         className="flex w-full items-center gap-3 rounded-2xl p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <ServiceBadge type={outage.serviceType} size="lg" />
+        <ServiceBadge type={outage.serviceType} size="lg" report={report} />
         <span className="min-w-0 flex-1">
           <span className="block truncate pr-9 text-[17px] font-semibold tracking-[-0.01em]">
-            {outage.providerName ?? "Unknown provider"}
+            {outageTitle(outage)}
           </span>
           <span className="mt-0.5 block truncate pr-9 text-sm text-muted-foreground">
             {locationLabel(outage)}
           </span>
-          {note && (
-            <span className="mt-0.5 block truncate pr-9 text-[13px] text-muted-foreground">{note}</span>
+          {report ? (
+            // Who says so, first: a neighbor, not the utility.
+            <span className="mt-0.5 flex items-center gap-1 truncate pr-9 text-[13px] font-medium text-[var(--report-ink)]">
+              <Users aria-hidden className="size-3.5 shrink-0" />
+              {neighborsLabel(outage)}
+            </span>
+          ) : (
+            note && (
+              <span className="mt-0.5 block truncate pr-9 text-[13px] text-muted-foreground">{note}</span>
+            )
           )}
           <span className="mt-2 flex items-center justify-between gap-3 text-sm">
             <SeverityLabel severity={outage.severity} resolved={resolved} className="font-medium" />

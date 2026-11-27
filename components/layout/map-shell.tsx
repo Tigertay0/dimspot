@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { House, Minus, Navigation, Plus } from "lucide-react";
-import { DEFAULT_VIEW } from "@/lib/constants";
+import { DEFAULT_VIEW, PRECISE_ZOOM } from "@/lib/constants";
 import { useAdvisories, useOutageArea, useOutages, useSession } from "@/lib/hooks/use-outages";
 import { activeFilterCount, useFilters } from "@/lib/store/filters";
 import type { Advisory, BoundingBox, GeocodeResult, Outage } from "@/lib/types";
@@ -117,7 +117,7 @@ export function MapShell() {
     setOpened(true);
     if (!deepLinked) {
       if (home) {
-        setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: 12 });
+        setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: PRECISE_ZOOM });
       } else if (approx && approx.country === "US") {
         setFlyTo({ latitude: approx.latitude, longitude: approx.longitude, zoom: 9 });
       }
@@ -337,8 +337,35 @@ export function MapShell() {
 
   const preview = previewId ? (placed.find((o) => o.id === previewId) ?? null) : null;
 
-  // The tapped (phone) or opened outage, drawn as an area on the map.
-  const { data: selectedArea } = useOutageArea(previewId ?? selectedId);
+  // The tapped (phone) or opened outage, drawn as an area on the map, but
+  // only while that outage is itself on the map. The filters are checked here
+  // as well as by the server, so switching to another outage type clears the
+  // area at once rather than when the new list arrives.
+  const highlightId = previewId ?? selectedId;
+  const highlighted = highlightId ? (placed.find((o) => o.id === highlightId) ?? null) : null;
+  const highlightShown =
+    highlighted !== null &&
+    selectedServiceTypes.includes(highlighted.serviceType) &&
+    selectedSeverities.includes(highlighted.severity) &&
+    (selectedProviderIds.length === 0 ||
+      (highlighted.providerId !== null && selectedProviderIds.includes(highlighted.providerId)));
+  const { data: selectedArea } = useOutageArea(highlightShown ? highlighted.id : null);
+
+  // Changing what the map shows puts away the card for the tapped outage: it
+  // belonged to the old view. An opened outage stays open in its sheet.
+  useEffect(
+    () =>
+      useFilters.subscribe((state, previous) => {
+        if (
+          state.serviceTypes !== previous.serviceTypes ||
+          state.severities !== previous.severities ||
+          state.providerIds !== previous.providerIds
+        ) {
+          setPreviewId(null);
+        }
+      }),
+    [],
+  );
 
   const openReport = useCallback(() => setReportOpen(true), []);
 
@@ -425,7 +452,12 @@ export function MapShell() {
             onSelectAdvisory={setSelectedAdvisory}
             selectedId={previewId ?? selectedId}
             onSelect={desktop ? handleSelect : handleMarker}
-            onBackgroundClick={() => setPreviewId(null)}
+            // A tap on the map itself puts the outage away: the card, the docked
+            // detail on a wide screen, and the shaded area with them.
+            onBackgroundClick={() => {
+              setPreviewId(null);
+              setSelectedId(null);
+            }}
             onBoundsChange={handleBoundsChange}
             flyTo={flyTo}
             picking={picking}
@@ -490,7 +522,7 @@ export function MapShell() {
                   onClick={() =>
                     // A new object each time, so pressing it again after panning
                     // away flies back.
-                    setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: 13 })
+                    setFlyTo({ latitude: home.latitude, longitude: home.longitude, zoom: PRECISE_ZOOM })
                   }
                 >
                   <House />
@@ -526,6 +558,8 @@ export function MapShell() {
                   <div className="px-3 pb-3">
                     {preview ? (
                       <OutagePreview
+                        // A different outage rises in afresh rather than swapping text.
+                        key={preview.id}
                         outage={preview}
                         onOpen={() => setSelectedId(preview.id)}
                         onClose={() => setPreviewId(null)}
@@ -595,7 +629,7 @@ export function MapShell() {
           })
         }
         onShowHome={(place) =>
-          setFlyTo({ latitude: place.latitude, longitude: place.longitude, zoom: 13 })
+          setFlyTo({ latitude: place.latitude, longitude: place.longitude, zoom: PRECISE_ZOOM })
         }
         onAccount={
           session?.capabilities.accounts

@@ -1,4 +1,5 @@
 import { formatDistanceToNowStrict } from "date-fns";
+import { SERVICE_META } from "./constants";
 import type { Outage } from "./types";
 
 /** "12 min ago" / "3 hr ago" — short enough for a map marker popup. */
@@ -63,6 +64,24 @@ export function locationLabel(outage: Outage): string {
   if (outage.city) return outage.city;
   if (outage.zipCode) return outage.zipCode;
   return `${outage.latitude.toFixed(3)}, ${outage.longitude.toFixed(3)}`;
+}
+
+/**
+ * What to call an outage in a heading. A utility's report is named for the
+ * utility. A neighbor's report usually names no company, and "Unknown
+ * provider" made it sound like missing data rather than a person reporting.
+ */
+export function outageTitle(outage: Outage): string {
+  if (outage.providerName) return outage.providerName;
+  return outage.origin === "crowdsourced"
+    ? `${SERVICE_META[outage.serviceType].shortLabel} outage`
+    : "Unknown provider";
+}
+
+/** "Reported by 3 neighbors": confirmations are counted once per household. */
+export function neighborsLabel(outage: Outage): string {
+  const count = Math.max(1, outage.verificationCount);
+  return `Reported by ${count} ${pluralize(count, "neighbor")}`;
 }
 
 export function pluralize(count: number, singular: string, plural?: string) {
