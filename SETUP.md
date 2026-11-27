@@ -406,8 +406,10 @@ Each utility is its own source (`kubra-pepco`, ...), read at the finest area
 its map offers (ZIP code where there is one, otherwise town or county), with
 areas under five customers and masked counts dropped. A Worker invocation has a
 subrequest budget (50 on the free plan), so ten maps are read per run, in
-rotation, which reaches each about once an hour. On a paid plan set
-`KUBRA_UTILITIES_PER_RUN=30` and every map is read on every run.
+rotation, which reaches each about once an hour, and the weather source drops
+to twelve zone lookups a run to leave room. On a paid plan (1,000 subrequests)
+set `KUBRA_UTILITIES_PER_RUN=24` or more: every map is read on every run, and
+the weather source keeps its full forty lookups.
 
 ### What it does not pull
 

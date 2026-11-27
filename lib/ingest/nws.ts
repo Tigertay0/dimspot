@@ -40,17 +40,25 @@ const ZONE_LOOKUP_BUDGET = 40;
 
 /**
  * With the utility outage maps on (KUBRA_INGEST), a run also makes two or
- * three requests for each of about ten utilities, and a Worker invocation on
- * the free plan gets 50 outbound requests in total. Forty zone lookups on top
- * would starve whichever source runs last, so the lookups give way: twelve a
- * run, and the rest are picked up by the runs that follow.
+ * three requests for each utility it reads, and a Worker invocation on the
+ * free plan gets 50 outbound requests in total. Forty zone lookups on top
+ * would starve whichever source runs last, so on that plan the lookups give
+ * way: twelve a run, and the rest are picked up by the runs that follow.
+ *
+ * A paid plan has 1,000 requests per invocation and no such squeeze. A
+ * deployment says it is on one by raising KUBRA_UTILITIES_PER_RUN above the
+ * free-plan default (lib/ingest/run.ts), and then keeps the full forty.
  */
 const ZONE_LOOKUP_BUDGET_WITH_UTILITY_MAPS = 12;
+const FREE_PLAN_UTILITIES_PER_RUN = 10;
 
-function zoneLookupBudget(): number {
-  return process.env.KUBRA_INGEST === "on"
-    ? ZONE_LOOKUP_BUDGET_WITH_UTILITY_MAPS
-    : ZONE_LOOKUP_BUDGET;
+export function zoneLookupBudget(): number {
+  if (process.env.KUBRA_INGEST !== "on") return ZONE_LOOKUP_BUDGET;
+
+  const perRun = Number(process.env.KUBRA_UTILITIES_PER_RUN);
+  return Number.isInteger(perRun) && perRun > FREE_PLAN_UTILITIES_PER_RUN
+    ? ZONE_LOOKUP_BUDGET
+    : ZONE_LOOKUP_BUDGET_WITH_UTILITY_MAPS;
 }
 
 /** Zone id -> centroid. Zones are static, so this never needs invalidating. */

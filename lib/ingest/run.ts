@@ -43,8 +43,9 @@ const RUN_INTERVAL_MS = 20 * 60 * 1000;
  * Each costs two or three requests, and a Worker invocation has a subrequest
  * budget: 50 on the free plan, which the core sources also draw on. Ten keeps
  * a run near 35 requests and reaches every utility about once an hour. On a
- * paid plan set KUBRA_UTILITIES_PER_RUN to the size of the list (or more) and
- * every map is read every run.
+ * paid plan (1,000 requests) set KUBRA_UTILITIES_PER_RUN to the size of the
+ * list (or more): every map is read every run, and the weather source keeps
+ * its full lookup budget (lib/ingest/nws.ts).
  */
 const DEFAULT_KUBRA_PER_RUN = 10;
 

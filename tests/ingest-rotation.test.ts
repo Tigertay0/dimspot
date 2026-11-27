@@ -43,3 +43,28 @@ describe("sourcesForRun", () => {
     expect(utilitiesIn(0).length).toBeLessThanOrEqual(10);
   });
 });
+
+describe("zoneLookupBudget", () => {
+  it("is forty lookups a run while the utility maps are off", async () => {
+    const { zoneLookupBudget } = await import("@/lib/ingest/nws");
+
+    expect(zoneLookupBudget()).toBe(40);
+  });
+
+  it("gives way to the utility maps on the free plan's 50 requests", async () => {
+    const { zoneLookupBudget } = await import("@/lib/ingest/nws");
+    vi.stubEnv("KUBRA_INGEST", "on");
+
+    expect(zoneLookupBudget()).toBe(12);
+    vi.stubEnv("KUBRA_UTILITIES_PER_RUN", "10");
+    expect(zoneLookupBudget()).toBe(12);
+  });
+
+  it("keeps all forty on a paid plan, signalled by reading more maps per run", async () => {
+    const { zoneLookupBudget } = await import("@/lib/ingest/nws");
+    vi.stubEnv("KUBRA_INGEST", "on");
+    vi.stubEnv("KUBRA_UTILITIES_PER_RUN", "24");
+
+    expect(zoneLookupBudget()).toBe(40);
+  });
+});
