@@ -71,12 +71,16 @@ The app follows the Airbnb and Uber map screens the user chose as references (br
 - **Type:** Geist. Sheet titles 22 / 600; row titles 15 to 17 / 600; body 15; secondary 14. Figures use `tabular-nums`, not the mono face.
 - **Shape:** pills for the search bar, markers, chips and the report button; `rounded-xl` (12) for buttons, inputs and tiles; `rounded-2xl` (16) for cards over the map; `rounded-3xl` (24) for sheets.
 - **Depth:** the `panel` utility for anything over the map: solid card colour and `--shadow-float`, plus a hairline in the dark theme. No blur, no glow.
-- **Header:** solid, with the pill search bar (filters and account buttons inside it) and `TypeTabs`, icon tabs with an underline for the selected one.
-- **Markers:** white pills (`--shadow-marker`) with the service icon in the severity colour and a short figure: customers out, or confirmations. Selected is ink. Unconfirmed has a dashed edge. Clusters are a white disc with a thin severity-mix ring.
-- **Marker to detail:** marker tap opens `OutagePreview` above the bottom sheet; the card or a list row opens the detail sheet.
+- **Layout:** the header is in the flow, with the map under it. Below 1024px the list is a bottom sheet over the map. From 1024px (`useIsDesktop`) the list is a 400px column beside the map, and Report outage sits in the header.
+- **Header:** solid, with the pill search bar (filters and account buttons inside it) and `TypeTabs`, icon tabs with an underline for the selected one. The tabs are the only service-type filter.
+- **Markers:** pills in `--marker` with a `--marker-edge` border and `--shadow-marker` (white with a hairline on the light map, #303030 with a #5a5a5a edge on the dark one), the service icon in the severity colour and a short figure: customers out, or confirmations. Selected is ink. Unconfirmed has a dashed edge. Clusters are a counted disc on the same surface with a 2px severity-mix ring, at every zoom. There is no heat map.
+- **Over the map:** one message at a time, top left: the network-alert pill, or the coverage note when a single type is selected. Controls top right. Both hide while search results are open.
+- **Marker to detail:** on a phone a marker tap opens `OutagePreview` above the bottom sheet, and the card or a list row opens the detail sheet. On desktop a marker opens the detail directly in the list column.
 - **Bottom sheet:** a handle and one centred line; tap to open the list.
-- **Selection:** a 2px ink outline (tiles, severity rows, `Chip` tone `tint`); `Chip` tone `solid` fills with ink.
+- **Selection:** a 2px ink outline (tiles, severity rows, `Chip` tone `tint`); checkboxes and switches for anything that is a list of on/off choices (filters, settings).
 - **Touch targets:** every control sets its own size. A control drawn under 44px adds the `tap-target` utility, which grows the hit area with a pseudo-element and leaves layout alone. The blanket `min-height: 44px` rule applies to the landing pages only; in the app it stretched tabs, switches and checkboxes out of shape.
-- **Sheets:** `max-h-[88dvh]` (dvh, not vh, so iOS toolbars do not cover the footer) and `pb-safe` for the home indicator. The report sheet is non-modal on its location step, so the map under it can be dragged.
+- **Sheets:** `max-h-[88dvh]` (dvh, not vh, so iOS toolbars do not cover the footer) and `pb-safe` for the home indicator. The report sheet is non-modal on its location step, so the map under it can be dragged. From 1024px a sheet is a centred dialog, unless its `Sheet` has `dock`: then it opens in the list column, non-modal, and the map stays usable (detail, report, advisory).
+- **Toasts:** ink with white text for every variant. No red blocks.
+- **Copy:** American spelling.
 - **Sizes:** buttons 48 / 36 (`sm`) / 56 (`lg`); inputs 48; chips 36; search bar 56; map controls 44.
-- **Basemap:** OpenFreeMap recoloured per layer in `lib/map/brand-style.ts`. The heat map is drawn under the place names.
+- **Basemap:** OpenFreeMap recoloured per layer in `lib/map/brand-style.ts`. Labels are mixed case in both themes.
