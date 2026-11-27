@@ -17,11 +17,13 @@ import {
   sourceAttribution,
   sourceLabel,
 } from "@/lib/constants";
+import { sharePercent } from "@/components/map/area-layer";
 import { dayAndTime, locationLabel, outageDuration, pluralize, timeAgo } from "@/lib/format";
 import type { OutageDetail } from "@/lib/types";
 import {
   useAddComment,
   useConfirmOutage,
+  useOutageArea,
   useOutageDetail,
   useResolveOutage,
 } from "@/lib/hooks/use-outages";
@@ -333,6 +335,7 @@ export function OutageDetailSheet({
  */
 function Facts({ outage }: { outage: OutageDetail }) {
   const isResolved = outage.status === "resolved";
+  const area = useOutageArea(outage.id).data;
 
   const facts: Array<{ label: string; value: string; mono?: boolean }> = [
     isResolved
@@ -358,6 +361,14 @@ function Facts({ outage }: { outage: OutageDetail }) {
       label: "Confirmed by",
       // Households, not people: confirmations are counted once per network.
       value: `${outage.verificationCount} ${pluralize(outage.verificationCount, "household")}`,
+      mono: true,
+    });
+  }
+
+  if (area?.kind === "outline" && area.customersServed && area.customersAffected !== null) {
+    facts.push({
+      label: "Share of area out",
+      value: `${sharePercent(area.customersAffected / area.customersServed)} of ${area.customersServed.toLocaleString()}`,
       mono: true,
     });
   }

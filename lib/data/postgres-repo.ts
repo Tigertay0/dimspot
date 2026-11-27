@@ -4,6 +4,7 @@ import type {
   BoundingBox,
   CreateOutageInput,
   Outage,
+  OutageArea,
   OutageComment,
   OutageDetail,
   OutageQuery,
@@ -12,6 +13,7 @@ import type {
   Severity,
   UserPreferences,
 } from "@/lib/types";
+import { buildOutageArea } from "@/lib/outage-area";
 import {
   DEFAULT_PREFERENCES,
   InvalidInputError,
@@ -252,6 +254,42 @@ export class PostgresRepository implements Repository {
       ],
     );
     return rows.map(toOutage);
+  }
+
+  async getOutageArea(id: string): Promise<OutageArea | null> {
+    if (!isUuid(id)) return null;
+
+    // Straight from the table: the outline lives in metadata, which the list
+    // query (search_outages) deliberately never returns.
+    const [row] = await query<{
+      latitude: number;
+      longitude: number;
+      origin: "official" | "crowdsourced";
+      verification_count: number;
+      area: unknown;
+      customers_affected: unknown;
+      customers_served: unknown;
+    }>(
+      `SELECT ST_Y(o.location::geometry) AS latitude, ST_X(o.location::geometry) AS longitude,
+              o.origin, o.verification_count,
+              o.metadata->'area' AS area,
+              o.metadata->'customers_affected' AS customers_affected,
+              o.metadata->'customers_served' AS customers_served
+       FROM outages o
+       WHERE o.id = $1 AND o.metadata->>'scope' IS DISTINCT FROM 'national'`,
+      [id],
+    );
+    if (!row || !Number.isFinite(row.latitude) || !Number.isFinite(row.longitude)) return null;
+
+    return buildOutageArea({
+      latitude: row.latitude,
+      longitude: row.longitude,
+      origin: row.origin,
+      verificationCount: row.verification_count,
+      area: row.area,
+      customersAffected: row.customers_affected,
+      customersServed: row.customers_served,
+    });
   }
 
   async getOutage(id: string, identity: string | null): Promise<OutageDetail | null> {

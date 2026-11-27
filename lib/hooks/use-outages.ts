@@ -7,6 +7,7 @@ import type {
   BoundingBox,
   CreateOutageInput,
   Outage,
+  OutageArea,
   OutageComment,
   OutageDetail,
   Provider,
@@ -169,6 +170,18 @@ export function useOutageDetail(id: string | null) {
     enabled: id !== null,
     queryFn: () => request<{ outage: OutageDetail }>(`/api/outages/${id}`),
     select: (data) => data.outage,
+  });
+}
+
+/** The selected outage as an area to draw (components/map/area-layer.tsx). */
+export function useOutageArea(id: string | null) {
+  return useQuery({
+    queryKey: ["outage-area", id],
+    enabled: id !== null,
+    // Feeds refresh every 20 minutes; reselecting the same outage reuses this.
+    staleTime: 5 * 60 * 1000,
+    queryFn: () => request<{ area: OutageArea }>(`/api/outages/${id}/area`),
+    select: (data) => data.area,
   });
 }
 

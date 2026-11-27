@@ -29,20 +29,40 @@ function timestamp(value: unknown): string | null {
   return new Date(time).toISOString();
 }
 
+/** Encoded polylines use only these characters. */
+const POLYLINE = /^[\x3f-\x7e]+$/;
+const MAX_AREA_RINGS = 40;
+const MAX_AREA_CHARS = 32_000;
+
+/** An outline is stored only when it is well formed and small. */
+function area(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_AREA_RINGS) return null;
+  let chars = 0;
+  for (const ring of value) {
+    if (typeof ring !== "string" || !POLYLINE.test(ring)) return null;
+    chars += ring.length;
+  }
+  return chars <= MAX_AREA_CHARS ? (value as string[]) : null;
+}
+
+function count(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.min(MAX_CUSTOMERS, Math.max(0, Math.round(value)))
+    : null;
+}
+
 export function sanitizeFeedRow(row: IngestedOutage): IngestedOutage | null {
   if (typeof row.sourceId !== "string" || !row.sourceId || row.sourceId.length > 200) return null;
   if (!Number.isFinite(row.latitude) || !Number.isFinite(row.longitude)) return null;
   if (Math.abs(row.latitude) > 90 || Math.abs(row.longitude) > 180) return null;
   if (!SERVICE_TYPES.includes(row.serviceType) || !SEVERITIES.includes(row.severity)) return null;
 
-  const customers = row.customersAffected;
-
   return {
     ...row,
-    customersAffected:
-      typeof customers === "number" && Number.isFinite(customers)
-        ? Math.min(MAX_CUSTOMERS, Math.max(0, Math.round(customers)))
-        : null,
+    customersAffected: count(row.customersAffected),
+    // Optional: a source that never sends them gets rows without them.
+    ...(row.customersServed !== undefined ? { customersServed: count(row.customersServed) } : {}),
+    ...(row.area !== undefined ? { area: area(row.area) } : {}),
     city: text(row.city, 100),
     state: text(row.state, 50),
     description: text(row.description, 2000),

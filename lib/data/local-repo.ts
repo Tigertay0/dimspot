@@ -6,12 +6,14 @@ import type {
   BoundingBox,
   CreateOutageInput,
   Outage,
+  OutageArea,
   OutageComment,
   OutageDetail,
   OutageQuery,
   Provider,
   UserPreferences,
 } from "@/lib/types";
+import { buildOutageArea } from "@/lib/outage-area";
 import { DEFAULT_PREFERENCES, InvalidInputError, type Repository } from "./repository";
 import { SEED_OUTAGES, SEED_PROVIDERS, commentsForSeedIndex } from "./seed";
 
@@ -207,6 +209,21 @@ export class LocalRepository implements Repository {
     results.sort((a, b) => Date.parse(b.reportedAt) - Date.parse(a.reportedAt));
 
     return query.limit ? results.slice(0, query.limit) : results;
+  }
+
+  async getOutageArea(id: string): Promise<OutageArea | null> {
+    const outage = getStore().outages.get(id);
+    if (!outage || outage.scope === "national") return null;
+    // Seed data has no outlines, so every local outage is an estimate.
+    return buildOutageArea({
+      latitude: outage.latitude,
+      longitude: outage.longitude,
+      origin: outage.origin,
+      verificationCount: outage.verificationCount,
+      area: null,
+      customersAffected: outage.customersAffected,
+      customersServed: null,
+    });
   }
 
   async getOutage(

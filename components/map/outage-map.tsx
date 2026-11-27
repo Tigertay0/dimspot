@@ -22,7 +22,8 @@ import Map, {
 import "./maplibre-worker";
 import { DEFAULT_VIEW, HOME_BOUNDS, MARKER_ZOOM } from "@/lib/constants";
 import { useNow } from "@/lib/hooks/use-now";
-import type { Advisory, BoundingBox, Outage } from "@/lib/types";
+import type { Advisory, BoundingBox, Outage, OutageArea } from "@/lib/types";
+import { AreaLayer, ESTIMATE_MIN_PX, areaBounds, zoomToShow } from "./area-layer";
 import { FALLBACK_STYLE } from "./basemap";
 import { MARKERS_MIN_ZOOM, heatLayer, outagesToGeoJSON } from "./heat-layer";
 import { AdvisoryMarker, ClusterMarker, OutageMarker } from "./markers";
@@ -111,6 +112,8 @@ interface OutageMapProps {
   onReady?: () => void;
   /** The place a search landed on, when it is a street or an address. */
   searchPin?: { latitude: number; longitude: number } | null;
+  /** The selected outage as an area: its reported outline, or an estimate. */
+  selectedArea?: OutageArea | null;
 }
 
 export function OutageMap({
@@ -130,6 +133,7 @@ export function OutageMap({
   onLocated,
   onReady,
   searchPin,
+  selectedArea,
 }: OutageMapProps) {
   const mapRef = useRef<MapRef | null>(null);
   const geolocateRef = useRef<GeolocateControlInstance | null>(null);
@@ -275,6 +279,40 @@ export function OutageMap({
     });
   }, [flyTo]);
 
+  // An area larger than the view is zoomed out to, never in: the reader
+  // chose the zoom, and the point is to see the whole of what is affected.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !selectedArea) return;
+
+    // An estimate smaller than its own marker is invisible: zoom in, on it,
+    // until it is a readable size, but not past street level.
+    const closer = selectedArea.kind === "estimate" ? zoomToShow(selectedArea, ESTIMATE_MIN_PX) : null;
+    if (selectedArea.kind === "estimate" && closer !== null && closer > map.getZoom()) {
+      map.easeTo({
+        center: [selectedArea.longitude, selectedArea.latitude],
+        zoom: Math.min(closer, 15),
+        padding: chromePadding(map),
+        duration: 600,
+      });
+      return;
+    }
+
+    const [west, south, east, north] = areaBounds(selectedArea);
+    const view = map.getBounds();
+    const inView =
+      view.getWest() <= west && view.getEast() >= east &&
+      view.getSouth() <= south && view.getNorth() >= north;
+    if (inView) return;
+    map.fitBounds(
+      [
+        [west, south],
+        [east, north],
+      ],
+      { padding: chromePadding(map), maxZoom: map.getZoom(), duration: 600 },
+    );
+  }, [selectedArea]);
+
   const tinted = useTintedBasemap(theme);
   const mapStyle = styleFailed ? FALLBACK_STYLE : tinted;
 
@@ -406,6 +444,14 @@ export function OutageMap({
         <Source id="outage-heat-source" type="geojson" data={heatData}>
           <Layer {...heatLayer} beforeId={firstLabelLayer} />
         </Source>
+      )}
+
+      {/* The selected outage's area, under the labels so place names stay
+          readable through it. Markers are HTML and always sit above. */}
+      {!picking && selectedArea && (
+        // Keyed by kind, and each kind has its own source and layer ids: reusing
+        // one id across the switch left the map with neither drawn.
+        <AreaLayer key={selectedArea.kind} area={selectedArea} beforeId={firstLabelLayer} />
       )}
 
       {/* Advisories render first so outage markers sit above them: a report of

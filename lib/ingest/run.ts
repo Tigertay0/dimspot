@@ -257,6 +257,9 @@ async function syncOutages(
       // Without a feed start time, reported_at is only when we first saw it.
       start_known: o.reportedAt !== null,
       ...(o.scope ? { scope: o.scope } : {}),
+      // Read only by /api/outages/[id]/area, never by the map's list query.
+      ...(o.customersServed ? { customers_served: o.customersServed } : {}),
+      ...(o.area ? { area: o.area } : {}),
     },
   }));
 

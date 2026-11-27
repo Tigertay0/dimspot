@@ -1,7 +1,9 @@
 "use client";
 
 import { X } from "lucide-react";
+import { areaNote } from "@/components/map/area-layer";
 import { locationLabel, outageDuration, timeAgo } from "@/lib/format";
+import { useOutageArea } from "@/lib/hooks/use-outages";
 import type { Outage } from "@/lib/types";
 import { ServiceBadge, SeverityLabel } from "@/components/map/markers";
 
@@ -22,6 +24,8 @@ export function OutagePreview({
   onClose: () => void;
 }) {
   const resolved = outage.status === "resolved";
+  // Same query the map draws from, so this is a cache read, not a second fetch.
+  const note = areaNote(useOutageArea(outage.id).data);
 
   const figure =
     outage.customersAffected !== null
@@ -51,6 +55,9 @@ export function OutagePreview({
           <span className="mt-0.5 block truncate pr-9 text-sm text-muted-foreground">
             {locationLabel(outage)}
           </span>
+          {note && (
+            <span className="mt-0.5 block truncate pr-9 text-[13px] text-muted-foreground">{note}</span>
+          )}
           <span className="mt-2 flex items-center justify-between gap-3 text-sm">
             <SeverityLabel severity={outage.severity} resolved={resolved} className="font-medium" />
             <span className="shrink-0 font-semibold tabular-nums">{figure ?? time}</span>

@@ -58,4 +58,16 @@ describe("sanitizeFeedRow", () => {
     expect(sanitizeFeedRow({ ...row, sourceId: "x".repeat(201) })).toBeNull();
     expect(sanitizeFeedRow({ ...row, severity: "catastrophic" as never })).toBeNull();
   });
+
+  it("keeps a well-formed outline and drops one that is malformed or too large", () => {
+    const outline = ["_p~iF~ps|U_ulLnnqC_mqNvxq`@"];
+    expect(sanitizeFeedRow({ ...row, area: outline, customersServed: 25590.4 })).toMatchObject({
+      area: outline,
+      customersServed: 25590,
+    });
+    expect(sanitizeFeedRow({ ...row, area: ["has spaces in it"] })?.area).toBeNull();
+    expect(sanitizeFeedRow({ ...row, area: ["a".repeat(40_000)] })?.area).toBeNull();
+    expect(sanitizeFeedRow({ ...row, area: Array(41).fill("??") })?.area).toBeNull();
+    expect(sanitizeFeedRow({ ...row, customersServed: -3 })?.customersServed).toBe(0);
+  });
 });

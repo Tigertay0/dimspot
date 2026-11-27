@@ -86,6 +86,32 @@ export interface OutageDetail extends Outage {
 export type OutageOrigin = "crowdsourced" | "official";
 
 /**
+ * Where an outage is, as an area rather than a pin, for drawing it once it is
+ * selected. `outline`: the area the utility itself reported (a ZIP code or a
+ * county), with how many of its customers are out. `estimate`: the source gave
+ * a single point, so this is a circle sized from the customer count or the
+ * number of households reporting, and is labelled as approximate.
+ */
+export type OutageArea =
+  | {
+      kind: "outline";
+      geometry:
+        | { type: "Polygon"; coordinates: [number, number][][] }
+        | { type: "MultiPolygon"; coordinates: [number, number][][][] };
+      /** [west, south, east, north] */
+      bounds: [number, number, number, number];
+      customersAffected: number | null;
+      customersServed: number | null;
+    }
+  | {
+      kind: "estimate";
+      latitude: number;
+      longitude: number;
+      radiusMeters: number;
+      basis: "customers" | "reports" | "default";
+    };
+
+/**
  * A hazard that causes outages rather than an outage itself — a storm warning,
  * say. Kept apart from Outage so the map never implies someone has lost service
  * where nobody has reported losing it.

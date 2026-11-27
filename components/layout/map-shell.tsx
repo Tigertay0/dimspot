@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { House, Minus, Navigation, Plus } from "lucide-react";
 import { DEFAULT_VIEW } from "@/lib/constants";
-import { useAdvisories, useOutages, useSession } from "@/lib/hooks/use-outages";
+import { useAdvisories, useOutageArea, useOutages, useSession } from "@/lib/hooks/use-outages";
 import { activeFilterCount, useFilters } from "@/lib/store/filters";
 import type { Advisory, BoundingBox, GeocodeResult, Outage } from "@/lib/types";
 import Link from "next/link";
@@ -337,6 +337,9 @@ export function MapShell() {
 
   const preview = previewId ? (placed.find((o) => o.id === previewId) ?? null) : null;
 
+  // The tapped (phone) or opened outage, drawn as an area on the map.
+  const { data: selectedArea } = useOutageArea(previewId ?? selectedId);
+
   const openReport = useCallback(() => setReportOpen(true), []);
 
   const list = (
@@ -433,6 +436,7 @@ export function MapShell() {
             onLocated={handleLocated}
             onReady={() => setMapReady(true)}
             searchPin={searchPin}
+            selectedArea={selectedArea ?? null}
           />
 
           {/* The pin for report mode, fixed over the map's centre so the user
