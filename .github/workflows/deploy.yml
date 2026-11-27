@@ -1,0 +1,77 @@
+# Deploys the Worker to production, on demand: Actions tab, "Deploy", "Run
+# workflow". It applies any pending database migrations first (schema goes out
+# before the code that needs it), then builds and deploys, so a release does
+# not depend on anyone's own machine being logged in to Cloudflare.
+#
+# Two repository secrets (Settings, Secrets and variables, Actions):
+#
+#   CLOUDFLARE_API_TOKEN     an API token from the "Edit Cloudflare Workers"
+#                            template, limited to this account and zone
+#   MIGRATION_DATABASE_URL   the Neon owner connection string on the direct
+#                            (not pooled) host; only needed to run migrations
+#
+# Worker secrets (BETTER_AUTH_SECRET, CRON_SECRET, ...) are not touched: they
+# live on the Worker and survive deploys.
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      migrate:
+        description: Apply pending database migrations before deploying
+        type: boolean
+        default: true
+
+# One deploy at a time; a second one waits instead of racing the first.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Migrate and deploy
+    # Production only ever gets what is on main.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      - name: Check the deploy token is set
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Add the CLOUDFLARE_API_TOKEN repository secret (see the top of this file)."
+            exit 1
+          fi
+
+      # The same gate as CI, so a manual deploy cannot ship a red tree.
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+
+      - name: Apply pending migrations
+        if: inputs.migrate
+        env:
+          MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+        run: |
+          if [ -z "$MIGRATION_DATABASE_URL" ]; then
+            echo "::error::Add the MIGRATION_DATABASE_URL repository secret, or run again with migrations off after applying them yourself."
+            exit 1
+          fi
+          node scripts/migrate.mjs
+
+      - name: Build and deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WRANGLER_SEND_METRICS: "false"
+        run: npm run deploy
