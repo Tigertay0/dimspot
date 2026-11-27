@@ -448,20 +448,40 @@ every marker, cluster and interaction still works.
 ## Geocoding
 
 Search and reverse-geocoding proxy through
-[`app/api/geocode/route.ts`](app/api/geocode/route.ts) to Nominatim. It is
-proxied rather than called from the browser because Nominatim requires an
-identifying `User-Agent`, its usage policy caps request rate per source, and
-keeping it server-side means a typed address never leaves in a third-party
-request carrying the user's referrer.
+[`app/api/geocode/route.ts`](app/api/geocode/route.ts) to two free
+OpenStreetMap geocoders, neither needing a key:
 
-The public instance is fine for development. Before real traffic, point at a
-self-hosted instance or a commercial geocoder:
+- **Photon** (`photon.komoot.io`) answers suggestions while someone types. It
+  matches prefixes and takes the map's position as a bias. Nominatim cannot be
+  used for this: it matches whole words only, and its usage policy forbids
+  autocomplete.
+- **Nominatim** answers a submitted search (Enter on a full address, where its
+  US house-number data is better) and the reverse lookup behind the report pin.
+
+Both are proxied rather than called from the browser: they want an identifying
+`User-Agent`, their usage policies cap request rate per source, and keeping it
+server-side means a typed address never leaves in a third-party request
+carrying the user's referrer.
+
+The public instances are fine for development and for light use (Photon asks
+for fair use and throttles heavy callers). Before real traffic, point at
+self-hosted instances or a commercial geocoder:
 
 ```bash
+PHOTON_BASE_URL=https://photon.example.com
 NOMINATIM_BASE_URL=https://nominatim.example.com
 GEOCODER_USER_AGENT="YourApp/1.0 (contact@example.com)"
 GEOCODER_COUNTRY_CODES=us
 ```
+
+### Where the map opens
+
+In order: the outage a link points at; the saved home; the visitor's region
+from Cloudflare's request geolocation (`request.cf`, city-level, returned by
+`/api/session` rounded to a tenth of a degree, never stored, null off
+Cloudflare); then the device's own position, but only when the browser already
+reports the permission as granted or the visitor has used "show my location"
+here before, so nobody gets a permission prompt on first load.
 
 ---
 
@@ -498,7 +518,7 @@ Configuration lives in two places:
   `npx wrangler secret bulk file.json` from a git-ignored file):
   `BETTER_AUTH_SECRET`, `CRON_SECRET`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
   `VAPID_SUBJECT`, `RATE_LIMIT_SALT`, `CLOUDFLARE_RADAR_TOKEN`, and optionally
-  `NWS_USER_AGENT`, `NOMINATIM_BASE_URL`, `GEOCODER_USER_AGENT`,
+  `NWS_USER_AGENT`, `PHOTON_BASE_URL`, `NOMINATIM_BASE_URL`, `GEOCODER_USER_AGENT`,
   `GEOCODER_COUNTRY_CODES`.
 
 `NEXT_PUBLIC_MAP_STYLE_URL` and `NEXT_PUBLIC_MAP_STYLE_URL_DARK` are read at

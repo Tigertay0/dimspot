@@ -7,19 +7,21 @@ import { readFile, writeFile } from "node:fs/promises";
 import sharp from "sharp";
 
 const MASTER = "public/brand/dimspot-mark.svg";
-const GROUND = "#fff6e5"; // lamp white, the ground the logo was approved on
+const GROUND = "#ffffff"; // the app's surface: the ink D reads as a letter on it, not as an egg on black
 const APP_ICON_SIZES = [72, 96, 128, 144, 152, 192, 384, 512];
 const FAVICON_SIZES = [16, 32, 48, 256];
 /** Share of the icon's height the mark fills. App icons stay inside the maskable safe zone. */
-const APP_MARK_HEIGHT = 0.6;
-const FAVICON_MARK_HEIGHT = 0.8;
-const FAVICON_CORNER = 0.2;
+const APP_MARK_HEIGHT = 0.72;
+const FAVICON_MARK_HEIGHT = 0.92;
+const FAVICON_CORNER = 0.22;
 const RENDER_SIZE = 1024;
 
 const master = await readFile(MASTER, "utf8");
 const viewBox = master.match(/viewBox="([^"]+)"/)?.[1];
-const shapes = [...master.matchAll(/<path[^>]*\/>/g)].map((m) => m[0]);
-if (!viewBox || shapes.length !== 2) throw new Error(`${MASTER} is not the two-shape logo this script expects`);
+const drawn = [...master.matchAll(/<(?:path|circle)[^>]*\/>/g)].map((m) => m[0]);
+if (!viewBox || drawn.length !== 2) throw new Error(`${MASTER} is not the two-shape logo this script expects`);
+const [body, spot] = drawn;
+const shapes = [body, spot];
 const [, , markWidth, markHeight] = viewBox.split(" ").map(Number);
 
 /** The logo centred on a square, as an SVG string. */
@@ -64,9 +66,11 @@ const appIcon = square({ markShare: APP_MARK_HEIGHT, ground: GROUND });
 for (const size of APP_ICON_SIZES) await writeFile(`public/icons/icon-${size}.png`, await png(appIcon, size));
 await writeFile("public/apple-touch-icon.png", await png(appIcon, 180));
 
-// Android shows only the badge's shape, in its own colour, so both parts are drawn white on clear.
-const white = shapes.map((shape) => shape.replace(/fill="[^"]+"/, 'fill="#ffffff"'));
-await writeFile("public/icons/badge-72.png", await png(square({ markShare: FAVICON_MARK_HEIGHT, paths: white }), 72));
+// Android shows only the badge's shape, in its own colour: a white D on clear,
+// with the spot knocked out of it so it does not fill in.
+const knockout = `<mask id="k"><rect width="24" height="24" fill="#fff"/>${spot.replace(/fill="[^"]+"/, 'fill="#000"')}</mask>`;
+const badge = [knockout, body.replace(/fill="[^"]+"/, 'fill="#ffffff"').replace("<path", '<path mask="url(#k)"')];
+await writeFile("public/icons/badge-72.png", await png(square({ markShare: FAVICON_MARK_HEIGHT, paths: badge }), 72));
 
 const favicon = square({ markShare: FAVICON_MARK_HEIGHT, ground: GROUND, corner: FAVICON_CORNER });
 const faviconImages = await Promise.all(FAVICON_SIZES.map(async (size) => ({ size, data: await png(favicon, size) })));
